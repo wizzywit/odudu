@@ -12,6 +12,12 @@
   gap: var(--space-3);
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .title {
   margin: 0;
   font-size: var(--type-15);

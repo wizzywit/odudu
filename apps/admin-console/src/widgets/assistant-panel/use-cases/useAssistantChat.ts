@@ -45,6 +45,9 @@ export interface AssistantChat {
   stop: () => void;
   // Carries a turn on after a change was decided.
   resume: () => void;
+  // A new conversation can be started: there is one, and nothing is running.
+  canStartNew: boolean;
+  startNew: () => void;
   // Reads the conversation again after it failed to load.
   retry: () => void;
 }
@@ -59,7 +62,7 @@ export function useAssistantChat(
   pageContext: PageContext,
   env: {
     tenant: string;
-    onConversation: (id: string) => void;
+    onConversation: (id: string | null) => void;
   },
 ): AssistantChat {
   const { tenant } = env;
@@ -148,6 +151,17 @@ export function useAssistantChat(
     [],
   );
 
+  const startNew = (): void => {
+    known.current = null;
+    seeded.current = true;
+    setCreatedId(null);
+    setTurn(null);
+    setConnected(false);
+    setExpectsEnd(false);
+    session.reset();
+    env.onConversation(null);
+  };
+
   const begin = (): void => {
     setTurn(null);
     setConnected(false);
@@ -169,6 +183,8 @@ export function useAssistantChat(
       session.clearError();
       session.send(messageToSend(text)).catch(() => undefined);
     },
+    canStartNew: drawn.messages.length > 0 && !drawn.running,
+    startNew,
     stop,
     resume: () => {
       begin();

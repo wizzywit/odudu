@@ -28,10 +28,11 @@ const ENTRY_GZIP_BUDGET = 127_700;
 // The same bound over everything loaded first: the entry and each chunk it
 // imports statically. 244,911 B (failure screens) plus 5%, then raised for the
 // contracts' free-text pattern (258,018 B) and the shell's assistant button
-// (261,569 B). 267,000 for the lazy assistant panel: 265,925 B measured, from
-// 261,906 B at its parent, 258,813 B at the baseline. The chat client is not
-// first load; zod (+1.6 kB) and the re-split shared chunks (+2.4 kB) are.
-const FIRST_LOAD_GZIP_BUDGET = 267_000;
+// (261,569 B). 267,400 for the lazy assistant panel: 266,322 B measured, from
+// 261,906 B at its parent (258,813 B at the baseline). zod is +1.6 kB (the chat
+// client's schemas) and the re-split shared chunks +2.8 kB; minShareCount on
+// the zod group did not move it, and the contracts schemas are not first load.
+const FIRST_LOAD_GZIP_BUDGET = 267_400;
 
 interface Chunk {
   readonly name: string;

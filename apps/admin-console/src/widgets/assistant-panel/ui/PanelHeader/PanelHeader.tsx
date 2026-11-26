@@ -20,6 +20,8 @@ export function PanelHeader({
   headingRef,
   closeLabel,
   onClose,
+  canStartNew,
+  onStartNew,
   mode,
   modes,
   meter,
@@ -30,6 +32,8 @@ export function PanelHeader({
   headingRef: RefObject<HTMLHeadingElement | null>;
   closeLabel: string;
   onClose: () => void;
+  canStartNew: boolean;
+  onStartNew: () => void;
   mode: AssistantMode;
   modes: readonly AssistantMode[];
   // Null until the server has said something about the allowance.
@@ -44,9 +48,14 @@ export function PanelHeader({
         <h2 ref={headingRef} tabIndex={-1} className={styles.title}>
           {title}
         </h2>
-        <Button size="small" variant="quiet" onPress={onClose}>
-          {closeLabel}
-        </Button>
+        <div className={styles.actions}>
+          <Button size="small" variant="quiet" isDisabled={!canStartNew} onPress={onStartNew}>
+            {words.newConversation}
+          </Button>
+          <Button size="small" variant="quiet" onPress={onClose}>
+            {closeLabel}
+          </Button>
+        </div>
       </div>
       {modes.length > 1 ? (
         <RadioGroup

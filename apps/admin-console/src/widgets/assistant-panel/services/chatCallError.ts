@@ -4,10 +4,10 @@ import type { GatewayFailure } from '#/shared/lib/services/result';
 // gateway's own answer, so the panel words it and never the server's detail.
 export class ChatCallError extends Error {
   readonly failure: GatewayFailure;
-  // Whether the conversation could not be started, or a turn of it failed.
-  readonly during: 'start' | 'turn';
+  // Which call failed: starting the conversation, a message, or a carrying on.
+  readonly during: 'start' | 'messages' | 'resume';
 
-  constructor(failure: GatewayFailure, during: 'start' | 'turn' = 'turn') {
+  constructor(failure: GatewayFailure, during: 'start' | 'messages' | 'resume' = 'messages') {
     super('The assistant call failed.');
     this.name = 'ChatCallError';
     this.failure = failure;

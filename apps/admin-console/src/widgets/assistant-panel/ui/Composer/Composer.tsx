@@ -10,6 +10,8 @@ export function Composer({
   running,
   blocked,
   contextLabel,
+  draft,
+  onDraft,
   words,
   maxLength,
   onSend,
@@ -20,6 +22,9 @@ export function Composer({
   blocked: boolean;
   // Where the administrator is, which goes with the first message.
   contextLabel: string;
+  // What is being typed, held by the panel so putting it away keeps it.
+  draft: string;
+  onDraft: (text: string) => void;
   words: PanelWords;
   // The most the server takes in one message.
   maxLength: number;
@@ -27,7 +32,14 @@ export function Composer({
   onStop: () => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const composer = useComposer({ inputRef, running: running || blocked, onSend, onStop });
+  const composer = useComposer({
+    inputRef,
+    text: draft,
+    setText: onDraft,
+    running: running || blocked,
+    onSend,
+    onStop,
+  });
   const hintId = 'assistant-composer-hint';
   return (
     <form
@@ -50,9 +62,9 @@ export function Composer({
         rows={2}
         maxLength={maxLength}
         disabled={blocked}
-        value={composer.text}
+        value={draft}
         onChange={(event) => {
-          composer.setText(event.target.value);
+          onDraft(event.target.value);
         }}
         onKeyDown={composer.onKeyDown}
       />

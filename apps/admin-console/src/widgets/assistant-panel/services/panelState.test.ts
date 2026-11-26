@@ -127,7 +127,7 @@ describe('the status line', () => {
     [{ kind: 'thinking' }, 'Thinking'],
     [{ kind: 'tool', step: 'Listing subjects' }, 'Listing subjects'],
     [{ kind: 'waiting', act: false }, 'Waiting for you'],
-    [{ kind: 'closed' }, 'Stopped'],
+    [{ kind: 'closed' }, 'Stopped, connection closed'],
     [{ kind: 'stopped' }, 'Stopped'],
     [{ kind: 'step-limit' }, 'Stopped at the step limit'],
     [{ kind: 'budget', level: 'conversation' }, 'Stopped: this conversation’s allowance is used'],

@@ -1,9 +1,19 @@
 import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import { Composer } from '#/widgets/assistant-panel/ui/Composer';
+
+function Held({
+  children,
+}: {
+  children: (draft: string, onDraft: (text: string) => void) => React.ReactNode;
+}) {
+  const [draft, setDraft] = useState('');
+  return children(draft, setDraft);
+}
 
 function composer(
   running = false,
@@ -12,15 +22,21 @@ function composer(
   onStop = vi.fn<() => void>(),
 ) {
   return (
-    <Composer
-      running={running}
-      blocked={blocked}
-      contextLabel="client c1"
-      words={PANEL_WORDING}
-      maxLength={50}
-      onSend={onSend}
-      onStop={onStop}
-    />
+    <Held>
+      {(draft, onDraft) => (
+        <Composer
+          running={running}
+          blocked={blocked}
+          contextLabel="client c1"
+          draft={draft}
+          onDraft={onDraft}
+          words={PANEL_WORDING}
+          maxLength={50}
+          onSend={onSend}
+          onStop={onStop}
+        />
+      )}
+    </Held>
   );
 }
 

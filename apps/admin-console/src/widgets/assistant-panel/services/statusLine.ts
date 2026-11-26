@@ -20,7 +20,7 @@ export function statusLine(state: PanelState): string {
     case 'waiting':
       return PANEL_WORDING.statusWaiting;
     case 'closed':
-      return PANEL_WORDING.statusStopped;
+      return PANEL_WORDING.statusClosed;
     case 'stopped':
       return PANEL_WORDING.statusStopped;
     case 'step-limit':

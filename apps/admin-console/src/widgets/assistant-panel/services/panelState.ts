@@ -1,5 +1,6 @@
 import { budgetLevelOf } from '#/widgets/assistant-panel/services/budget';
 import { GENERIC_FAILURE } from '#/widgets/assistant-panel/services/chatFailure';
+import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import { stepText } from '#/widgets/assistant-panel/services/parts';
 import type {
   ChatStatus,
@@ -69,7 +70,7 @@ export function panelState(input: PanelInput): PanelState {
     };
   }
   if (input.history === 'failed' && input.messageCount === 0) {
-    return { kind: 'failed', failure: { cause: GENERIC_FAILURE, trace: null } };
+    return { kind: 'failed', failure: { cause: PANEL_WORDING.historyFailed, trace: null } };
   }
   if (input.chat === 'submitted') return { kind: input.connected ? 'thinking' : 'connecting' };
   if (input.chat === 'streaming') return liveState(input.last);

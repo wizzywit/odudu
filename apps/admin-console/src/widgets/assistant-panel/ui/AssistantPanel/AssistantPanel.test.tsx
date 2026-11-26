@@ -418,7 +418,9 @@ it('opens on a conversation the person had, reading it from the server', async (
 
 it('says the conversation cannot be read when the server will not give it', async () => {
   await renderPanel({ [`GET ${CONVERSATIONS}/c1`]: problem(404) }, { conversationId: 'c1' });
-  expect(await screen.findByRole('alert')).toHaveTextContent('could not finish');
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'The conversation could not be loaded.',
+  );
   expect(status()).toHaveTextContent('');
 });
 
@@ -491,7 +493,7 @@ it('says the connection closed, not that the answer finished, when the stream en
   stream.push(event({ type: 'text-delta', id: 't1', delta: 'Half an' }));
   stream.close();
   await waitFor(() => {
-    expect(status()).toHaveTextContent('Stopped');
+    expect(status()).toHaveTextContent('Stopped, connection closed');
   });
   expect(status()).not.toHaveTextContent('Finished');
   expect(screen.getByRole('note')).toHaveTextContent(
@@ -526,6 +528,84 @@ it('keeps an answer running when the panel is closed, and shows it again when it
   expect(await screen.findByText('Still going.')).toBeInTheDocument();
   expect(status()).toHaveTextContent('Finished');
   expect(sent.some((request) => request.path.endsWith('/stop'))).toBe(false);
+});
+
+it('lands at the end of the conversation when it is opened, though the answer finished while it was closed', async () => {
+  vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return this.getAttribute('role') === 'log' ? 1000 : 0;
+  });
+  const user = userEvent.setup();
+  const stream = openStream();
+  const { host } = await renderPanel({ [`POST ${MESSAGES}`]: stream.answer });
+  await ask(user);
+  stream.push(event({ type: 'start', messageId: 'a1' }));
+  stream.push(event({ type: 'text-start', id: 't1' }));
+  stream.push(event({ type: 'text-delta', id: 't1', delta: 'Begin' }));
+  await screen.findByText('Begin');
+  act(() => {
+    host.setOpen(false);
+  });
+  stream.push(event({ type: 'text-delta', id: 't1', delta: ' and a very long end.' }));
+  stream.push(event({ type: 'text-end', id: 't1' }));
+  stream.push(event({ type: 'data-turn_end', data: { stopReason: 'done' }, transient: true }));
+  stream.push(event({ type: 'finish' }));
+  stream.push('data: [DONE]\n\n');
+  stream.close();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  act(() => {
+    host.setOpen(true);
+  });
+  const log = await screen.findByRole('log', { name: 'Conversation' });
+  expect(log.scrollTop).toBe(1000);
+});
+
+it('keeps what was being typed when the panel is put away and opened, and clears it on send', async () => {
+  const user = userEvent.setup();
+  const { host } = await renderPanel({ [`POST ${MESSAGES}`]: wholeStream(...TEXT_TURN) });
+  await user.type(screen.getByRole('textbox', { name: 'Message to the assistant' }), 'half a thou');
+  act(() => {
+    host.setOpen(false);
+  });
+  act(() => {
+    host.setOpen(true);
+  });
+  const field = await screen.findByRole('textbox', { name: 'Message to the assistant' });
+  expect(field).toHaveValue('half a thou');
+  await user.type(field, 'ght{Enter}');
+  expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toHaveValue('');
+});
+
+it('starts a fresh conversation from its header when idle, and not while an answer runs', async () => {
+  const user = userEvent.setup();
+  const stream = openStream();
+  let created = 0;
+  const { sent, onConversation } = await renderPanel({
+    [`POST ${CONVERSATIONS}`]: () => {
+      created += 1;
+      return new Response(JSON.stringify({ ...CONVERSATION, id: `c${String(created)}` }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+    [`POST ${CONVERSATIONS}/c1/messages`]: wholeStream(...TEXT_TURN),
+    [`POST ${CONVERSATIONS}/c2/messages`]: stream.answer,
+  });
+  expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
+  await ask(user);
+  expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'New conversation' }));
+  expect(screen.queryByText(/clients\./u)).toBeNull();
+  expect(screen.getByText('Ask about this tenant')).toBeInTheDocument();
+  await ask(user, 'Second');
+  await waitFor(() => {
+    expect(onConversation).toHaveBeenLastCalledWith('c2');
+  });
+  expect(sent.filter((request) => request.path === CONVERSATIONS)).toHaveLength(2);
+  expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
+  stream.close();
 });
 
 it('does not end a running answer when the dialog over the page is dismissed by Escape', async () => {
@@ -602,21 +682,19 @@ it('shows a conversation already in Act as waiting, with a composer that cannot 
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
 });
 
-it('words a turn refused because a change waits apart from one refused because a turn runs', async () => {
+it('words a message refused because a turn is running as exactly that', async () => {
   const user = userEvent.setup();
-  const refuse = (detail: string) => () =>
-    new Response(JSON.stringify({ type: 'about:blank', title: 'Conflict', status: 409, detail }), {
-      status: 409,
-      headers: { 'content-type': 'application/problem+json' },
-    });
-  const waiting = await renderPanel({
-    [`POST ${MESSAGES}`]: refuse('a change still waits for your decision'),
-  });
-  await ask(user);
-  expect(await screen.findByRole('alert')).toHaveTextContent('waiting for your decision');
-  waiting.unmount();
   await renderPanel({
-    [`POST ${MESSAGES}`]: refuse('a turn is already running in this conversation'),
+    [`POST ${MESSAGES}`]: () =>
+      new Response(
+        JSON.stringify({
+          type: 'about:blank',
+          title: 'Conflict',
+          status: 409,
+          detail: 'a turn is already running in this conversation',
+        }),
+        { status: 409, headers: { 'content-type': 'application/problem+json' } },
+      ),
   });
   await ask(user);
   expect(await screen.findByRole('alert')).toHaveTextContent('still running');

@@ -1,5 +1,5 @@
 import { useLocation } from '@tanstack/react-router';
-import type { RefObject } from 'react';
+import { useState, type RefObject } from 'react';
 import type { AssistantView } from '#/entities/assistant';
 import { useDocked } from '#/widgets/assistant-panel/repository/useDocked';
 import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirstRunNotice';
@@ -29,6 +29,9 @@ export interface AssistantPanelState {
   dismissNotice: () => void;
   models: ModelEntry[] | null;
   docked: boolean;
+  // What is being typed, kept while the panel is put away.
+  draft: string;
+  setDraft: (text: string) => void;
   words: PanelWords;
   maxLength: number;
   logRef: RefObject<HTMLDivElement | null>;
@@ -43,8 +46,9 @@ const FREE_CHAT = 'free-chat';
 export function useAssistantPanel(options: {
   tenant: string;
   view: AssistantView;
+  open: boolean;
   conversationId: string | null;
-  onConversation: (id: string) => void;
+  onConversation: (id: string | null) => void;
 }): AssistantPanelState {
   const { tenant, view } = options;
   const { pathname } = useLocation();
@@ -54,8 +58,9 @@ export function useAssistantPanel(options: {
     onConversation: options.onConversation,
   });
   const read = useFirstRunNotice();
-  const scroll = usePinnedScroll(contentSize(chat.messages));
+  const scroll = usePinnedScroll(contentSize(chat.messages), options.open);
   const docked = useDocked();
+  const [draft, setDraft] = useState('');
   return {
     chat,
     mode: chat.mode,
@@ -64,6 +69,8 @@ export function useAssistantPanel(options: {
     dismissNotice: read.dismiss,
     models: modelsOf(view),
     docked,
+    draft,
+    setDraft,
     words: PANEL_WORDING,
     maxLength: COMPOSER_MAX,
     logRef: scroll.logRef,

@@ -40,6 +40,34 @@ describe('what a failed call is told to the person', () => {
     expect(failureOf(refused(404)).cause).toContain('no longer available');
   });
 
+  describe('a 409', () => {
+    const conflict = (during: 'messages' | 'resume', detail: string) =>
+      new ChatCallError(
+        {
+          ok: false,
+          kind: 'problem',
+          problem: { type: 'about:blank', title: 'Conflict', status: 409, detail },
+        },
+        during,
+      );
+
+    it('on a message is a turn already running, whatever the server’s words', () => {
+      expect(
+        failureOf(conflict('messages', 'a turn is already running in this conversation')).cause,
+      ).toContain('still running');
+      expect(failureOf(conflict('messages', 'anything else')).cause).toContain('still running');
+    });
+
+    it('on a resume says whether a change waits or there is nothing to carry on, by the server’s exact detail', () => {
+      expect(failureOf(conflict('resume', 'a change still waits for your decision')).cause).toBe(
+        'A change in this conversation is waiting for your decision.',
+      );
+      expect(failureOf(conflict('resume', 'no decision is waiting to be carried on')).cause).toBe(
+        'There is no change waiting to be carried on.',
+      );
+    });
+  });
+
   it('carries the request’s own reference when there is one, and nothing else', () => {
     expect(failureOf(refused(500, '01a0e77f'))).toEqual({
       cause: 'The console could not reach the assistant. Try again.',

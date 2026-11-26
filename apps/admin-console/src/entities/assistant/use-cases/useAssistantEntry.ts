@@ -19,7 +19,7 @@ export interface AssistantEntry {
   // The conversation the panel was last open on in this tenant, which it
   // comes back to when opened again.
   conversationId: string | null;
-  rememberConversation: (id: string) => void;
+  rememberConversation: (id: string | null) => void;
   words: typeof ASSISTANT_WORDING;
   // The chord as aria-keyshortcuts names it.
   shortcut: string;
@@ -38,21 +38,23 @@ export function useAssistantEntry(
   paused: boolean,
 ): AssistantEntry {
   const view = useAssistantStatus(tenant, available);
-  const [opened, setOpened] = useState(false);
-  const [everOpened, setEverOpened] = useState(false);
+  // Which tenant the panel was opened for, and which it was ever opened for: a
+  // tenant switched to starts closed, with nothing mounted.
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  const [everOpenedFor, setEverOpenedFor] = useState<string | null>(null);
   const [remembered, setRemembered] = useState<{ tenant: string; id: string } | null>(null);
   const panelId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const shown = view.enabled;
-  const open = shown && opened;
+  const open = shown && openedFor === tenant;
 
   // The focus goes back once the panel is gone: a panel laid over the page holds
   // it until then, and a focus sent earlier is refused.
   const returning = useRef(false);
   const close = (): void => {
     returning.current = true;
-    setOpened(false);
+    setOpenedFor(null);
   };
   useEffect(() => {
     if (open || !returning.current) return;
@@ -66,8 +68,8 @@ export function useAssistantEntry(
       return;
     }
     opener.current = from;
-    setEverOpened(true);
-    setOpened(true);
+    setEverOpenedFor(tenant);
+    setOpenedFor(tenant);
   };
   const press = useEffectEvent((event: KeyboardEvent): void => {
     const outcome = shortcutOutcome(event, PLATFORM, { paused, open });
@@ -86,13 +88,13 @@ export function useAssistantEntry(
   return {
     shown,
     open,
-    opened: shown && everOpened,
+    opened: shown && everOpenedFor === tenant,
     panelId,
     headingRef,
     view,
     conversationId: conversationFor(remembered, tenant),
     rememberConversation: (id) => {
-      setRemembered({ tenant, id });
+      setRemembered(id === null ? null : { tenant, id });
     },
     words: ASSISTANT_WORDING,
     shortcut: shortcutName(PLATFORM),

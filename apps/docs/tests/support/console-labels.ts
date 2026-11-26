@@ -642,6 +642,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   Finished: widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
   'Finished.': widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
   Stop: widget('assistant-panel/services/wording.ts', "stop: 'Stop'"),
+  'New conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "newConversation: 'New conversation'",
+  ),
   Send: widget('assistant-panel/services/wording.ts', "send: 'Send'"),
   'Stopped. Nothing further was run.': widget(
     'assistant-panel/services/wording.ts',

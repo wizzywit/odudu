@@ -15,6 +15,7 @@ export interface AssistantPanelSlot {
   // The panel stays mounted once opened, so a closed one keeps its answer running.
   open: boolean;
   conversationId: string | null;
-  onConversation: (id: string) => void;
+  // A conversation was started (its id), or the person began a new one (null).
+  onConversation: (id: string | null) => void;
   onClose: () => void;
 }

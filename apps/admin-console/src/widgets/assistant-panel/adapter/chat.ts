@@ -77,7 +77,7 @@ export function chatTransport(options: {
               typeof init?.body === 'string' ? init.body : '',
               signal,
             );
-      if (!result.ok) throw new ChatCallError(result);
+      if (!result.ok) throw new ChatCallError(result, route === 'resume' ? 'resume' : 'messages');
       onConnected?.();
       const { response } = result;
       if (response.body === null) return response;

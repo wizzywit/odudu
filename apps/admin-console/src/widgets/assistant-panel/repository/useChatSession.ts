@@ -20,6 +20,8 @@ export interface ChatSession {
   // Shows a stored conversation's messages.
   showConversation: (conversation: AssistantConversation) => void;
   clearError: () => void;
+  // Empties the conversation the client holds, for a new one.
+  reset: () => void;
 }
 
 // The chat client over the console's gateway, for one conversation. The
@@ -66,5 +68,9 @@ export function useChatSession(options: {
       chat.setMessages(chatMessagesOf(conversation));
     },
     clearError: chat.clearError,
+    reset: () => {
+      chat.clearError();
+      chat.setMessages([]);
+    },
   };
 }

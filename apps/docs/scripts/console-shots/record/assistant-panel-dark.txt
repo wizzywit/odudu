@@ -106,6 +106,7 @@ Previous
 Page 1
 Next
 Assistant
+New conversation
 Close
 Mode
 Ask

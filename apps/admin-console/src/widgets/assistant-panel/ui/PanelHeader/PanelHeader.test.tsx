@@ -18,6 +18,8 @@ function header(
     meter?: Meter | null;
     models?: { slot: string; model: string }[] | null;
     onClose?: () => void;
+    canStartNew?: boolean;
+    onStartNew?: () => void;
   } = {},
 ) {
   return (
@@ -26,6 +28,8 @@ function header(
       headingRef={createRef<HTMLHeadingElement>()}
       closeLabel="Close"
       onClose={options.onClose ?? vi.fn<() => void>()}
+      canStartNew={options.canStartNew ?? false}
+      onStartNew={options.onStartNew ?? vi.fn<() => void>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
       meter={options.meter ?? null}
@@ -60,6 +64,17 @@ it('names the models only when it is given them', () => {
   render(header({ models: MODELS }));
   expect(screen.getByText('Models')).toBeInTheDocument();
   expect(screen.getByText('d-1')).toBeInTheDocument();
+});
+
+it('offers a new conversation when it can be started, and only then', async () => {
+  const user = userEvent.setup();
+  const onStartNew = vi.fn<() => void>();
+  const idle = render(header({ onStartNew }));
+  expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
+  idle.unmount();
+  render(header({ canStartNew: true, onStartNew }));
+  await user.click(screen.getByRole('button', { name: 'New conversation' }));
+  expect(onStartNew).toHaveBeenCalledTimes(1);
 });
 
 it('closes from its button', async () => {

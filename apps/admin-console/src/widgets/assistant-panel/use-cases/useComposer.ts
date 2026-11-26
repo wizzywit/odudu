@@ -1,9 +1,7 @@
-import { useState, type KeyboardEvent, type RefObject } from 'react';
+import { type KeyboardEvent, type RefObject } from 'react';
 import { canSend, keyAction } from '#/widgets/assistant-panel/services/composer';
 
 export interface ComposerState {
-  text: string;
-  setText: (text: string) => void;
   sendable: boolean;
   submit: () => void;
   stop: () => void;
@@ -14,11 +12,13 @@ export interface ComposerState {
 // person can go on typing the next question, and takes it back after Stop.
 export function useComposer(options: {
   inputRef: RefObject<HTMLTextAreaElement | null>;
+  text: string;
+  setText: (text: string) => void;
   running: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
 }): ComposerState {
-  const [text, setText] = useState('');
+  const { text, setText } = options;
   const sendable = canSend(text, options.running);
   const submit = (): void => {
     if (!sendable) return;
@@ -26,8 +26,6 @@ export function useComposer(options: {
     setText('');
   };
   return {
-    text,
-    setText,
     sendable,
     submit,
     stop: () => {

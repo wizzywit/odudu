@@ -25,14 +25,23 @@ const BY_STATUS: Readonly<Record<number, string>> = {
 const NOT_OFFERED =
   'The assistant is not available here. It may be switched off for this tenant, or not offered to this sign-in.';
 
-// A 409 is two things: a turn already running, or a change that waits for the
-// person's decision, which the server tells apart in its detail.
+// What the server says when a carrying on is refused: a change still waits,
+// or none does (packages/protocol-admin, the resume handler). A 409 on a
+// message is only ever a turn already running, so the route called decides.
+const STILL_WAITS = 'a change still waits for your decision';
+const NOTHING_WAITING = 'There is no change waiting to be carried on.';
+
+function conflictOf(during: ChatCallError['during'], detail: string | undefined): string {
+  if (during !== 'resume') return RUNNING;
+  return detail === STILL_WAITS ? WAITING : NOTHING_WAITING;
+}
+
 function causeOf(
   status: number,
   detail: string | undefined,
-  during: 'start' | 'turn',
+  during: ChatCallError['during'],
 ): string | undefined {
-  if (status === 409) return detail?.includes('decision') === true ? WAITING : RUNNING;
+  if (status === 409) return conflictOf(during, detail);
   return during === 'start' && status === 404 ? NOT_OFFERED : BY_STATUS[status];
 }
 

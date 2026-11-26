@@ -110,7 +110,7 @@ export function panelElement(
     ...routes,
   });
   const onClose = vi.fn<() => void>();
-  const onConversation = vi.fn<(id: string) => void>();
+  const onConversation = vi.fn<(id: string | null) => void>();
   // What the shell does: it keeps the id the panel reports and hands it back,
   // and it keeps the panel mounted while it is closed.
   const host: { setOpen: (open: boolean) => void } = { setOpen: () => undefined };

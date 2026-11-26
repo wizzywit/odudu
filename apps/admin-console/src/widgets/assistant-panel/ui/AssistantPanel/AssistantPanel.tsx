@@ -32,6 +32,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
   const panel = useAssistantPanel({
     tenant: props.tenant,
     view,
+    open,
     conversationId: props.conversationId,
     onConversation: props.onConversation,
   });
@@ -43,6 +44,8 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         headingRef={headingRef}
         closeLabel={closeLabel}
         onClose={onClose}
+        canStartNew={chat.canStartNew}
+        onStartNew={chat.startNew}
         mode={panel.mode}
         modes={view.modes ?? []}
         meter={chat.meter}
@@ -73,6 +76,8 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         running={chat.running}
         blocked={chat.blocked}
         contextLabel={panel.where}
+        draft={panel.draft}
+        onDraft={panel.setDraft}
         words={panel.words}
         maxLength={panel.maxLength}
         onSend={chat.send}
