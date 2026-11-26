@@ -213,6 +213,93 @@ describe('renderSafeMarkdown', () => {
     expect(kinds(nodes).has('strong')).toBe(true);
   });
 
+  describe('tables', () => {
+    const TABLE = '| Name | Kind |\n| --- | :---: |\n| Web | public |\n| Api | **secret** |';
+
+    function cells(table: SafeNode | undefined, section: 'thead' | 'tbody'): string[][] {
+      if (table?.kind !== 'table') return [];
+      const part = table.children.find((node) => node.kind === section);
+      if (part === undefined || !('children' in part)) return [];
+      return part.children.map((row) =>
+        'children' in row ? row.children.map((cell) => textOf([cell])) : [],
+      );
+    }
+
+    it('reads a header row, a separator row and body rows into a table', () => {
+      const nodes = renderSafeMarkdown(TABLE);
+      expect(nodes.map((node) => node.kind)).toEqual(['table']);
+      expect(cells(nodes[0], 'thead')).toEqual([['Name', 'Kind']]);
+      expect(cells(nodes[0], 'tbody')).toEqual([
+        ['Web', 'public'],
+        ['Api', 'secret'],
+      ]);
+      expect(kinds(nodes)).toEqual(
+        new Set(['table', 'thead', 'tbody', 'tr', 'th', 'td', 'text', 'strong']),
+      );
+    });
+
+    it('needs the separator row, and the same number of cells in it', () => {
+      expect(kinds(renderSafeMarkdown('| a | b |\n| c | d |'))).not.toContain('table');
+      expect(kinds(renderSafeMarkdown('| a | b |\n| --- |\n| c | d |'))).not.toContain('table');
+      expect(kinds(renderSafeMarkdown('a | b\n- | -\nc | d'))).toContain('table');
+    });
+
+    it('keeps a table beside the paragraphs around it', () => {
+      const nodes = renderSafeMarkdown(`Before\n${TABLE}\n\nAfter`);
+      expect(nodes.map((node) => node.kind)).toEqual(['p', 'table', 'p']);
+    });
+
+    it('pads a short row, trims a long one and reads an escaped bar as text', () => {
+      const nodes = renderSafeMarkdown(
+        '| a | b |\n|---|---|\n| only |\n| x | y | z |\n| p\\|q | r |',
+      );
+      expect(cells(nodes[0], 'tbody')).toEqual([
+        ['only', ''],
+        ['x', 'y'],
+        ['p|q', 'r'],
+      ]);
+    });
+
+    it('passes cell text through the inline rules and so draws no markup', () => {
+      const nodes = renderSafeMarkdown(
+        '| a | b |\n|---|---|\n| <img src=x onerror=1> | [c](/console/t/c) |\n| ![i](https://e.test/i.png) | [d](javascript:alert(1)) |',
+      );
+      expect(kinds(nodes)).not.toContain('img');
+      expect(textOf(nodes)).toContain('<img src=x onerror=1>');
+      expect(links(nodes)).toEqual(['/console/t/c']);
+    });
+
+    it('stops at a blank line and at another block', () => {
+      expect(renderSafeMarkdown(`${TABLE}\n- item`).map((node) => node.kind)).toEqual([
+        'table',
+        'ul',
+      ]);
+    });
+
+    it('caps rows and columns, and says when rows were left out', () => {
+      const wide = `${Array.from({ length: 30 }, () => 'h').join('|')}\n${Array.from({ length: 30 }, () => '-').join('|')}\n`;
+      const rows = Array.from({ length: 500 }, (_, i) => `${String(i)}|x`).join('\n');
+      const nodes = renderSafeMarkdown(wide + rows);
+      expect(cells(nodes[0], 'thead')[0]?.length).toBeLessThanOrEqual(12);
+      expect(cells(nodes[0], 'tbody').length).toBeLessThanOrEqual(100);
+      expect(textOf(nodes)).toContain('rows are not shown');
+    });
+
+    it('stays within the node cap and fast on a table bomb', () => {
+      const bomb = `${'|a'.repeat(12)}|\n${'|-'.repeat(12)}|\n${`${'|*x'.repeat(12)}|\n`.repeat(20_000)}`;
+      const started = performance.now();
+      const nodes = renderSafeMarkdown(bomb);
+      expect(performance.now() - started).toBeLessThan(300);
+      let count = 0;
+      walk(nodes, () => {
+        count += 1;
+      });
+      expect(count).toBeLessThanOrEqual(5_000);
+      expect(depthOf(nodes)).toBeLessThanOrEqual(8);
+      renderSafeMarkdown(`${'|'.repeat(60_000)}\n${'|-'.repeat(30_000)}`);
+    });
+  });
+
   it('never makes an element outside the allowed set, whatever the input', () => {
     let seed = 0x2545f491;
     const next = (): number => {
@@ -247,6 +334,9 @@ describe('renderSafeMarkdown', () => {
       '# ',
       '> ',
       '\\',
+      '|',
+      '| --- |',
+      '|',
       '&lt;',
       'javascript:',
       'http://x.y/',

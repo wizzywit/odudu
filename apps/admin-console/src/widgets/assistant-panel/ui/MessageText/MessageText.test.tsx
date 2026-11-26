@@ -5,7 +5,7 @@ import { splitBlocks } from '#/widgets/assistant-panel/services/blocks';
 import { MessageText as Text } from '#/widgets/assistant-panel/ui/MessageText';
 
 function MessageText({ text }: { text: string }) {
-  return <Text {...splitBlocks(text)} />;
+  return <Text {...splitBlocks(text)} tableLabel="Table" />;
 }
 
 it('draws emphasis, lists and code as the elements they are', () => {
@@ -60,4 +60,46 @@ it('passes axe in both themes with every kind of node drawn', async () => {
       />
     )),
   ).toEqual({ light: [], dark: [] });
+});
+
+const TABLE = '| Name | Kind |\n|---|---|\n| Web | `public` |\n| Api | **secret** |';
+
+it('draws a pipe table as a table that scrolls inside the message', () => {
+  render(<MessageText text={`Two clients:\n\n${TABLE}`} />);
+  const table = screen.getByRole('table');
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map((cell) => cell.textContent),
+  ).toEqual(['Name', 'Kind']);
+  expect(within(table).getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col');
+  expect(within(table).getAllByRole('row')).toHaveLength(3);
+  expect(within(table).getByText('public').tagName).toBe('CODE');
+  expect(within(table).getByText('secret').tagName).toBe('STRONG');
+  expect(table.querySelector('caption')).toBeNull();
+  const region = screen.getByRole('region', { name: 'Table' });
+  expect(region).toHaveAttribute('tabindex', '0');
+  expect(region).toContainElement(table);
+});
+
+it('keeps a table that is still being written in one piece', () => {
+  render(<MessageText text={'| a | b |\n|---|---|\n| 1 | 2 |'} />);
+  expect(screen.getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['1', '2']);
+});
+
+it('draws no markup a cell carried', () => {
+  const { container } = render(
+    <MessageText
+      text={'| a |\n|---|\n| <img src=x onerror=alert(1)> |\n| ![i](https://e.test/i.png) |'}
+    />,
+  );
+  expect(container.querySelector('img, script')).toBeNull();
+  expect(screen.getAllByRole('cell')[0]).toHaveTextContent('<img src=x onerror=alert(1)>');
+});
+
+it('passes axe in both themes with a table drawn', async () => {
+  expect(await axeInBothThemes(() => <MessageText text={TABLE} />)).toEqual({
+    light: [],
+    dark: [],
+  });
 });
