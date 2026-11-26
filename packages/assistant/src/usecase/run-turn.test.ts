@@ -251,6 +251,77 @@ describe('runTurn', () => {
     expect(offered).toContain('list_clients');
   });
 
+  describe('the trace port', () => {
+    function tracing() {
+      const order: string[] = [];
+      const decisions: { kind: string; payload: Record<string, unknown> }[] = [];
+      const begin = vi.fn((hash: string) => {
+        order.push(`begin:${hash}`);
+        return Promise.resolve();
+      });
+      const onDecision = vi.fn((kind: string, payload: Record<string, unknown>) => {
+        decisions.push({ kind, payload });
+      });
+      const integration = {};
+      return {
+        order,
+        decisions,
+        begin,
+        integration,
+        trace: { integrations: [integration], begin, onDecision },
+      };
+    }
+
+    it('opens the turn with a hash of the prompt before the model is called, and narrows to the reads', async () => {
+      const model = scripted([answer('hi')]);
+      const t = tracing();
+      const { deps } = depsFor(model, { trace: t.trace });
+      await finish(deps);
+      expect(t.begin).toHaveBeenCalledTimes(1);
+      expect(t.begin.mock.calls[0]?.[0]).toMatch(/^[0-9a-f]{64}$/u);
+      expect(t.decisions.find((d) => d.kind === 'narrowing')?.payload).toMatchObject({
+        mode: 'ask',
+        writes: 0,
+      });
+      expect(JSON.stringify(t.decisions)).not.toContain('Acme');
+    });
+
+    it('gives the same hash for the same prompt and another for another tenant text', async () => {
+      const hashes: string[] = [];
+      for (const tenantText of ['Acme', 'Acme', 'Other']) {
+        const t = tracing();
+        const { deps } = depsFor(scripted([answer('hi')]), { trace: t.trace, tenantText });
+        await finish(deps);
+        hashes.push(t.begin.mock.calls[0]?.[0] ?? '');
+      }
+      expect(hashes[0]).toBe(hashes[1]);
+      expect(hashes[0]).not.toBe(hashes[2]);
+    });
+
+    it('says what history compaction left out', async () => {
+      const big = (id: string, role: 'user' | 'assistant'): UIMessage => ({
+        id,
+        role,
+        parts: [{ type: 'text', text: 'x'.repeat(100_000) }],
+      });
+      const t = tracing();
+      const { deps } = depsFor(scripted([answer('hi')]), {
+        trace: t.trace,
+        history: () => Promise.resolve([big('a', 'user'), big('b', 'assistant')]),
+      });
+      await finish(deps, 'and now?');
+      const trimming = t.decisions.find((d) => d.kind === 'trimming');
+      expect(trimming?.payload).toMatchObject({ trimmed: 2 });
+    });
+
+    it('says nothing of trimming when the history fits', async () => {
+      const t = tracing();
+      const { deps } = depsFor(scripted([answer('hi')]), { trace: t.trace });
+      await finish(deps);
+      expect(t.decisions.some((d) => d.kind === 'trimming')).toBe(false);
+    });
+  });
+
   describe('when the conversation’s instance has lapsed', () => {
     it('moves to the next run once and carries on with a new key', async () => {
       const model = scripted([toolCall('c1', 'list_clients', '{}'), answer('Back.')]);

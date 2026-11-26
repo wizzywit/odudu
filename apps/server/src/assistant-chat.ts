@@ -263,9 +263,10 @@ function budgetAuditRecorder(parts: AssistantChatParts): NonNullable<ChatDeps['a
 }
 
 // The `assistant.turn` rows: who, which conversation and turn, the profile and
-// mode, the slots and, once it ends, the tokens, steps and reason. Each is its
-// own short transaction. Nothing here can carry message text, tool output or the
-// name of a tenant object: the summary has no field for one.
+// mode, the slots and, once it ends, the tokens, steps, reason and whether its
+// trace is incomplete. Each is its own short transaction. Nothing here can carry
+// message text, tool output or the name of a tenant object: the summary has no
+// field for one.
 export function turnAuditRecorder(
   parts: Pick<AssistantChatParts, 'database'>,
 ): Pick<ChatDeps, 'recordTurnStart' | 'recordTurn'> {
@@ -273,7 +274,7 @@ export function turnAuditRecorder(
     phase: 'started' | 'ended',
     row: TurnStart,
     outcome: 'allowed' | 'refused' | 'failed',
-    ended: Partial<Pick<TurnSummary, 'tokensBySlot' | 'steps' | 'stopReason'>>,
+    ended: Partial<Pick<TurnSummary, 'tokensBySlot' | 'steps' | 'stopReason' | 'traceLost'>>,
   ) =>
     withTenantRetrying(parts.database.db, row.tenantId, (tx) =>
       auditRepository(tx).record({
@@ -296,6 +297,7 @@ export function turnAuditRecorder(
           ...(ended.tokensBySlot === undefined ? {} : { tokens_by_slot: ended.tokensBySlot }),
           ...(ended.steps === undefined ? {} : { steps: ended.steps }),
           ...(ended.stopReason === undefined ? {} : { stop_reason: ended.stopReason }),
+          ...(ended.traceLost === undefined ? {} : { trace_lost: ended.traceLost }),
         },
       }),
     );

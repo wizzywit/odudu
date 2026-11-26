@@ -1,5 +1,5 @@
 import type { RegisteredTool } from '@odudu/mcp';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, Telemetry } from 'ai';
 import type { ConversationMode } from '#/repository/conversations';
 import type { AssistantTx } from '#/repository/tx';
 import type { RunTurnDeps } from '#/usecase/run-turn';
@@ -163,6 +163,12 @@ interface ChatBase {
   readonly entitlements?: Entitlements;
   /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */
   readonly audit?: (event: BudgetAuditEvent) => Promise<void>;
+  /**
+   * Integrations that receive a turn's events beside the trace recorder, for an
+   * operator's exporter. A turn's integrations are passed for that call and
+   * replace any registered globally, so one registered globally gets none.
+   */
+  readonly telemetry?: readonly Telemetry[];
   readonly now: () => Date;
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */

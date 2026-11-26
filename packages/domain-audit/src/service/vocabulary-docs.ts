@@ -211,7 +211,9 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'default) means the server died, the stream was never read to its end, or the `ended` event ' +
     'could not be written (the log line `assistant.turn_audit_failed` says the last); no monitor ' +
     'for this ships. It holds no message text, tool output or name of anything in the tenant, and ' +
-    'a turn is not begun when its `started` event cannot be written.',
+    'a turn is not begun when its `started` event cannot be written. The `ended` event also ' +
+    'says whether the turn\u2019s trace stops short: `trace_lost` is `true` when a write to the trace ' +
+    'failed, and the turn went on.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

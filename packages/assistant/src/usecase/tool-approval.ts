@@ -29,6 +29,8 @@ import {
 } from '#/service/proposal-rules';
 import { approvalPolicy, ASK_MODE_DENIAL } from '#/service/approval-policy';
 import type { CallWrite } from '#/service/tool-bridge';
+import { policyDecision } from '#/service/trace-decisions';
+import type { OnDecision } from '#/usecase/trace-recorder';
 
 export type OpenOutcome =
   | { kind: 'opened'; card: AssistantApprovalCard }
@@ -62,6 +64,8 @@ export interface PolicyDeps {
   readonly approvals: TurnApprovals;
   readonly signal?: AbortSignal | undefined;
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  /** Where a change's verdict is recorded; a read, which always runs, is not. */
+  readonly onDecision?: OnDecision;
 }
 
 // A page of overrides holds at most 200 and a tenant at most 500 in all.
@@ -164,16 +168,21 @@ export function toolApprovalFor(deps: PolicyDeps): (options: {
       tool: entry.name,
     });
     if (verdict === 'auto') return undefined;
-    if (verdict === 'deny') return { type: 'denied', reason: ASK_MODE_DENIAL };
-    if (inHistory(messages, toolCall.toolCallId)) return 'user-approval';
-    try {
-      return await propose(deps, entry, toolCall);
-    } catch (error) {
-      deps.log?.('assistant.proposal_failed', {
-        tool: entry.name,
-        error: error instanceof Error ? error.name : 'unknown',
-      });
-      return { type: 'denied', reason: FAILED_DENIAL };
-    }
+    const answer = async (): Promise<ToolApprovalStatus> => {
+      if (verdict === 'deny') return { type: 'denied', reason: ASK_MODE_DENIAL };
+      if (inHistory(messages, toolCall.toolCallId)) return 'user-approval';
+      try {
+        return await propose(deps, entry, toolCall);
+      } catch (error) {
+        deps.log?.('assistant.proposal_failed', {
+          tool: entry.name,
+          error: error instanceof Error ? error.name : 'unknown',
+        });
+        return { type: 'denied', reason: FAILED_DENIAL };
+      }
+    };
+    const status = await answer();
+    deps.onDecision?.('policy', policyDecision(entry.name, deps.mode, verdict, status));
+    return status;
   };
 }

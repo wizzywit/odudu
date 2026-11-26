@@ -627,7 +627,12 @@ describe('the audit rows of a turn in the running server', () => {
     expect(details.map((d) => d.phase)).toEqual(['started', 'ended']);
     const [opened, closed] = details;
     expect(opened).toMatchObject({ conversation: id, profile: 'free-chat', mode: 'ask' });
-    expect(closed).toMatchObject({ conversation: id, turn: opened?.turn, stop_reason: 'done' });
+    expect(closed).toMatchObject({
+      conversation: id,
+      turn: opened?.turn,
+      stop_reason: 'done',
+      trace_lost: false,
+    });
     expect(closed?.steps).toBe(2);
     expect(Object.keys(closed?.tokens_by_slot as object)).toEqual(['standard']);
     expect(rows.every((row) => row.resourceId === id && row.outcome === 'allowed')).toBe(true);
@@ -668,6 +673,7 @@ describe('the audit rows of a turn in the running server', () => {
       steps: 0,
       stopReason: 'budget_tenant',
       outcome: 'refused',
+      traceLost: true,
     });
     const [started, ended] = await s().auditRows(w, 'assistant.turn');
     expect(Object.keys(started?.detail as object).sort()).toEqual(
@@ -685,9 +691,11 @@ describe('the audit rows of a turn in the running server', () => {
         'subject',
         'tenant',
         'tokens_by_slot',
+        'trace_lost',
         'turn',
       ].sort(),
     );
+    expect(ended?.detail).toMatchObject({ trace_lost: true });
     expect(ended).toMatchObject({ outcome: 'refused' });
     expect(started).toMatchObject({ outcome: 'allowed' });
   });

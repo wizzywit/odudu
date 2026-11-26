@@ -25,6 +25,7 @@ describe('summaryOf', () => {
       steps: 2,
       tokens: 40,
       stopReason: 'done',
+      traceLost: false,
     });
     expect(summary).toEqual({
       tenantId: 't',
@@ -38,6 +39,24 @@ describe('summaryOf', () => {
       steps: 2,
       stopReason: 'done',
       outcome: 'allowed',
+      traceLost: false,
     });
+  });
+
+  it('says when the trace of the turn is incomplete', () => {
+    const summary = summaryOf({
+      tenantId: 't',
+      subjectId: 's',
+      conversationId: 'c',
+      turnId: 'u',
+      profile: 'free-chat',
+      mode: 'ask',
+      slot: 'standard',
+      steps: 1,
+      tokens: 1,
+      stopReason: 'done',
+      traceLost: true,
+    });
+    expect(summary.traceLost).toBe(true);
   });
 });

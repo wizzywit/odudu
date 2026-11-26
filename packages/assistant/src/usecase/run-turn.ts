@@ -5,6 +5,7 @@ import {
   ToolLoopAgent,
   wrapLanguageModel,
   type LanguageModel,
+  type Telemetry,
   type ToolSet,
   type UIMessage,
 } from 'ai';
@@ -26,7 +27,21 @@ import type { ConversationMode } from '#/repository/conversations';
 import { toolApprovalFor, type TurnApprovals } from '#/usecase/tool-approval';
 import { buildSystemPrompt } from '#/service/system-prompt';
 import { toSdkTools } from '#/service/tool-bridge';
+import { narrowingDecision, promptHashOf, trimmingDecision } from '#/service/trace-decisions';
 import type { TurnBudgetPort } from '#/usecase/budget-hooks';
+import type { OnDecision } from '#/usecase/trace-recorder';
+
+/**
+ * What a turn writes to its trace. The integrations are passed to the agent for
+ * this call, which replaces any registered globally, so the recorder is the
+ * first of them and an operator's exporter goes in the same list.
+ */
+export interface TurnTrace {
+  readonly integrations: readonly Telemetry[];
+  /** Opens the turn's row; `promptHash` stands for the system prompt, which is not kept. */
+  readonly begin: (promptHash: string) => Promise<void>;
+  readonly onDecision: OnDecision;
+}
 
 export interface RunTurnDeps {
   readonly model: LanguageModel;
@@ -44,6 +59,8 @@ export interface RunTurnDeps {
   // refused before its tool runs. Required whenever `approvals` is.
   readonly approvalSecret?: Uint8Array;
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  // Absent, the turn leaves no trace.
+  readonly trace?: TurnTrace;
   // Reserves before each model call and settles after it; absent, the turn is unmetered.
   readonly budget?: TurnBudgetPort;
   // The tenant's most steps for one turn; the profile's own cap applies if it is lower.
@@ -120,12 +137,8 @@ function buildAgent(
   toolDefinitions: string,
   progress: Progress,
   toolApproval: ReturnType<typeof toolApprovalFor> | undefined,
+  prompt: ReturnType<typeof buildSystemPrompt>,
 ) {
-  const prompt = buildSystemPrompt(
-    deps.profile,
-    masking(deps)(deps.tenantText),
-    deps.approvals === undefined ? 'ask' : (deps.mode ?? 'ask'),
-  );
   return new ToolLoopAgent({
     model: metered(deps),
     instructions: [
@@ -137,6 +150,9 @@ function buildAgent(
     ...(deps.approvalSecret === undefined
       ? {}
       : { experimental_toolApprovalSecret: deps.approvalSecret }),
+    ...(deps.trace === undefined
+      ? {}
+      : { telemetry: { integrations: [...deps.trace.integrations] } }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     stopWhen: stepCountIs(stepLimit(deps)),
     // The compacted messages carry forward, so a long turn is trimmed once and
@@ -144,6 +160,8 @@ function buildAgent(
     prepareStep: async ({ messages, instructions }) => {
       const fixed = inputUpperBound(requestParts(instructions, [], toolDefinitions).fixed);
       const compacted = compactHistory(messages, Math.max(0, MAX_REQUEST_TOKENS - fixed));
+      const trimming = trimmingDecision(messages, compacted);
+      if (trimming !== undefined) deps.trace?.onDecision('trimming', trimming);
       await deps.budget?.beforeCall(requestParts(instructions, compacted, toolDefinitions));
       if (typeof deps.model === 'string') await deps.budget?.markSent();
       return { messages: compacted };
@@ -197,6 +215,15 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
     ...(approvals === undefined ? [] : assistantWriteTools(deps.tools)),
   ];
   const tools = toSdkTools(offered, read, masking(deps), approvals?.write);
+  const mode = approvals === undefined ? 'ask' : (deps.mode ?? 'ask');
+  deps.trace?.onDecision(
+    'narrowing',
+    narrowingDecision(
+      mode,
+      offered.filter((entry) => entry.access === 'read').length,
+      offered.filter((entry) => entry.access === 'write').length,
+    ),
+  );
   const progress: Progress = { steps: 0, lastFinish: undefined };
   const toolApproval =
     approvals === undefined
@@ -208,13 +235,23 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
           approvals,
           signal: input.signal,
           ...(deps.log === undefined ? {} : { log: deps.log }),
+          ...(deps.trace === undefined ? {} : { onDecision: deps.trace.onDecision }),
         });
-  const agent = buildAgent(deps, tools, await toolDefinitionsText(tools), progress, toolApproval);
+  const prompt = buildSystemPrompt(deps.profile, masking(deps)(deps.tenantText), mode);
+  const agent = buildAgent(
+    deps,
+    tools,
+    await toolDefinitionsText(tools),
+    progress,
+    toolApproval,
+    prompt,
+  );
   const earlier = boundHistory(await deps.history(input.conversationId));
   const messages = await convertToModelMessages(
     input.message === undefined ? earlier : [...earlier, input.message],
     { ignoreIncompleteToolCalls: true },
   );
+  await deps.trace?.begin(promptHashOf(prompt.static, prompt.tenant));
   return {
     result: await agent.stream({ messages, abortSignal: input.signal }),
     tools,

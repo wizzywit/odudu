@@ -9,8 +9,9 @@ export type TurnOutcome = 'allowed' | 'refused' | 'failed';
 /**
  * What the audit trail keeps of one turn: who, which conversation and turn,
  * the profile and mode it ran under, the slots and tokens it used, how many
- * steps it took and why it ended. It has no field for message text, tool
- * output, the names of tenant objects or a key, so none can reach the trail.
+ * steps it took and why it ended, and whether the turn's trace is incomplete.
+ * It has no field for message text, tool output, the names of tenant objects or
+ * a key, so none can reach the trail.
  */
 export interface TurnSummary {
   readonly tenantId: string;
@@ -24,6 +25,8 @@ export interface TurnSummary {
   readonly steps: number;
   readonly stopReason: StopReason;
   readonly outcome: TurnOutcome;
+  /** A write to the trace failed, so what the trace holds of this turn stops short. */
+  readonly traceLost: boolean;
 }
 
 /** The row written before a turn does anything: the same names, with nothing yet used. */
@@ -49,9 +52,12 @@ export interface TurnFacts {
   readonly steps: number;
   readonly tokens: number;
   readonly stopReason: StopReason;
+  readonly traceLost: boolean;
 }
 
-export function startOf(facts: Omit<TurnFacts, 'steps' | 'tokens' | 'stopReason'>): TurnStart {
+export function startOf(
+  facts: Omit<TurnFacts, 'steps' | 'tokens' | 'stopReason' | 'traceLost'>,
+): TurnStart {
   const { tenantId, subjectId, conversationId, turnId, profile, mode, slot } = facts;
   return { tenantId, subjectId, conversationId, turnId, profile, mode, slots: [slot] };
 }

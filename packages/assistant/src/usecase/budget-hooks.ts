@@ -15,6 +15,7 @@ import {
 } from '#/service/limits';
 import { reservationTokens, type RequestParts } from '#/service/request-size';
 import type { Slot } from '#/service/slots';
+import { reservationDecision } from '#/service/trace-decisions';
 
 /** Raised by the loop's `prepareStep` when a level refuses the next model call. */
 export class BudgetRefused extends Error {
@@ -54,6 +55,8 @@ export interface TurnBudgetDeps {
   readonly onWarning: (warning: BudgetWarning) => void;
   /** Tokens a provider charged beyond what was reserved, once settled. */
   readonly onOverrun: (tokens: number) => void;
+  /** What each reservation held, and the level that refused one. */
+  readonly onReservation?: (decision: Record<string, unknown>) => void;
 }
 
 export interface TurnBudget extends TurnBudgetPort {
@@ -132,11 +135,13 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
         await settle(unsettledCharge);
         const at = deps.now();
         carried = inputUpperBound(request.messages);
+        const fixedBytes = inputUpperBound(request.fixed);
         const tokens = reservationTokens({
-          fixedBytes: inputUpperBound(request.fixed),
+          fixedBytes,
           messagesBytes: carried,
           ...(previous === undefined ? {} : { previous }),
         });
+        const held = { slot: deps.slot, tokens, fixedBytes, messagesBytes: carried };
         const reserved = await deps.transact((tx) =>
           budgetRepository(tx).reserve({
             turnId: deps.turnId,
@@ -145,6 +150,9 @@ export function createTurnBudget(deps: TurnBudgetDeps): TurnBudget {
             levels: levelsAt(at, startedAt),
             now: at,
           }),
+        );
+        deps.onReservation?.(
+          reservationDecision(reserved.ok ? held : { ...held, refusedBy: reserved.level }),
         );
         if (!reserved.ok) {
           refusal = refusalOf(reserved.level);

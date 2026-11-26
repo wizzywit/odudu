@@ -161,6 +161,58 @@ describe('Ask mode', () => {
   });
 });
 
+describe('the policy decisions of a turn', () => {
+  function withTrace(deps: RunTurnDeps) {
+    const decisions: { kind: string; payload: Record<string, unknown> }[] = [];
+    return {
+      decisions,
+      deps: {
+        ...deps,
+        trace: {
+          integrations: [],
+          begin: () => Promise.resolve(),
+          onDecision: (kind: string, payload: Record<string, unknown>) => {
+            decisions.push({ kind, payload });
+          },
+        },
+      } as RunTurnDeps,
+    };
+  }
+
+  it('records a refusal in Ask mode and a proposal in Act mode, with no reason the model reads', async () => {
+    for (const [mode, outcome] of [
+      ['ask', 'denied'],
+      ['act', 'approval_requested'],
+    ] as const) {
+      const model = scripted([
+        toolCall('call-1', 'update_client_metadata', WRITE_INPUT),
+        answer('done'),
+      ]);
+      const { deps } = setup(model, mode);
+      const traced = withTrace(deps());
+      await drain(traced.deps, ask('change the description'));
+      const policy = traced.decisions.filter((d) => d.kind === 'policy');
+      expect(policy.map((d) => d.payload)).toEqual([
+        {
+          tool: 'update_client_metadata',
+          mode,
+          verdict: mode === 'ask' ? 'deny' : 'ask',
+          outcome,
+        },
+      ]);
+      expect(JSON.stringify(policy)).not.toContain('New text');
+    }
+  });
+
+  it('does not record the reads, which always run', async () => {
+    const model = scripted([toolCall('call-1', 'get_client', { id: CLIENT }), answer('ok')]);
+    const { deps } = setup(model, 'act');
+    const traced = withTrace(deps());
+    await drain(traced.deps, ask('look'));
+    expect(traced.decisions.filter((d) => d.kind === 'policy')).toEqual([]);
+  });
+});
+
 describe('Act mode', () => {
   it('stores the proposal from a read the server made and ends on the approval request', async () => {
     const model = scripted([

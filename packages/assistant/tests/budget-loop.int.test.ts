@@ -280,6 +280,21 @@ describe('a level that refuses', () => {
       stopReason: 'budget_tenant',
     });
     expect(JSON.stringify(audits)).not.toContain('hello');
+
+    const traced = await withTenant(app.db, w.tenantId, async (tx) => ({
+      events: await tx.execute<{ kind: string; payload: Record<string, unknown> }>(
+        sql`select kind, payload from assistant_events order by seq`,
+      ),
+      turns: await tx.execute<{ stop_reason: string }>(
+        sql`select stop_reason from assistant_turns`,
+      ),
+    }));
+    expect(traced.turns.map((turn) => turn.stop_reason)).toEqual(['budget_tenant']);
+    expect(traced.events.find((event) => event.kind === 'reservation')?.payload).toMatchObject({
+      slot: 'standard',
+      outcome: 'refused',
+      level: 'tenant_month',
+    });
   });
 
   it('refuses on the turn level once a turn has spent its share, and names it', async () => {

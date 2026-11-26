@@ -9,6 +9,7 @@ import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from 
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
+import { slotDecision } from '#/service/trace-decisions';
 import { startOf, summaryOf } from '#/service/turn-summary';
 import {
   approvalCardChunk,
@@ -29,6 +30,7 @@ import { openEntitlements } from '#/usecase/entitlements';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
 import type { TurnApprovals } from '#/usecase/tool-approval';
+import { traceRecorder } from '#/usecase/trace-recorder';
 
 export type SendOutcome =
   | {
@@ -306,6 +308,18 @@ async function runConversationTurn(
 
   const raised: UIMessageChunk[] = [];
   const overruns: number[] = [];
+  const trace = traceRecorder({
+    transact: (fn) => deps.transact(caller.tenantId, fn),
+    now: deps.now,
+    newId: deps.newId,
+    tenantId: caller.tenantId,
+    turnId,
+    conversationId: id,
+    profile: profile.id,
+    slot: profile.slot,
+    maskEmails: prepared.maskEmails,
+    ...(deps.log === undefined ? {} : { log: deps.log }),
+  });
   const budget = createTurnBudget({
     transact: (fn) => deps.transact(caller.tenantId, fn),
     now: deps.now,
@@ -320,6 +334,9 @@ async function runConversationTurn(
     },
     onOverrun: (tokens) => {
       overruns.push(tokens);
+    },
+    onReservation: (decision) => {
+      trace.decision(turnId, 'reservation', decision);
     },
   });
 
@@ -378,11 +395,17 @@ async function runConversationTurn(
   // logged and never changes what the person saw.
   const closeTurnRow = async (): Promise<void> => {
     try {
+      // The trace closes first, in its own transaction, so that the row says
+      // whether the trace is whole. The two cannot be one transaction: the
+      // audit row is the server's, written through its own repository.
+      const stopReason = ending();
+      await trace.end(stopReason);
       const summary = summaryOf({
         ...facts,
         steps: progress().steps,
         tokens: budget.charged(),
-        stopReason: ending(),
+        stopReason,
+        traceLost: trace.lost(),
       });
       await deps.recordTurn(summary);
     } catch (error) {
@@ -452,6 +475,8 @@ async function runConversationTurn(
     // been stored, reserved or sent to a model yet.
     await deps.recordTurnStart(startOf(facts));
     opened = true;
+    const model = deps.model(profile.slot);
+    trace.decision(turnId, 'slot_chosen', slotDecision(profile.slot, profile.id, model));
     const loaded = await loadMessages(deps, caller, id);
     if (start.kind === 'message') {
       const { message } = start;
@@ -465,7 +490,7 @@ async function runConversationTurn(
 
     const started = await startTurn(
       {
-        model: deps.model(profile.slot),
+        model,
         profile,
         tenantText: prepared.pageContext,
         maskEmails: prepared.maskEmails,
@@ -482,6 +507,13 @@ async function runConversationTurn(
               }),
             }),
         budget,
+        trace: {
+          integrations: [trace, ...(deps.telemetry ?? [])],
+          begin: (promptHash) => trace.begin(promptHash),
+          onDecision: (kind, payload) => {
+            trace.decision(turnId, kind, payload);
+          },
+        },
         maxStepsPerTurn: prepared.limits.maxStepsPerTurn,
         history: () => Promise.resolve(earlier),
         ...deps.turn(caller, id, turnId),
