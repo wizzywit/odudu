@@ -14,7 +14,7 @@ T = TypeVar("T", bound="PostAdminTenantsTenantAssistantConversationsIdStopRespon
 class PostAdminTenantsTenantAssistantConversationsIdStopResponse200:
     """
     Attributes:
-        stopped (bool):
+        stopped (bool): `true` when this server was running a turn of the conversation and ended it.
     """
 
     stopped: bool

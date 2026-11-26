@@ -127,6 +127,7 @@ import {
   sendMessageRequestSchema,
   setConversationModeRequestSchema,
   setConversationModeResponseSchema,
+  stopConversationResponseSchema,
   SEND_MESSAGE_BODY_LIMIT,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
@@ -2286,7 +2287,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'POST',
     pattern: '/admin/tenants/:tenant/assistant/conversations/:id/stop',
     capability: 'use-assistant',
-    responseSchema: z.object({ stopped: z.boolean() }),
+    responseSchema: stopConversationResponseSchema,
     noIdempotency: 'not-atomic',
     description:
       'Ends the conversation\u2019s running turn: `{ "stopped": true }` when this server was ' +

@@ -37,6 +37,7 @@ import {
   sendMessageRequestSchema,
   setConversationModeRequestSchema,
   setConversationModeResponseSchema,
+  stopConversationResponseSchema,
 } from '#/admin/assistant';
 import {
   auditEventSchema,
@@ -52,6 +53,7 @@ import {
   assistantExportedConversationSchema,
   assistantResumedConversationSchema,
   lastAssistantConversationResponseSchema,
+  listAssistantConversationsQuerySchema,
   listAssistantConversationsResponseSchema,
   setConversationArchivedRequestSchema,
   setConversationArchivedResponseSchema,
@@ -1423,6 +1425,14 @@ describeFields(setConversationModeRequestSchema, {
   mode: '`ask` for reads only, `act` to let the assistant propose changes that wait for approval.',
 });
 describeFields(setConversationModeResponseSchema, { mode: 'The mode the conversation is now in.' });
+describeFields(stopConversationResponseSchema, {
+  stopped: '`true` when this server was running a turn of the conversation and ended it.',
+});
+
+describeFields(listAssistantConversationsQuerySchema, {
+  archived:
+    '`true` lists the conversations the person hid; the default lists the ones they did not.',
+});
 
 describeFields(listAssistantActivityQuerySchema, {
   person: 'Only conversations of this person, by subject id.',

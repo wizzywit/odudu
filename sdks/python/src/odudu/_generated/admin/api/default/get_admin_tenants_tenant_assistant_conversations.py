@@ -110,7 +110,8 @@ def sync_detailed(
         cursor (str | Unset): The `next` value of the previous page, to continue after it.
         limit (int | Unset): How many items to return. A value over 200 is treated as 200; the
             default is 50.
-        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset):
+        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset): `true` lists the
+            conversations the person hid; the default lists the ones they did not.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -156,7 +157,8 @@ def sync(
         cursor (str | Unset): The `next` value of the previous page, to continue after it.
         limit (int | Unset): How many items to return. A value over 200 is treated as 200; the
             default is 50.
-        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset):
+        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset): `true` lists the
+            conversations the person hid; the default lists the ones they did not.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -197,7 +199,8 @@ async def asyncio_detailed(
         cursor (str | Unset): The `next` value of the previous page, to continue after it.
         limit (int | Unset): How many items to return. A value over 200 is treated as 200; the
             default is 50.
-        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset):
+        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset): `true` lists the
+            conversations the person hid; the default lists the ones they did not.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -241,7 +244,8 @@ async def asyncio(
         cursor (str | Unset): The `next` value of the previous page, to continue after it.
         limit (int | Unset): How many items to return. A value over 200 is treated as 200; the
             default is 50.
-        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset):
+        archived (GetAdminTenantsTenantAssistantConversationsArchived | Unset): `true` lists the
+            conversations the person hid; the default lists the ones they did not.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.

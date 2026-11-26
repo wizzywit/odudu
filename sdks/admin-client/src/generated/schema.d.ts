@@ -10448,6 +10448,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
+                            /** @description `true` when this server was running a turn of the conversation and ended it. */
                             stopped: boolean;
                         };
                     };

@@ -185,6 +185,7 @@ export type DecideApprovalResponse = z.infer<typeof decideApprovalResponseSchema
 export const setConversationModeRequestSchema = z.strictObject({ mode: assistantModeSchema });
 export type SetConversationModeRequest = z.infer<typeof setConversationModeRequestSchema>;
 export const setConversationModeResponseSchema = z.object({ mode: assistantModeSchema });
+export const stopConversationResponseSchema = z.object({ stopped: z.boolean() });
 
 // The vocabulary of a streamed turn's closing and warning parts, the one the
 // panel reads: the limits a turn is counted against, and why a turn ended.

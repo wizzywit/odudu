@@ -513,6 +513,7 @@ export {
   setConversationModeRequestSchema,
   type SetConversationModeRequest,
   setConversationModeResponseSchema,
+  stopConversationResponseSchema,
   ASSISTANT_BUDGET_LEVELS,
   assistantBudgetLevelSchema,
   type AssistantBudgetLevel,
