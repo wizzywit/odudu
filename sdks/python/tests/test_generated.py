@@ -63,7 +63,7 @@ def test_the_matcher_agrees_with_the_document_for_every_admin_operation() -> Non
                 method.upper(), sample(template), admin_idempotent.IDEMPOTENT_OPERATIONS
             )
             assert got is expected, (method, template)
-    assert marked == len(admin_idempotent.IDEMPOTENT_OPERATIONS) == 23
+    assert marked == len(admin_idempotent.IDEMPOTENT_OPERATIONS) == 24
 
 
 def test_the_matcher_reads_a_path_and_not_a_prefix_or_an_extra_segment() -> None:
