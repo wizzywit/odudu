@@ -8,14 +8,11 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar(
-    "T",
-    bound="GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsItem",
-)
+T = TypeVar("T", bound="AssistantConversationsPostResponseMessagesItemPartsItem")
 
 
 @_attrs_define
-class GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsItem:
+class AssistantConversationsPostResponseMessagesItemPartsItem:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -28,10 +25,10 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItemPartsI
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item_parts_item = cls()
+        assistant_conversations_post_response_messages_item_parts_item = cls()
 
-        get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item_parts_item.additional_properties = d
-        return get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item_parts_item
+        assistant_conversations_post_response_messages_item_parts_item.additional_properties = d
+        return assistant_conversations_post_response_messages_item_parts_item
 
     @property
     def additional_keys(self) -> list[str]:

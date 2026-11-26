@@ -12,8 +12,8 @@ from ..models.get_admin_tenants_tenant_assistant_conversations_id_response_200_m
 )
 
 if TYPE_CHECKING:
-    from ..models.get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item import (
-        GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem,
+    from ..models.assistant_conversations_post_response_messages_item import (
+        AssistantConversationsPostResponseMessagesItem,
     )
 
 
@@ -31,8 +31,8 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
         title (None | str): A short title once the conversation has one, otherwise `null`.
         created_at (str): When it was started.
         last_active_at (str): When it last took a message.
-        messages (list[GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem]): The latest messages,
-            oldest first, never more than 100; the page context the conversation started with is not among them.
+        messages (list[AssistantConversationsPostResponseMessagesItem]): The latest messages, oldest first, never more
+            than 100; the page context the conversation started with is not among them.
     """
 
     id: str
@@ -41,7 +41,7 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
     title: None | str
     created_at: str
     last_active_at: str
-    messages: list[GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem]
+    messages: list[AssistantConversationsPostResponseMessagesItem]
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -80,8 +80,8 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.get_admin_tenants_tenant_assistant_conversations_id_response_200_messages_item import (
-            GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem,  # noqa: PLC0415
+        from ..models.assistant_conversations_post_response_messages_item import (
+            AssistantConversationsPostResponseMessagesItem,  # noqa: PLC0415
         )
 
         d = dict(src_dict)
@@ -107,7 +107,7 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
         messages = []
         _messages = d.pop("messages")
         for messages_item_data in _messages:
-            messages_item = GetAdminTenantsTenantAssistantConversationsIdResponse200MessagesItem.from_dict(
+            messages_item = AssistantConversationsPostResponseMessagesItem.from_dict(
                 messages_item_data
             )
 
