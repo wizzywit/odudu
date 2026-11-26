@@ -169,3 +169,5 @@ curl -sS \
 {"type":"about:blank","title":"Error","status":400,"detail":"querystring must NOT have additional properties: cursor","errors":[{"path":"cursor","message":"must NOT have additional properties"}],"instance":"01a0ea61-846d-7b1b-afe7-c61051d5153f"}
 {"type":"about:blank","title":"Bad Request","status":400,"detail":"search one field at a time: username or email, not both","errors":[{"path":"email","message":"search one field at a time: username or email, not both"}],"instance":"01a0ea61-847a-7970-bb2c-77e99c2bf5e8"}
 ```
+
+Every tenant is also provisioned with `odudu-assistant`, a public client the console assistant's conversations act as, beside `odudu-admin` and `odudu-mcp`. Its `client_id` is reserved the same way (`409`), and it has no redirect URI and no usable grant. The blocks on this page were captured before it existed and were not run again, so a client list shows one fewer client than a server now answers with, and a count one fewer.

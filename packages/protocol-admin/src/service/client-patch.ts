@@ -39,6 +39,8 @@ const REFUSALS: Readonly<Record<string, string>> = {
     "builtin_admin marks the client a tenant's administration roles hang from; changing it needs its own operation, not a general amendment",
   builtin_mcp:
     'builtin_mcp marks the client every tenant is provisioned with for MCP clients; it is not amendable',
+  builtin_assistant:
+    'builtin_assistant marks the client the console assistant acts as; it is not amendable',
   metadata_used_at:
     'metadata_used_at is set each time the client metadata document is resolved and ages a client out',
   approved_at:

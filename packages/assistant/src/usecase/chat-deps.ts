@@ -1,5 +1,6 @@
 import type { RegisteredTool } from '@odudu/mcp';
 import type { LanguageModel } from 'ai';
+import type { ConversationMode } from '#/repository/conversations';
 import type { AssistantTx } from '#/repository/tx';
 import type { RunTurnDeps } from '#/usecase/run-turn';
 import type { Slot } from '#/service/slots';
@@ -21,15 +22,31 @@ export interface ChatCaller {
   readonly ip: string;
 }
 
+export type AccessOutcome = { kind: 'granted' } | { kind: 'refused'; reason: string };
+
 export interface ChatDeps {
   /** Runs `fn` in one short transaction bound to the tenant. */
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
   readonly model: (slot: Slot) => LanguageModel;
   readonly tools: readonly RegisteredTool[];
-  /** How a turn for this caller gets a token and runs a tool. */
-  readonly turn: (caller: ChatCaller) => Pick<RunTurnDeps, 'mintToken' | 'callTool'>;
+  /** How a turn of one of the caller's conversations gets a token and runs a tool. */
+  readonly turn: (
+    caller: ChatCaller,
+    conversationId: string,
+  ) => Pick<RunTurnDeps, 'mintToken' | 'callTool'>;
   /** The agent instance a new conversation acts as. */
   readonly instanceIdFor: (caller: ChatCaller, conversationId: string) => string;
+  /**
+   * Makes the conversation's own grant from the caller's console sign-in, in the
+   * transaction that creates the conversation, so there is never one without the
+   * other. The grant is stored under the conversation's id. A refusal is returned,
+   * not thrown, and nothing has been written when it is.
+   */
+  readonly grantAccess: (
+    tx: AssistantTx,
+    caller: ChatCaller,
+    conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
+  ) => Promise<AccessOutcome>;
   readonly now: () => Date;
   readonly newId: () => string;
   /** The most turns this process runs at once; 256 unless a test says otherwise. */

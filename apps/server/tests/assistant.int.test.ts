@@ -209,14 +209,6 @@ function post(app: FastifyInstance, w: World, tail: string, token: string, paylo
   });
 }
 
-function grantOf(token: string): string {
-  const [, payload = ''] = token.split('.');
-  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as {
-    grant_id: string;
-  };
-  return claims.grant_id;
-}
-
 describe('the conversation routes in the running server', () => {
   const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
 
@@ -230,7 +222,7 @@ describe('the conversation routes in the running server', () => {
     const rows = (await s().owner.db.execute(
       sql`select instance_id from assistant_conversations where id = ${id}`,
     )) as unknown as { instance_id: string }[];
-    expect(rows[0]?.instance_id).toBe(runInstanceId(w.tenantId, grantOf(token), id));
+    expect(rows[0]?.instance_id).toBe(runInstanceId(w.tenantId, id, id));
 
     const loaded = await get(on(), w, `/conversations/${id}`, token);
     expect(loaded.statusCode, loaded.body).toBe(200);

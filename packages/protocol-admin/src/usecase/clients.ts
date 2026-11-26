@@ -24,6 +24,7 @@ import { roles } from '@odudu/domain-authz';
 import { subjects } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
   ALLOWED_ACTION_NAMES,
   ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
@@ -607,9 +608,9 @@ function toClientView(client: ClientRecord, config: ClientOidcConfig): StoredVie
   };
 }
 
-// `odudu-admin` and `odudu-mcp` are reserved for the built-in clients every
-// tenant is provisioned with (`provisionAdminClient` and `provisionMcpClient`,
-// @odudu/protocol-oidc). Each refuses to *adopt* a client that already carries
+// `odudu-admin`, `odudu-mcp` and `odudu-assistant` are reserved for the built-in
+// clients every tenant is provisioned with (`provisionAdminClient`,
+// `provisionMcpClient` and `provisionAssistantClient`, @odudu/protocol-oidc). Each refuses to *adopt* a client that already carries
 // its id but is not the real thing (`admin_client_not_builtin`,
 // `mcp_client_not_builtin`, @odudu/domain-tenant), but that guard only fires
 // when a tenant is provisioned. Creation through this door is refused up front instead.
@@ -618,7 +619,11 @@ export async function createClient(
   deps: CreateClientDeps,
   input: CreateClientInput,
 ): Promise<CreateClientOutcome> {
-  if (input.clientId === ADMIN_CLIENT_ID || input.clientId === MCP_CLIENT_ID) {
+  if (
+    input.clientId === ADMIN_CLIENT_ID ||
+    input.clientId === MCP_CLIENT_ID ||
+    input.clientId === ASSISTANT_CLIENT_ID
+  ) {
     await deps.audit(tx, {
       action: 'client.create',
       resourceType: 'client',
@@ -1838,10 +1843,12 @@ async function deleteClientUnguarded(
     { type: 'client', id: input.clientDbId },
   );
   if (refused !== null) return refused;
-  if (clientRow.builtinAdmin || clientRow.builtinMcp) {
+  if (clientRow.builtinAdmin || clientRow.builtinMcp || clientRow.builtinAssistant) {
     const reason = clientRow.builtinAdmin
       ? `${clientRow.clientId} is this tenant's built-in admin client and cannot be deleted`
-      : `${clientRow.clientId} is this tenant's built-in MCP client and cannot be deleted; disable it instead`;
+      : clientRow.builtinAssistant
+        ? `${clientRow.clientId} is this tenant's built-in assistant client and cannot be deleted; disable it instead`
+        : `${clientRow.clientId} is this tenant's built-in MCP client and cannot be deleted; disable it instead`;
     await deps.audit(tx, {
       action: 'client.delete',
       resourceType: 'client',

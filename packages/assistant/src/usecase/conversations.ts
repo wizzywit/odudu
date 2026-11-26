@@ -7,7 +7,10 @@ import { FREE_CHAT, profileById } from '#/service/profile';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
 
 export type CreateOutcome =
-  { kind: 'created'; conversation: AssistantConversation } | { kind: 'unknown_profile' };
+  | { kind: 'created'; conversation: AssistantConversation }
+  | { kind: 'unknown_profile' }
+  // The caller's sign-in cannot be given an assistant's identity: nothing was written.
+  | { kind: 'access_refused'; reason: string };
 
 export async function createConversation(
   deps: ChatDeps,
@@ -18,14 +21,17 @@ export async function createConversation(
   if (profileById(profile) === undefined) return { kind: 'unknown_profile' };
   const id = deps.newId();
   const now = deps.now();
+  const mode = request.mode ?? 'ask';
   const record = await deps.transact(caller.tenantId, async (tx) => {
+    const access = await deps.grantAccess(tx, caller, { id, mode, now });
+    if (access.kind === 'refused') return access;
     const created = await conversationRepository(tx).create({
       id,
       tenantId: caller.tenantId,
       ownerSubjectId: caller.ownerSubjectId,
       instanceId: deps.instanceIdFor(caller, id),
       profile,
-      mode: request.mode ?? 'ask',
+      mode,
       now,
     });
     await messageRepository(tx).append(id, {
@@ -34,6 +40,7 @@ export async function createConversation(
     });
     return created;
   });
+  if ('kind' in record) return { kind: 'access_refused', reason: record.reason };
   return { kind: 'created', conversation: conversationView(record, []) };
 }
 

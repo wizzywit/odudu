@@ -1544,6 +1544,36 @@ describe('the built-in MCP client', () => {
     expect(res.json<{ detail: string }>().detail).toMatch(/reserved/iu);
   });
 
+  it('refuses the reserved client_id odudu-assistant, and to delete the one every tenant has', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+      payload: { client_id: 'odudu-assistant', token_endpoint_auth_method: 'none' },
+    });
+    expect(created.statusCode).toBe(409);
+    expect(created.json<{ detail: string }>().detail).toMatch(/reserved/iu);
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?client_id=odudu-assistant`,
+      headers,
+    });
+    const found = listed
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-assistant');
+    if (found === undefined) throw new Error('the tenant has no odudu-assistant client');
+    const deleted = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${found.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(deleted.statusCode).toBe(409);
+    expect(deleted.json<{ detail: string }>().detail).toMatch(/built-in assistant client/iu);
+  });
+
   it('refuses to delete it: an administrator turns it off by disabling it', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients']);

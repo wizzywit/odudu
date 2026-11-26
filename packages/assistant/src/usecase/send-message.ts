@@ -114,7 +114,7 @@ export async function sendMessage(
         tenantText: prepared.pageContext,
         tools: deps.tools,
         history: () => Promise.resolve(prepared.earlier),
-        ...deps.turn(caller),
+        ...deps.turn(caller, id),
       },
       { conversationId: id, message, signal: AbortSignal.any([signal, turn.signal]) },
     );

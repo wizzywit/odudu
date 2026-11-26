@@ -27,6 +27,7 @@ import {
 import { CLAIM_KEY, isEmailAddress, isValidE164, shapeInvalidityFor } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
   ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   ME_WRITE_NEEDS_READ_MESSAGE,
@@ -600,8 +601,10 @@ function clientProblems(
         ALLOWED_ACTIONS_NEED_ME_READ,
       );
     }
-    if (client.client_id === ADMIN_CLIENT_ID) {
-      problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
+    for (const provisioned of [ADMIN_CLIENT_ID, ASSISTANT_CLIENT_ID]) {
+      if (client.client_id === provisioned) {
+        problems.add(`${path}.client_id`, `${provisioned} is provisioned by every new tenant`);
+      }
     }
     const actors = client.delegated_actors;
     const unknown = actors.findIndex((actor) => !clientIds.has(actor));

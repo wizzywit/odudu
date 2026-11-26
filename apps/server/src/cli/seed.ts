@@ -110,6 +110,7 @@ import {
   isWellFormedWebOrigin,
   needsServiceAccount,
   provisionAdminClient,
+  provisionAssistantClient,
   provisionMcpClient,
   tenantLookupRepository,
   type ClientOidcConfig,
@@ -488,6 +489,7 @@ async function performSeed(
     if (tenantCreated) {
       await provisionTenant(tx, tenantId);
       await provisionMcpClient(tx, tenantId);
+      await provisionAssistantClient(tx, tenantId);
     }
     // Idempotent, so a tenant seeded before this client existed gains one
     // here rather than being left without — only the flow and signing key
@@ -775,6 +777,7 @@ export async function seedAdmin(options: SeedAdminOptions): Promise<SeededAdmin>
         // client_scopes_name_unique.
         await provisionTenant(tx, tenantId);
         await provisionMcpClient(tx, tenantId);
+        await provisionAssistantClient(tx, tenantId);
       }
       const { clientDbId } = await provisionAdminClient(tx, tenantId, {
         crossTenant: true,
@@ -1188,7 +1191,10 @@ async function runTenantCommand(
   // gets one if an earlier run predates the admin client's existence.
   await withTenant(runtimeDb, tenantId, async (tx) => {
     await provisionAdminClient(tx, tenantId, consoleOptions);
-    if (created) await provisionMcpClient(tx, tenantId);
+    if (created) {
+      await provisionMcpClient(tx, tenantId);
+      await provisionAssistantClient(tx, tenantId);
+    }
   });
 
   if (settings.length > 0) {

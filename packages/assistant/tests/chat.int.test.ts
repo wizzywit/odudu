@@ -150,6 +150,7 @@ function chatOver(
     tools: TOOLS,
     turn: () => ({ mintToken, callTool }),
     instanceIdFor: () => newId(),
+    grantAccess: () => Promise.resolve({ kind: 'granted' }),
     now: () => new Date(),
     newId,
     ...overrides,
@@ -213,6 +214,51 @@ describe('create and load', () => {
       page_context: CONTEXT,
     });
     expect(created.kind).toBe('unknown_profile');
+  });
+
+  it('asks for the conversation’s grant in the transaction that creates it, naming its id and mode', async () => {
+    const w = await world();
+    const seen: { id: string; mode: string }[] = [];
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      grantAccess: (_tx, _caller, conversation) => {
+        seen.push({ id: conversation.id, mode: conversation.mode });
+        return Promise.resolve({ kind: 'granted' });
+      },
+    });
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { mode: 'act', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    expect(seen).toEqual([{ id: created.conversation.id, mode: 'act' }]);
+  });
+
+  it('writes no conversation when the grant is refused', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      grantAccess: () => Promise.resolve({ kind: 'refused', reason: 'grant_not_console' }),
+    });
+    const created = await chat.create(callerOf(w, w.alice), {
+      mode: 'ask',
+      page_context: CONTEXT,
+    });
+    expect(created).toEqual({ kind: 'access_refused', reason: 'grant_not_console' });
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_conversations`),
+    );
+    expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
+  });
+
+  it('writes no conversation when making the grant fails part way', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      grantAccess: () => Promise.reject(new Error('the grant could not be made')),
+    });
+    await expect(
+      chat.create(callerOf(w, w.alice), { mode: 'ask', page_context: CONTEXT }),
+    ).rejects.toThrow('the grant could not be made');
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_conversations`),
+    );
+    expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
   });
 });
 

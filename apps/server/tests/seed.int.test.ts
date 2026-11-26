@@ -196,9 +196,9 @@ describe('seed', () => {
 
     const first = await seed(options);
     await expect(seed(options)).resolves.toMatchObject({ created: false });
-    // The requested client plus the built-in odudu-admin and odudu-mcp this
-    // tenant's creation provisions alongside it.
-    expect(await countClients(first.tenantId)).toBe(3);
+    // The requested client plus the built-in odudu-admin, odudu-mcp and
+    // odudu-assistant this tenant's creation provisions alongside it.
+    expect(await countClients(first.tenantId)).toBe(4);
     expect(await countSigningKeys(first.tenantId)).toBe(1);
   });
 

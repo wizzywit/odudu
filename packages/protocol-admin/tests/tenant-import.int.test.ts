@@ -627,6 +627,27 @@ describe('POST /admin/tenant-imports', () => {
     });
   }
 
+  it('leaves the assistant client out of the export, and refuses a document that names it', async () => {
+    const source = await fixture.createTenant(`assistant-src-${newId()}`);
+    const token = await operatorToken();
+    const original = await exportOf(token, source.name);
+    expect(original.clients.map((client) => client.client_id)).not.toContain('odudu-assistant');
+    const template = original.clients.find((client) => client.client_id === 'odudu-mcp');
+    if (template === undefined) throw new Error('the export has no odudu-mcp client');
+    const named = {
+      ...original,
+      clients: [...original.clients, { ...template, client_id: 'odudu-assistant' }],
+    };
+    const name = `assistant-copy-${newId()}`;
+    const res = await postImport(token, { name, document: named });
+    expect(res.statusCode, res.payload).toBe(400);
+    const errors = res.json<{ errors: { path: string; message: string }[] }>().errors;
+    expect(errors.map((e) => e.message)).toContain(
+      'odudu-assistant is provisioned by every new tenant',
+    );
+    expect(await tenantIdOf(name)).toBeNull();
+  });
+
   it('carries the built-in MCP client in the export and reproduces it on import, once', async () => {
     const source = await fixture.createTenant(`mcp-src-${newId()}`);
     const token = await operatorToken();

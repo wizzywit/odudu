@@ -778,3 +778,5 @@ psql -c "select a.action, a.outcome, a.detail from audit_events a join tenants t
 (2 rows)
 
 ```
+
+The listing above was captured before `odudu-assistant` was added to every tenant and was not run again; a stack now prints it as a further row.
