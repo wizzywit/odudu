@@ -73,7 +73,7 @@ Any status
 Any status
 Enabled
 Disabled
-3 clients
+4 clients
 Client
 Type
 Status
@@ -90,6 +90,15 @@ recently
 Client
 Odudu MCP
 odudu-mcp
+Type
+Public
+Status
+enabled
+Created
+recently
+Client
+Odudu assistant
+odudu-assistant
 Type
 Public
 Status
