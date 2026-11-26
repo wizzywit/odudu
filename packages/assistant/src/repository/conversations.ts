@@ -42,6 +42,8 @@ export interface ConversationList {
    * tenant, a tenant id those made for that tenant, so a list never mixes the two.
    */
   target: string | null;
+  /** The tenant that holds the conversations, bound as a value so the index can serve the order. */
+  tenant: string;
   after?: ActivityPosition | undefined;
   limit: number;
 }
@@ -124,10 +126,7 @@ export function conversationRepository(tx: AssistantTx) {
         list.after === undefined
           ? sql``
           : sql`and (c.last_active_at, c.id) < (${list.after.lastActiveAt}::timestamptz, ${list.after.id}::uuid)`;
-      const target =
-        list.target === null
-          ? sql`c.target_tenant_id is null`
-          : sql`c.target_tenant_id = ${list.target}`;
+      const target = sql`c.scope_tenant_id = ${list.target ?? list.tenant}::uuid`;
       const state = list.archived ? sql`c.archived_at is not null` : sql`c.archived_at is null`;
       const rows = await tx.execute<ListRow>(sql`
         select c.id, c.title, c.profile, c.mode, c.created_at, c.last_active_at,

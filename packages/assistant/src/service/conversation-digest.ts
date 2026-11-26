@@ -28,8 +28,9 @@ export interface DigestedMessage {
  * copy of the text matches only if every message and its order do. The digest
  * confirms a copy to whoever holds the key; it is not evidence of what was said.
  */
-export function conversationDigest(key: Uint8Array, tenantId: string) {
-  const mac = createHmac('sha256', createHmac('sha256', key).update(tenantId).digest());
+export function conversationDigest(key: Uint8Array, tenantId: string, conversationId: string) {
+  const tenantKey = createHmac('sha256', key).update(tenantId).digest();
+  const mac = createHmac('sha256', createHmac('sha256', tenantKey).update(conversationId).digest());
   return {
     add(message: DigestedMessage): void {
       mac.update(JSON.stringify([message.seq, message.role, message.parts]));

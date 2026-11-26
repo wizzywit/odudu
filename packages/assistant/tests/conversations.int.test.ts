@@ -168,6 +168,7 @@ describe('every method refuses a foreign tenant', () => {
       attempt: async (tx, seeded) =>
         conversationRepository(tx).listByOwner(seeded.subjectId, {
           archived: false,
+          tenant: seeded.tenantId,
           target: null,
           limit: 10,
         }),
@@ -345,10 +346,22 @@ describe('conversationRepository', () => {
       const repo = conversationRepository(tx);
       for (let n = 0; n < 3; n += 1) await repo.create(conversation(tenantId, subjectId));
       return [
-        (await repo.listByOwner(subjectId, { archived: false, target: null, limit: 2.5 })).items
-          .length,
-        (await repo.listByOwner(subjectId, { archived: false, target: null, limit: Number.NaN }))
-          .items.length,
+        (
+          await repo.listByOwner(subjectId, {
+            archived: false,
+            tenant: tenantId,
+            target: null,
+            limit: 2.5,
+          })
+        ).items.length,
+        (
+          await repo.listByOwner(subjectId, {
+            archived: false,
+            tenant: tenantId,
+            target: null,
+            limit: Number.NaN,
+          })
+        ).items.length,
       ];
     });
 
@@ -377,15 +390,22 @@ describe('conversationRepository', () => {
         const at = new Date(NOW.getTime() + Math.floor(n / 2) * 1000);
         ids.push((await repo.create(conversation(tenantId, subjectId, { now: at }))).id);
       }
-      const first = await repo.listByOwner(subjectId, { archived: false, target: null, limit: 2 });
+      const first = await repo.listByOwner(subjectId, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        limit: 2,
+      });
       const second = await repo.listByOwner(subjectId, {
         archived: false,
+        tenant: tenantId,
         target: null,
         after: first.next ?? undefined,
         limit: 2,
       });
       const third = await repo.listByOwner(subjectId, {
         archived: false,
+        tenant: tenantId,
         target: null,
         after: second.next ?? undefined,
         limit: 2,
@@ -410,7 +430,14 @@ describe('conversationRepository', () => {
       const repo = conversationRepository(tx);
       await repo.create(conversation(tenantId, subjectId));
       await repo.create(conversation(tenantId, otherId));
-      return (await repo.listByOwner(otherId, { archived: false, target: null, limit: 10 })).items;
+      return (
+        await repo.listByOwner(otherId, {
+          archived: false,
+          tenant: tenantId,
+          target: null,
+          limit: 10,
+        })
+      ).items;
     });
 
     expect(items).toHaveLength(1);
@@ -418,9 +445,10 @@ describe('conversationRepository', () => {
 
   it('never reads more than MAX_LIMIT rows however large a limit it is given', async () => {
     recorded = [];
-    await inTenant(async (tx, _tenantId, subjectId) =>
+    await inTenant(async (tx, tenantId, subjectId) =>
       conversationRepository(tx).listByOwner(subjectId, {
         archived: false,
+        tenant: tenantId,
         target: null,
         limit: MAX_LIMIT * 10,
       }),
@@ -454,7 +482,12 @@ describe('conversationRepository', () => {
 
     recorded = [];
     await withTenant(app.db, tenantId, async (tx) =>
-      conversationRepository(tx).listByOwner(target, { archived: false, target: null, limit: 20 }),
+      conversationRepository(tx).listByOwner(target, {
+        archived: false,
+        tenant: tenantId,
+        target: null,
+        limit: 20,
+      }),
     );
     const listing = recorded.find((entry) =>
       entry.query.includes('from assistant_conversations c'),

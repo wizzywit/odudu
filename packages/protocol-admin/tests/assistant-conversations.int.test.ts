@@ -436,6 +436,12 @@ describe('access', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant.name) },
+      { method: 'GET', url: `/admin/tenants/${tenant.name}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant.name)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant.name)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export/markdown` },
     ] as const;
     for (const call of calls) {
       const res = await fx().http.inject({ ...call, headers });
@@ -463,6 +469,12 @@ describe('with no model configured', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant.name) },
+      { method: 'GET', url: `/admin/tenants/${tenant.name}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant.name)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant.name)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export` },
+      { method: 'GET', url: `${BASE(tenant.name)}/${ID}/export/markdown` },
     ] as const;
     for (const call of calls) {
       const res = await bare.http.inject({ ...call, headers });
@@ -482,6 +494,11 @@ describe('a system-tenant administrator on another tenant', () => {
         payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
       },
       { method: 'POST', url: `${BASE(tenant)}/${ID}/stop` },
+      { method: 'GET', url: BASE(tenant) },
+      { method: 'GET', url: `/admin/tenants/${tenant}/assistant/last-conversation` },
+      { method: 'PUT', url: `${BASE(tenant)}/${ID}/archived`, payload: { archived: true } },
+      { method: 'DELETE', url: `${BASE(tenant)}/${ID}` },
+      { method: 'GET', url: `${BASE(tenant)}/${ID}/export` },
     ] as const;
 
   it('reaches the port as themselves, with the path tenant as the target', async () => {
@@ -495,7 +512,7 @@ describe('a system-tenant administrator on another tenant', () => {
       expect(res.statusCode, `${call.method} ${call.url}`).toBeLessThan(300);
     }
     const seen = recorded.callers.slice(before);
-    expect(seen.length).toBe(2);
+    expect(seen.length).toBe(7);
     for (const caller of seen) {
       expect(caller.tenantId).toBe(fx().systemTenantId);
       expect(caller.tenantName).toBe('system');

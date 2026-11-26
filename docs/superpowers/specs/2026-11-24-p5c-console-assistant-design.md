@@ -392,8 +392,9 @@ owner's decision of 2026-11-26, and states 5.9's retention once. What is built i
   by `(tenant_id, owner_subject_id, last_active_at, id)` of at most 201 rows. Reopening is
   one list row and one message read of at most 100. Hiding, titling and a delete's lookup
   are by primary key. A delete or an export walks the messages 50 at a time, so memory
-  is bounded by a page and the work by one conversation (an export stops at 500
-  messages). A tombstone is one row for each deleted conversation, removed with its
+  is bounded by a page and the work by one conversation, which retention and the
+  token limits keep small; a delete walks all of it under the row lock and an export stops
+  at 500 messages. A tombstone is one row for each deleted conversation, removed with its
   person or tenant, and no list reads it. Nothing here reads the audit table.
 
 ### 5.10 Testing and evals

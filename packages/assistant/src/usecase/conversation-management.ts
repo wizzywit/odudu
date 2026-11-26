@@ -79,6 +79,7 @@ export async function listConversations(
     conversationRepository(tx).listByOwner(caller.ownerSubjectId, {
       archived: input.archived,
       target: targetOf(caller),
+      tenant: caller.tenantId,
       after,
       limit: input.limit,
     }),
@@ -161,6 +162,9 @@ export async function deleteConversation(
   if (ports === undefined) return { kind: 'unavailable' };
   const now = deps.now();
   const outcome = await ports.withAudit(caller, async (tx, record): Promise<DeleteOutcome> => {
+    // Ownership is settled before the lock, so no one queues behind another person's row.
+    const seen = await conversationRepository(tx).byId(id);
+    if (seen === undefined || !conversationIsCallers(seen, caller)) return { kind: 'not_found' };
     const row = await conversationRepository(tx).lock(id);
     if (row === undefined || !conversationIsCallers(row, caller)) return { kind: 'not_found' };
     if (row.reportedAt !== null) return { kind: 'held' };

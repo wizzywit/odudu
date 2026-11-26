@@ -28,7 +28,7 @@ export function tombstoneRepository(tx: AssistantTx) {
       now: Date,
       key: Uint8Array,
     ): Promise<Tombstone> {
-      const digest = conversationDigest(key, record.tenantId);
+      const digest = conversationDigest(key, record.tenantId, record.id);
       const messages = messageRepository(tx);
       let messageCount = 0;
       let after = 0;

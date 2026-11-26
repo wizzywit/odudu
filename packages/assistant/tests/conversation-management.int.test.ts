@@ -393,7 +393,7 @@ describe('deleting a conversation', () => {
     const before = await withTenant(app.db, w.tenantId, (tx) =>
       messageRepository(tx).pageAfter(id, 0, 50),
     );
-    const digest = conversationDigest(KEY, w.tenantId);
+    const digest = conversationDigest(KEY, w.tenantId, id);
     for (const message of before) {
       digest.add({ seq: message.seq, role: message.role, parts: message.parts });
     }
@@ -745,22 +745,44 @@ describe('the list reads through an index', () => {
              now(), now() - (n || ' seconds')::interval,
              case when n % 4 = 0 then now() else null end
         from (select id from subjects where tenant_id = ${tenantId}) s, generate_series(1, 400) n`;
+    // The person also holds conversations at other tenants, which a list for their
+    // own tenant, or for one target, must not read past.
+    const targets = [newId(), newId()];
+    for (const target of targets) {
+      await owner.sql`insert into tenants (id, name) values (${target}, ${`tgt-${target.slice(-12)}`})`;
+      await owner.sql`
+        insert into assistant_conversations
+          (tenant_id, id, owner_subject_id, instance_id, profile, mode, created_at, last_active_at, archived_at, target_tenant_id)
+        select ${tenantId}, gen_random_uuid(), ${person}, gen_random_uuid(), 'free-chat', 'ask',
+               now(), now() + (n || ' seconds')::interval, case when n % 4 = 0 then now() else null end, ${target}
+          from generate_series(1, 6000) n`;
+    }
     await owner.sql`analyze assistant_conversations`;
 
-    for (const [archived, index] of [
-      [false, 'assistant_conversations_owner_open'],
-      [true, 'assistant_conversations_owner_archived'],
-    ] as const) {
+    const lists = [
+      [false, 'assistant_conversations_owner_open', null],
+      [true, 'assistant_conversations_owner_archived', null],
+      [false, 'assistant_conversations_owner_open', targets[0] ?? ''],
+      [true, 'assistant_conversations_owner_archived', targets[1] ?? ''],
+    ] as const;
+    for (const [archived, index, target] of lists) {
       recorded = [];
       const first = await withTenant(app.db, tenantId, (tx) =>
-        conversationRepository(tx).listByOwner(person, { archived, target: null, limit: 20 }),
+        conversationRepository(tx).listByOwner(person, {
+          archived,
+          tenant: tenantId,
+          target,
+          limit: 20,
+        }),
       );
       expect(first.items).toHaveLength(20);
+      expect(first.items.every((row) => row.targetTenantId === target)).toBe(true);
       expect(first.next).not.toBeNull();
       const second = await withTenant(app.db, tenantId, (tx) =>
         conversationRepository(tx).listByOwner(person, {
           archived,
-          target: null,
+          tenant: tenantId,
+          target,
           limit: 20,
           after: first.next ?? undefined,
         }),
@@ -774,14 +796,18 @@ describe('the list reads through an index', () => {
         const plan = await app.sql.begin(async (tx) => {
           await tx`select set_config('app.tenant_id', ${tenantId}, true)`;
           const rows = await tx.unsafe<{ 'QUERY PLAN': unknown }[]>(
-            `EXPLAIN (FORMAT JSON) ${listing.query}`,
+            `EXPLAIN (ANALYZE, FORMAT JSON) ${listing.query}`,
             listing.parameters as never[],
           );
           return JSON.stringify(rows[0]?.['QUERY PLAN']);
         });
-        expect(plan, `archived=${String(archived)}`).toContain(index);
-        expect(plan).not.toContain('"Node Type":"Sort"');
+        expect(plan, `archived=${String(archived)} target=${String(target)} ${plan}`).toContain(
+          index,
+        );
+        expect(plan, plan).not.toContain('"Node Type":"Sort"');
         expect(plan).not.toContain('"Node Type":"Seq Scan"');
+        // No row of the person's other lists is read and thrown away.
+        expect(plan).not.toMatch(/"Rows Removed by (Index Recheck|Filter)":[1-9]/u);
       }
     }
   });

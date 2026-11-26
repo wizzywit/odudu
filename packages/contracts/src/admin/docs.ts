@@ -1652,7 +1652,7 @@ describeFields(assistantSettingsSchema, {
   assistant_trace_retention_days:
     'How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention.',
   assistant_auditor_visible:
-    'Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. A tenant that saved a value keeps it when the default changes.',
+    'Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`.',
   assistant_monthly_tokens_fast:
     'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit.',
   assistant_monthly_tokens_standard:

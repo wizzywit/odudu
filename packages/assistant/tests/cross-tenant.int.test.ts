@@ -401,7 +401,12 @@ describe('listing a person’s conversations', () => {
     const list = (target: string | null) =>
       withTenant(app.db, w.home, async (tx) =>
         (
-          await conversationRepository(tx).listByOwner(w.s, { archived: false, target, limit: 50 })
+          await conversationRepository(tx).listByOwner(w.s, {
+            archived: false,
+            tenant: w.home,
+            target,
+            limit: 50,
+          })
         ).items.map((row) => row.id),
       );
     expect(await list(null)).toEqual([home]);

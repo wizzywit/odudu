@@ -1,15 +1,20 @@
 -- A person's own conversations: hiding one from their list, listing them, and
 -- deleting one. Archiving sets a timestamp and removes nothing. The list reads
 -- one person's rows in one of two states through a partial index each, so
--- neither state walks the other's rows; the older index over both states no
+-- neither state walks the other's rows, and the tenant a list is for leads the ordering columns, so a system administrator's own-tenant list and each
+-- target's list read only their own rows; the older index over both states no
 -- longer serves a read and goes.
 ALTER TABLE assistant_conversations ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+-- The tenant a conversation is about: its target, else its own. A plain column
+-- so the list can bind it with `=`, which lets the index serve the ordering.
+ALTER TABLE assistant_conversations
+  ADD COLUMN IF NOT EXISTS scope_tenant_id uuid GENERATED ALWAYS AS (coalesce(target_tenant_id, tenant_id)) STORED;
 
 CREATE INDEX IF NOT EXISTS assistant_conversations_owner_open
-  ON assistant_conversations (tenant_id, owner_subject_id, last_active_at DESC, id DESC)
+  ON assistant_conversations (tenant_id, owner_subject_id, scope_tenant_id, last_active_at DESC, id DESC)
   WHERE archived_at IS NULL;
 CREATE INDEX IF NOT EXISTS assistant_conversations_owner_archived
-  ON assistant_conversations (tenant_id, owner_subject_id, last_active_at DESC, id DESC)
+  ON assistant_conversations (tenant_id, owner_subject_id, scope_tenant_id, last_active_at DESC, id DESC)
   WHERE archived_at IS NOT NULL;
 DROP INDEX IF EXISTS assistant_conversations_owner_activity;
 

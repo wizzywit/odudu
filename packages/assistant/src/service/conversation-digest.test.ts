@@ -17,8 +17,9 @@ function digest(
   key: Uint8Array,
   tenant: string,
   messages: readonly DigestedMessage[] = [SYSTEM, ASKED],
+  conversation = 'c1',
 ): string {
-  const mac = conversationDigest(key, tenant);
+  const mac = conversationDigest(key, tenant, conversation);
   for (const message of messages) mac.add(message);
   return mac.hex();
 }
@@ -34,6 +35,7 @@ describe('conversationDigest', () => {
     const key = deriveDigestKey(KEK);
     const base = digest(key, 't1');
     expect(digest(key, 't2')).not.toBe(base);
+    expect(digest(key, 't1', [SYSTEM, ASKED], 'c2')).not.toBe(base);
     expect(digest(deriveDigestKey(new Uint8Array(32).fill(8)), 't1')).not.toBe(base);
     const edited = { ...ASKED, parts: [{ type: 'text', text: 'hellp' }] };
     expect(digest(key, 't1', [SYSTEM, edited])).not.toBe(base);

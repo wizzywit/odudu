@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // Policies and the composite foreign keys (to tenants, subjects and, for a
@@ -20,6 +21,10 @@ export const assistantConversations = pgTable(
     reportedAt: timestamp('reported_at', { withTimezone: true }),
     // Set when the owner hides the conversation from their list; nothing is removed.
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    // The tenant the conversation is about: its target, else its own tenant.
+    scopeTenantId: uuid('scope_tenant_id').generatedAlwaysAs(
+      sql`coalesce(target_tenant_id, tenant_id)`,
+    ),
     // The tenant the conversation acts in when it is not its owner's own, for a
     // system administrator in another tenant; null is the owner's tenant.
     targetTenantId: uuid('target_tenant_id'),

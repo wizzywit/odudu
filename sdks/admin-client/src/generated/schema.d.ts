@@ -11214,31 +11214,6 @@ export interface components {
             /** @description The text a screen reader says for the logo, at most 200 characters and not blank. */
             alt: string;
         };
-        AssistantSettingsGetResponse: {
-            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served. */
-            assistant_enabled: boolean;
-            /**
-             * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
-             * @enum {string}
-             */
-            assistant_default_mode: "ask" | "act";
-            /** @description Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider. */
-            assistant_mask_emails: boolean;
-            /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention. */
-            assistant_trace_retention_days: number;
-            /** @description Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. A tenant that saved a value keeps it when the default changes. */
-            assistant_auditor_visible: boolean;
-            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit. */
-            assistant_monthly_tokens_fast: number;
-            /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
-            assistant_monthly_tokens_standard: number;
-            /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
-            assistant_monthly_tokens_deep: number;
-            /** @description How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`. */
-            assistant_max_concurrent: number;
-            /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
-            assistant_max_steps_per_turn: number;
-        };
         ThemeGetResponse: {
             /**
              * @description `tenant` for the tenant’s own theme, `client` for one client’s.
@@ -11263,6 +11238,31 @@ export interface components {
             } | null;
             /** @description The parts of the draft (`tokens`, `assets`, `stylesheet`, `templates`) that differ from this scope’s own published theme, compared by the server on their stored form, in that order. Empty when there is no draft or the draft matches what is published; nothing published compares as the empty theme. Publishing is refused with `about:blank#theme-nothing-to-publish` while it is empty. */
             changed: ("tokens" | "assets" | "stylesheet" | "templates")[];
+        };
+        AssistantSettingsGetResponse: {
+            /** @description Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served. */
+            assistant_enabled: boolean;
+            /**
+             * @description The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.
+             * @enum {string}
+             */
+            assistant_default_mode: "ask" | "act";
+            /** @description Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider. */
+            assistant_mask_emails: boolean;
+            /** @description How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention. */
+            assistant_trace_retention_days: number;
+            /** @description Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`. */
+            assistant_auditor_visible: boolean;
+            /** @description The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit. */
+            assistant_monthly_tokens_fast: number;
+            /** @description The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_standard: number;
+            /** @description The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000. */
+            assistant_monthly_tokens_deep: number;
+            /** @description How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`. */
+            assistant_max_concurrent: number;
+            /** @description The most model and tool calls one answer may take before it stops, from 1 to 100. */
+            assistant_max_steps_per_turn: number;
         };
         FlowsPostResponse: {
             /** @description The flow’s identifier in the admin API. */
