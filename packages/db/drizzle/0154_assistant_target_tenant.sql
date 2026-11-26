@@ -21,16 +21,25 @@ BEGIN
   ) THEN
     ALTER TABLE assistant_conversations
       ADD CONSTRAINT assistant_conversations_target_not_home
-      CHECK (target_tenant_id IS NULL OR target_tenant_id <> tenant_id);
+      CHECK (target_tenant_id IS NULL OR target_tenant_id <> tenant_id) NOT VALID;
+    ALTER TABLE assistant_conversations
+      VALIDATE CONSTRAINT assistant_conversations_target_not_home;
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'token_grants_target_not_home'
   ) THEN
     ALTER TABLE token_grants
       ADD CONSTRAINT token_grants_target_not_home
-      CHECK (target_tenant_id IS NULL OR target_tenant_id <> tenant_id);
+      CHECK (target_tenant_id IS NULL OR target_tenant_id <> tenant_id) NOT VALID;
+    ALTER TABLE token_grants VALIDATE CONSTRAINT token_grants_target_not_home;
   END IF;
 END $$;
+
+-- The checks are added NOT VALID and validated in the same file, so the
+-- validating scan takes only a share lock. The indexes are plain, not
+-- CONCURRENTLY, which a migration file cannot run in a transaction: the product
+-- is pre-release and these tables are small, and the column is null on every
+-- existing row, so each build scans once and writes no index entry.
 
 CREATE INDEX IF NOT EXISTS assistant_conversations_target
   ON assistant_conversations (target_tenant_id, tenant_id) WHERE target_tenant_id IS NOT NULL;

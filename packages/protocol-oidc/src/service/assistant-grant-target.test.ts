@@ -30,6 +30,7 @@ const system: AssistantGrantGrounds = {
   tenantId: SYSTEM,
   console: { ...home.console, tenantId: SYSTEM } as never,
   target: TARGET,
+  ownerCapabilities: ['manage-tenants', 'use-assistant'],
 };
 
 describe('a conversation in another tenant', () => {
@@ -56,6 +57,30 @@ describe('a conversation in another tenant', () => {
     ],
   ] as const)('is refused for %s', (_, over, reason) => {
     expect(assistantGrantRefusal({ ...system, ...over })).toBe(reason);
+  });
+
+  it.each([
+    ['manage-tenants', ['use-assistant']],
+    ['use-assistant', ['manage-tenants']],
+    ['both', []],
+  ] as const)('is refused when the owner lacks %s, whatever the route did', (_, held) => {
+    expect(assistantGrantRefusal({ ...system, ownerCapabilities: held })).toBe(
+      'owner_lacks_capability',
+    );
+  });
+
+  it('is refused when the owner’s capabilities were not read', () => {
+    const unread: AssistantGrantGrounds = {
+      ...home,
+      tenantId: SYSTEM,
+      console: { ...home.console, tenantId: SYSTEM } as never,
+      target: TARGET,
+    };
+    expect(assistantGrantRefusal(unread)).toBe('owner_lacks_capability');
+  });
+
+  it('does not ask a conversation in its own tenant for manage-tenants', () => {
+    expect(assistantGrantRefusal({ ...home, ownerCapabilities: [] })).toBeNull();
   });
 
   it('names a revoked console grant before it looks at the target', () => {

@@ -13,6 +13,7 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { conversationRepository } from '#/repository/conversations';
 import { writeSettings } from '#/usecase/settings';
 import type { TurnStart } from '#/service/turn-summary';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
@@ -387,5 +388,24 @@ describe('deleting the tenant a conversation acts in', () => {
       sql`select count(*)::int as n from assistant_messages where conversation_id = ${away}`,
     )) as unknown as { n: number }[];
     expect(messages[0]?.n).toBe(0);
+  });
+});
+
+describe('listing a person’s conversations', () => {
+  it('lists those of one tenant at a time, so the home list never shows another tenant’s', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([]));
+    const home = await started(chat, callerOf(w));
+    const atX = await started(chat, callerOf(w, 'x'));
+    const atY = await started(chat, callerOf(w, 'y'));
+    const list = (target: string | null) =>
+      withTenant(app.db, w.home, async (tx) =>
+        (await conversationRepository(tx).listByOwner(w.s, null, 50, target)).items.map(
+          (row) => row.id,
+        ),
+      );
+    expect(await list(null)).toEqual([home]);
+    expect(await list(w.x)).toEqual([atX]);
+    expect(await list(w.y)).toEqual([atY]);
   });
 });

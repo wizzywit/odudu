@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   actsInTenantOf,
@@ -75,5 +77,21 @@ describe('the stricter of two tenants settings', () => {
     expect(settingsOfTwo(base, { ...base, modes: ['ask'] }).modes).toEqual(['ask']);
     expect(settingsOfTwo({ ...base, modes: ['ask'] }, base).modes).toEqual(['ask']);
     expect(settingsOfTwo(base, base).modes).toEqual(['ask', 'act']);
+  });
+});
+
+describe('every usecase that reads a stored conversation', () => {
+  // A conversation bound to another tenant is never served at a path whose tenant
+  // differs, so a usecase that loads one by id must call conversationIsCallers.
+  // A usecase added later that reads a conversation without it fails here.
+  const dir = path.join(import.meta.dirname, '..', 'usecase');
+  const files = readdirSync(dir).filter(
+    (name) => name.endsWith('.ts') && !name.endsWith('.test.ts'),
+  );
+
+  it.each(files)('%s asks conversationIsCallers wherever it reads a conversation by id', (name) => {
+    const text = readFileSync(path.join(dir, name), 'utf8');
+    if (!/conversationRepository\([^)]*\)\.byId\(/u.test(text)) return;
+    expect(text).toContain('conversationIsCallers');
   });
 });

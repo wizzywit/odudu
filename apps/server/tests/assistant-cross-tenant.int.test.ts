@@ -17,7 +17,7 @@ import { sql } from 'drizzle-orm';
 import { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '#/app';
-import { assistantTokenMint } from '#/assistant-chat';
+import { assistantTokenMint, toolRunner } from '#/assistant-chat';
 import { createLogger } from '#/logger';
 import { BASE, startMcpStack, type McpStack } from '#/testing/mcp-stack';
 import { consoleSystemWorld, consoleWorld, type World } from '#/testing/mcp-world';
@@ -42,6 +42,8 @@ let stack: McpStack | undefined;
 let assisted: FastifyInstance | undefined;
 let nextTool = 'list_subjects';
 let nextInput = '{}';
+// Runs as the model is first asked in a turn, so a test can change the world mid-turn.
+let beforeFirstCall: (() => Promise<void>) | undefined;
 
 function s(): McpStack {
   if (stack === undefined) throw new Error('stack not started');
@@ -61,8 +63,13 @@ function scriptedModel() {
     modelId: 'stub',
     supportedUrls: {},
     doGenerate: () => Promise.reject(new Error('streaming only')),
-    doStream: () => {
+    doStream: async () => {
       call += 1;
+      if (call % 2 === 1 && beforeFirstCall !== undefined) {
+        const hook = beforeFirstCall;
+        beforeFirstCall = undefined;
+        await hook();
+      }
       const parts =
         call % 2 === 1
           ? [
@@ -86,14 +93,14 @@ function scriptedModel() {
               { type: 'text-end', id: 'a' },
               { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage: USAGE },
             ];
-      return Promise.resolve({
+      return {
         stream: new ReadableStream({
           start(controller) {
             for (const part of parts) controller.enqueue(part);
             controller.close();
           },
         }),
-      });
+      };
     },
   };
 }
@@ -431,6 +438,23 @@ describe('the grant of a conversation that names a target', () => {
     }
   });
 
+  it('is refused when the owner no longer holds manage-tenants or use-assistant, whatever the route did', async () => {
+    const x = await tenantWith();
+    for (const held of [
+      ['use-assistant', 'view-users'],
+      ['manage-tenants', 'view-users'],
+    ]) {
+      const op = await operator(held);
+      const { attempt, newGrantId } = await derive(op, {
+        id: x.tenantId,
+        enabled: true,
+        assistantEnabled: true,
+      });
+      await expect(attempt).rejects.toMatchObject({ reason: 'owner_lacks_capability' });
+      expect(await rows(sql`select 1 from token_grants where id = ${newGrantId}`)).toEqual([]);
+    }
+  });
+
   it('is the ordinary grant, naming no target, when the target is the tenant itself', async () => {
     const own = await tenantWith();
     const { attempt, newGrantId } = await derive(own, {
@@ -550,6 +574,11 @@ describe('the binding to the target', () => {
       expect(
         (await call(op, at, 'PUT', `/${id}/mode`, { mode: 'ask' })).statusCode,
         `mode ${at}`,
+      ).toBe(404);
+      expect((await call(op, at, 'POST', `/${id}/resume`)).statusCode, `resume ${at}`).toBe(404);
+      expect(
+        (await call(op, at, 'POST', `/${id}/approvals/${newId()}`, { approve: true })).statusCode,
+        `decide ${at}`,
       ).toBe(404);
     }
     expect((await call(op, x.name, 'GET', `/${id}`)).statusCode).toBe(200);
@@ -706,5 +735,115 @@ describe('what the administrator holds, and what ends the conversation', () => {
     expect(await rows(sql`select 1 from assistant_messages where conversation_id = ${id}`)).toEqual(
       [],
     );
+  });
+});
+
+describe('what is checked on every call, and never trusted from an earlier one', () => {
+  it('refuses the next tool call of a turn already running when the target switches the assistant off', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    beforeFirstCall = () =>
+      withTenant(s().appDb.db, x.tenantId, (tx) =>
+        writeSettings(
+          tx,
+          x.tenantId,
+          { ...ASSISTANT_SETTING_DEFAULTS, assistant_enabled: false },
+          new Date(),
+        ),
+      );
+    const turn = await say(op, x.name, id, 'list_subjects');
+    expect(turn.statusCode).toBe(200);
+    expect(answered(turn.body)).toBe(false);
+    expect(turn.body).toContain('switched off');
+    expect(await toolRows(x.tenantId)).toHaveLength(0);
+  });
+
+  it('refuses the call, and returns no data, when its audit row cannot be written', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    await s().owner.db.execute(
+      sql.raw(`create or replace function i5c_refuse_tool_call() returns trigger as $$
+        begin raise exception 'no audit'; end $$ language plpgsql`),
+    );
+    await s().owner.db.execute(
+      sql.raw(`create trigger i5c_refuse before insert on audit_events
+          for each row when (new.action = 'agent.tool_call' and new.tenant_id = '${x.tenantId}'::uuid)
+          execute function i5c_refuse_tool_call()`),
+    );
+    try {
+      const turn = await say(op, x.name, id, 'list_subjects');
+      expect(answered(turn.body)).toBe(false);
+      expect(turn.body).not.toContain(x.subjectId);
+      expect(turn.body).toContain('audit_unavailable');
+    } finally {
+      await s().owner.db.execute(sql`drop trigger if exists i5c_refuse on audit_events`);
+    }
+  });
+
+  it('runs no tool the turn was not offered, even when asked for by name', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const run = toolRunner(
+      {
+        app: s().app,
+        database: s().appDb,
+        ownerDatabase: s().owner,
+        kek: KEK,
+        claimMappers: standardClaimMappers(),
+        logger: createLogger(loadConfig({ ...process.env, ODUDU_LOG_LEVEL: 'silent' })),
+        publicBaseUrl: BASE,
+        models: () => {
+          throw new Error('no model is called here');
+        },
+      },
+      {
+        tenantId: op.tenantId,
+        tenantName: 'system',
+        issuer: op.issuer,
+        ownerSubjectId: op.subjectId,
+        grantId: op.grantId,
+        requestId: 'req',
+        ip: '127.0.0.1',
+        target: { id: x.tenantId, name: x.name },
+      },
+      newId(),
+      newId(),
+    );
+    await expect(run('token', 'list_tenants', {})).rejects.toThrow('not an assistant tool');
+    await expect(run('token', 'count_tenants', {})).rejects.toThrow('not an assistant tool');
+  });
+
+  it('keeps the target’s data out of the target’s own assistant tables, and in the administrator’s messages', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    await say(op, x.name, id, 'list_subjects');
+    const inTarget = await withTenant(s().appDb.db, x.tenantId, async (tx) => {
+      const counts: Record<string, number> = {};
+      for (const table of [
+        'assistant_conversations',
+        'assistant_messages',
+        'assistant_turns',
+        'assistant_steps',
+        'assistant_events',
+        'assistant_approvals',
+        'assistant_budget_counters',
+      ]) {
+        const found = (await tx.execute(
+          sql.raw(`select count(*)::int as n from ${table}`),
+        )) as unknown as { n: number }[];
+        counts[table] = found[0]?.n ?? -1;
+      }
+      return counts;
+    });
+    expect(Object.values(inTarget).every((n) => n === 0)).toBe(true);
+    const kept = await rows<{ n: number }>(
+      sql`select count(*)::int as n from assistant_messages
+           where tenant_id = ${op.tenantId} and conversation_id = ${id}
+             and parts::text like ${'%' + x.subjectId + '%'}`,
+    );
+    expect(kept[0]?.n).toBeGreaterThan(0);
   });
 });

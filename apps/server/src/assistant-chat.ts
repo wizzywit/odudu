@@ -1,6 +1,7 @@
 import {
   createChat,
   readSettings,
+  toolsFor,
   deriveApprovalSecret,
   type BudgetAuditEvent,
   RunLapsed,
@@ -183,7 +184,7 @@ const RUN_REFUSED_HINT =
   'include odudu-assistant, otherwise a limit on live instances or children was reached';
 
 // The read-only runner of a conversation: its own grant, `mcp:read`, no writes.
-function toolRunner(
+export function toolRunner(
   parts: AssistantChatParts,
   caller: ChatCaller,
   conversationId: string,
@@ -204,7 +205,7 @@ function toolRunner(
   // before they run, so at most one read goes unrecorded in a turn.
   let unrecorded: ToolResult | undefined;
   return async (accessToken: string, name: string, input: unknown) => {
-    const tool = TOOLS.find((entry) => entry.name === name);
+    const tool = toolsFor(TOOLS, caller).find((entry) => entry.name === name);
     if (tool?.access !== 'read') throw new Error('not an assistant tool');
     if (unrecorded !== undefined) return unrecorded;
     const result = await callAsAssistant(

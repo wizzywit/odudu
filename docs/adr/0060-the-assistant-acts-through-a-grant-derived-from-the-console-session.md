@@ -113,7 +113,8 @@ conversation bound to one tenant is answered as a path never served at any other
 administrator's own included. Where a system administrator uses the assistant in another
 tenant, that tenant's switch, email masking and Act setting apply as well as their own tenant's
 and the stricter wins; the token limits and the four budget levels are the administrator's
-tenant's, which pays. A conversation in another tenant is Ask only until approvals carry the
+tenant's, which pays. Trace retention and auditor visibility follow the administrator's
+tenant, where the text lives, until the trace pass applies the shorter retention of the two. A conversation in another tenant is Ask only until approvals carry the
 target.
 
 A tool call's `agent.tool_call` row is written in the target's trail with the administrator as

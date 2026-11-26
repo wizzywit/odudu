@@ -145,9 +145,11 @@ product never depends on the paid implementation.
 
 Where a system administrator uses the assistant in another tenant, that tenant's switch,
 email masking and Act setting apply as well as their own tenant's, and the stricter wins:
-both must have the assistant on, either may mask, a mode is offered only where both offer
-it, and the shorter trace retention applies. The token limits and the four budget levels
-are the administrator's tenant's, which pays.
+both must have the assistant on, either may mask, and a mode is offered only where both
+offer it. The token limits and the four budget levels are the administrator's tenant's,
+which pays. Trace retention and whether auditors see conversations are the administrator's
+tenant's, because the conversation's text lives there; enforcing the shorter of the two
+retentions waits for the trace pass (docs/NEXT.md, "What P5c inherits").
 
 ### 5.3 The engine
 
@@ -434,9 +436,10 @@ model may be weaker at multi-step tool use than a hosted one; the supported list
 what the golden tasks proved, and approval and the door bound what a weaker model can
 do.
 
-A system administrator's conversation holds the target tenant's data under the operator's
-retention, capped by the target's; the target's administrators see the actions in their own
-audit trail and not the text.
+A system administrator's conversation holds the target tenant's data, as masked tool results
+in the operator's own messages and trace, under the operator's retention and auditor
+visibility; the target's retention and auditor setting are not applied to it yet. The
+target's administrators see the actions in their own audit trail and not the text.
 
 ## 10. Open decisions (my calls, for the owner to confirm)
 

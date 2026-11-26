@@ -1,3 +1,7 @@
+// Every handler or usecase that serves a conversation (a load, a send, an
+// export, a replay, a report, an activity read) MUST call `conversationIsCallers`
+// on the stored record before it answers, with the caller the request's path
+// built: a conversation bound to another tenant is never served at this path.
 import type { AssistantSettings } from '@odudu/contracts/admin';
 import type { TurnMode } from '#/service/turn-summary';
 import type { AssistantLimits } from '#/service/limits';

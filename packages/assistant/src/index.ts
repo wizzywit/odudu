@@ -25,6 +25,13 @@ export type {
 } from '#/view/chat-route';
 export type { ApprovalPorts, DecidedTarget, WithdrawReason } from '#/usecase/chat-deps';
 export type { WriteOutcome } from '#/service/tool-bridge';
+export {
+  actsInTenantOf,
+  conversationIsCallers,
+  crossTenant,
+  settingsOfTwo,
+} from '#/service/conversation-access';
+export { toolsFor } from '#/service/tool-set';
 export { profileById } from '#/service/profile';
 export type { TaskProfile } from '#/service/profile';
 export type { StatusDeps } from '#/usecase/status';

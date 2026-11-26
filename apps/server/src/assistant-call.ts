@@ -1,4 +1,4 @@
-import { type ChatDeps } from '@odudu/assistant';
+import { readSettings, type ChatDeps } from '@odudu/assistant';
 import { type DatabaseHandle, withTenant } from '@odudu/db';
 import {
   callMcpTool,
@@ -48,6 +48,24 @@ export interface CallAs {
   readonly holdsWrite: boolean;
 }
 
+// What a call in another tenant answers once that tenant has switched the
+// assistant off, so a turn already running stops reaching it at its next call.
+const TARGET_SWITCHED_OFF: ToolResult = {
+  isError: true,
+  content: [{ type: 'text', text: 'The assistant is switched off in this tenant.' }],
+  structuredContent: {
+    error: { type: 'mcp:assistant_unavailable', title: 'The assistant is switched off' },
+  },
+};
+
+// A primary-key read of the acted-in tenant's switch, made for each call.
+async function targetOffersAssistant(parts: AssistantChatParts, tenantId: string) {
+  const settings = await withTenant(parts.database.db, tenantId, (tx) =>
+    readSettings(tx, tenantId),
+  );
+  return settings.assistant_enabled;
+}
+
 // Runs one tool as the owner's agent, through the same bridge the MCP endpoint
 // uses, and leaves the same row, naming the conversation and the turn: a call
 // whose row cannot be written does not return its data.
@@ -62,6 +80,9 @@ export async function callAsAssistant(
 ): Promise<ToolResult> {
   const now = parts.now ?? (() => new Date());
   const { clientId, clientDbId } = identity;
+  if (caller.target !== undefined && !(await targetOffersAssistant(parts, caller.target.id))) {
+    return TARGET_SWITCHED_OFF;
+  }
   // The tool is called in the tenant the conversation acts in, which is the
   // caller's own unless a system administrator named another; the token stays
   // the administrator's, so the issuer and the owner are still theirs.

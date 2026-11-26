@@ -1,7 +1,13 @@
 import { sessionRepository, type SessionLifespans } from '@odudu/authn-flows';
 import { type TenantScopedDatabase } from '@odudu/db';
+import { effectiveRoles } from '@odudu/domain-authz';
 import { subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_API_AUDIENCE, ASSISTANT_CLIENT_ID, clientRepository } from '@odudu/domain-tenant';
+import {
+  ADMIN_API_AUDIENCE,
+  ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
+  clientRepository,
+} from '@odudu/domain-tenant';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { tenantEnabledRepository } from '#/repository/tenant-enabled';
@@ -119,6 +125,7 @@ async function deriveAssistantGrant(
       ? null
       : await sessionRepository(tx).liveById(consoleGrant.sessionId, deps.lifespans, input.now);
   const { scope } = input;
+  const crossTarget = input.target != null && input.target.id !== deps.tenantId;
   const refusal = assistantGrantRefusal({
     tenantId: deps.tenantId,
     expectedSubjectId: input.expectedSubjectId,
@@ -140,6 +147,9 @@ async function deriveAssistantGrant(
           },
     tenantEnabled: await tenantEnabledRepository(tx).enabled(deps.tenantId),
     ...(input.target === undefined ? {} : { target: input.target }),
+    ...(crossTarget && consoleGrant !== null
+      ? { ownerCapabilities: await capabilitiesOf(tx, consoleGrant.subjectId) }
+      : {}),
     sessionLive: consoleGrant?.sessionId == null ? null : session !== null,
     subjectEnabled:
       consoleGrant !== null &&
@@ -162,4 +172,10 @@ async function deriveAssistantGrant(
       ? {}
       : { targetTenantId: input.target.id }),
   });
+}
+
+// What the owner holds on the admin client in their own tenant, read fresh.
+async function capabilitiesOf(tx: TenantScopedDatabase, subjectId: string): Promise<string[]> {
+  const roles = await effectiveRoles(tx, subjectId);
+  return roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name);
 }

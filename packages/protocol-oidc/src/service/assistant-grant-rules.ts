@@ -16,6 +16,7 @@ export type AssistantGrantRefusal =
   | 'target_not_allowed'
   | 'target_unavailable'
   | 'target_assistant_disabled'
+  | 'owner_lacks_capability'
   | 'scope_widened';
 
 // The most a conversation's grant may hold, which is the most its tokens may
@@ -65,6 +66,10 @@ export interface AssistantGrantGrounds {
   // it from that tenant: null for one that was not found. Left out for a
   // conversation in the administrator's own tenant.
   readonly target?: AssistantTargetFacts | null;
+  // The admin capabilities the console grant's owner holds now, read by the grant's
+  // own transaction. A conversation in another tenant needs `manage-tenants` and
+  // `use-assistant` here, so the grant does not rest on a route having checked.
+  readonly ownerCapabilities?: readonly string[];
 }
 
 export interface AssistantTargetFacts {
@@ -82,7 +87,11 @@ function targetRefusal(grounds: AssistantGrantGrounds): AssistantGrantRefusal | 
   if (target?.id === grounds.tenantId) return null;
   if (!isSystemTenantId(grounds.tenantId)) return 'target_not_allowed';
   if (!target?.enabled) return 'target_unavailable';
-  return target.assistantEnabled ? null : 'target_assistant_disabled';
+  if (!target.assistantEnabled) return 'target_assistant_disabled';
+  const held = grounds.ownerCapabilities ?? [];
+  return held.includes('manage-tenants') && held.includes('use-assistant')
+    ? null
+    : 'owner_lacks_capability';
 }
 
 // What must stand before a conversation may have a grant derived from a
