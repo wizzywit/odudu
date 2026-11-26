@@ -48,6 +48,7 @@ beforeAll(async () => {
           issuerTenantName: 'acme',
           capabilities: [],
           crossTenant: false,
+          assistant_available: false,
         });
       } else {
         res.writeHead(404).end();

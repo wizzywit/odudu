@@ -1424,6 +1424,8 @@ describeFields(whoamiResponseSchema, {
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:
     'True when the caller’s tenant is not the tenant in the path, which only a holder of `manage-tenants` may be.',
+  assistant_available:
+    'True when this deployment resolved a standard model for the console assistant, which is when its settings routes are served. False, they answer as a path that was never served. Left out of the answer to an AI agent’s token.',
 });
 
 describeFields(themeBodyRequestSchema, {

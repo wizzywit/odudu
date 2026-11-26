@@ -48,6 +48,7 @@ function mount(answer: ReturnType<typeof json>) {
       issuerTenantName: 'acme',
       capabilities: ['manage-clients'],
       crossTenant: false,
+      assistant_available: false,
     }),
     [`POST ${ACME_ADMIN}/clients/c1/secret`]: answer,
   });

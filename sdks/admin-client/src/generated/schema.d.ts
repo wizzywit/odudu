@@ -38,6 +38,8 @@ export interface paths {
                             capabilities: ("view-users" | "manage-users" | "manage-clients" | "manage-tenant" | "manage-keys" | "manage-sessions" | "view-audit" | "view-domains" | "manage-domains" | "use-assistant" | "read-assistant-activity" | "manage-assistant" | "manage-tenants")[];
                             /** @description True when the caller’s tenant is not the tenant in the path, which only a holder of `manage-tenants` may be. */
                             crossTenant: boolean;
+                            /** @description True when this deployment resolved a standard model for the console assistant, which is when its settings routes are served. False, they answer as a path that was never served. Left out of the answer to an AI agent’s token. */
+                            assistant_available?: boolean;
                         };
                     };
                 };

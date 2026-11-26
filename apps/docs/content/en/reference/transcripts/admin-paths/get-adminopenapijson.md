@@ -19,7 +19,7 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a21583-d3c7-78b1-be1a-fae537bf1c4f
+x-request-id: 01a21610-1d2f-7ebc-976a-2a3f128cec96
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 449446

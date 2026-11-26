@@ -5,7 +5,9 @@ import { afterEach, expect, it } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
 import { inTurn, json, problem, type Answer } from '#/testing/fakeTransport';
 import { resetConsole } from '#/testing/resetConsole';
-import { consoleAt, renderConsoleAt } from '#/testing/renderConsole';
+import { consoleAt, renderConsoleAt, whoami } from '#/testing/renderConsole';
+import { EVERY_TENANT_CAPABILITY } from '#/testing/roleAnswers';
+import { ACME_ADMIN } from '#/testing/tenantPaths';
 import { AS, assistantAnswer, settingsRoutes } from '#/testing/settingsFixtures';
 
 afterEach(() => {
@@ -19,10 +21,17 @@ function section() {
   return screen.findByRole('region', { name: 'Console assistant' });
 }
 
-function withAssistant(capabilities?: readonly string[], extra: Record<string, Answer> = {}) {
-  return settingsRoutes(capabilities, { [`GET ${AS}`]: assistantAnswer(), ...extra });
+function withAssistant(
+  capabilities: readonly string[] = EVERY_TENANT_CAPABILITY,
+  extra: Record<string, Answer> = {},
+  available = true,
+) {
+  return settingsRoutes(capabilities, {
+    [`GET ${ACME_ADMIN}/whoami`]: whoami(capabilities, false, available),
+    [`GET ${AS}`]: assistantAnswer(),
+    ...extra,
+  });
 }
-
 it('adds a section for the assistant, with its settings in three groups and each default said', async () => {
   renderConsoleAt(AT, withAssistant());
   const assistant = await section();
@@ -150,6 +159,26 @@ it('reads nothing of the assistant for a caller with no business there', async (
   const { calls } = renderConsoleAt(AT, withAssistant(['manage-tenant']));
   await screen.findByRole('region', { name: 'General' });
   expect(screen.queryByRole('region', { name: 'Console assistant' })).toBeNull();
+  expect(calls.some((call) => call.path === AS)).toBe(false);
+});
+
+it('asks for nothing where whoami says the deployment has no assistant', async () => {
+  const { calls } = renderConsoleAt(AT, withAssistant(undefined, {}, false));
+  await screen.findByRole('region', { name: 'General' });
+  const nav = screen.getByRole('navigation', { name: 'On this page' });
+  expect(screen.queryByRole('region', { name: 'Console assistant' })).toBeNull();
+  expect(within(nav).queryByRole('link', { name: 'Console assistant' })).toBeNull();
+  expect(calls.some((call) => call.path === AS)).toBe(false);
+});
+
+it('asks for nothing while whoami has not answered, or when it failed', async () => {
+  const { calls } = renderConsoleAt(
+    AT,
+    withAssistant(undefined, {
+      [`GET ${ACME_ADMIN}/whoami`]: json({ type: 'about:blank', title: 'x', status: 500 }, 500),
+    }),
+  );
+  await screen.findByRole('region', { name: 'General' });
   expect(calls.some((call) => call.path === AS)).toBe(false);
 });
 

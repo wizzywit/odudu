@@ -111,7 +111,12 @@ function build(
         }),
       isSessionLive: () => Promise.resolve(true),
       loadClientState: () =>
-        Promise.resolve({ enabled: true, builtinMcp: true, builtinAdmin: false, builtinAssistant: false }),
+        Promise.resolve({
+          enabled: true,
+          builtinMcp: true,
+          builtinAdmin: false,
+          builtinAssistant: false,
+        }),
       isSubjectEnabled: () => Promise.resolve(true),
       tenantNameAtHost: () => Promise.resolve(null),
       verifyAccessToken: () =>

@@ -21,7 +21,7 @@ export function ready<T>(data: T): OverviewRead<T> {
 }
 
 export function authority(...capabilities: Authority['capabilities'][number][]): Authority {
-  return { capabilities, crossTenant: false };
+  return { capabilities, crossTenant: false, assistantAvailable: false };
 }
 
 const AREAS: Readonly<Record<string, { label: string; capability: AdminCapability | null }>> = {

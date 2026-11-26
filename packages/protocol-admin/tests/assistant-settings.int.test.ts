@@ -66,6 +66,17 @@ describe('the assistant settings routes', () => {
     expect((await call('PUT', tenant.name, token)).statusCode).toBe(200);
   });
 
+  it('are announced by whoami, which the console reads before it asks for them', async () => {
+    const tenant = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().adminToken(tenant.name, ['manage-assistant']);
+    const res = await fx().http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${tenant.name}/whoami`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.json()).toMatchObject({ assistant_available: true });
+  });
+
   it('serve a system administrator who holds manage-tenants and the capability, for another tenant', async () => {
     const tenant = await fx().createTenant(`as-${newId()}`);
     const token = await fx().systemAdminToken(['manage-assistant', 'manage-tenants']);
