@@ -12,6 +12,7 @@ import {
   type SetConversationModeRequest,
 } from '@odudu/contracts/admin';
 import { type Database } from '@odudu/db';
+import { isSystemTenantId } from '@odudu/domain-tenant';
 import { tenantIssuerFor } from '@odudu/protocol-oidc';
 import { type FastifyReply, type FastifyRequest } from 'fastify';
 import { Readable } from 'node:stream';
@@ -115,6 +116,9 @@ export interface AssistantCaller {
   readonly grantId: string | undefined;
   readonly requestId: string;
   readonly ip: string;
+  // The tenant the path names when a system administrator uses the assistant in
+  // a tenant other than their own; the fields above stay the administrator's.
+  readonly target?: { readonly id: string; readonly name: string };
 }
 
 /**
@@ -211,30 +215,50 @@ function notFound(request: FastifyRequest, reply: FastifyReply): FastifyReply {
   return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
 }
 
-// A conversation is its owner's, inside the tenant the owner belongs to. A
-// system-tenant administrator may reach another tenant's admin routes, but
-// has no subject there to own a conversation, so the assistant is not served
-// to them on it, with the answer a disabled assistant gives.
+// A conversation is its owner's and belongs to the tenant the owner belongs
+// to. A system administrator may use it for another tenant: the path then
+// names that tenant, which is recorded on the caller as the target, and the
+// conversation is bound to it when created and served at no other path. Any
+// other principal at another tenant's path, and any agent token, is served as a
+// path that never existed.
 function callerOf(
   request: AdminRequest,
   principal: {
     readonly subjectId: string;
     readonly grantId?: string;
     readonly issuerTenantId: string;
+    readonly issuerTenantName: string;
+    readonly agent?: unknown;
   },
   tenantId: string,
 ): AssistantCaller | null {
-  if (principal.issuerTenantId !== tenantId) return null;
   const tenantName = request.params.tenant ?? '';
+  const own = principal.issuerTenantId === tenantId;
+  if (!own && (principal.agent !== undefined || !isSystemTenantId(principal.issuerTenantId))) {
+    return null;
+  }
+  const homeName = own ? tenantName : principal.issuerTenantName;
   return {
-    tenantId,
-    tenantName,
-    issuer: tenantIssuerFor(request, tenantName),
+    tenantId: principal.issuerTenantId,
+    tenantName: homeName,
+    issuer: tenantIssuerFor(request, homeName),
     ownerSubjectId: principal.subjectId,
     grantId: principal.grantId,
     requestId: request.id,
     ip: request.ip,
+    ...(own ? {} : { target: { id: tenantId, name: tenantName } }),
   };
+}
+
+// Whether every tenant the conversation involves offers the assistant: the path
+// tenant, and the administrator's own when it differs.
+async function offeredFor(
+  deps: AssistantChatRouteDeps,
+  request: AdminRequest,
+  caller: AssistantCaller,
+): Promise<boolean> {
+  if (!(await offered(deps, request, caller.target?.id ?? caller.tenantId))) return false;
+  return caller.target === undefined || (await offered(deps, request, caller.tenantId));
 }
 
 interface Call {
@@ -263,7 +287,7 @@ export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRo
   return async function handleCreateConversation(request, reply, principal, tenantId) {
     const caller = callerOf(request, principal, tenantId);
     if (deps.chat === undefined || caller === null) return notFound(request, reply);
-    if (!(await offered(deps, request, tenantId))) return notFound(request, reply);
+    if (!(await offeredFor(deps, request, caller))) return notFound(request, reply);
     const outcome = await deps.chat.create(caller, request.body as CreateConversationRequest);
     if (outcome.kind === 'unknown_profile') {
       return sendProblem(
@@ -359,7 +383,7 @@ function sendStream(reply: FastifyReply, response: Response): FastifyReply {
 
 export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
   return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
-    if (!(await offered(deps, request, caller.tenantId))) return notFound(request, reply);
+    if (!(await offeredFor(deps, request, caller))) return notFound(request, reply);
     const body = request.body as SendMessageRequest;
     const outcome = await chat.send(caller, id, body.message, abortWhenClosed(reply));
     if (outcome.kind !== 'stream') return refusedTurn(outcome, request, reply);
@@ -371,7 +395,7 @@ export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHand
 // rest of the answer as a message's reply does.
 export function resumeConversationHandler(deps: AssistantChatRouteDeps): AdminRouteHandler {
   return onConversation(deps, async ({ chat, caller, request, reply }, id) => {
-    if (!(await offered(deps, request, caller.tenantId))) return notFound(request, reply);
+    if (!(await offeredFor(deps, request, caller))) return notFound(request, reply);
     const outcome = await chat.resume(caller, id, abortWhenClosed(reply));
     if (outcome.kind === 'stream') return sendStream(reply, outcome.response);
     if (outcome.kind === 'waiting') {

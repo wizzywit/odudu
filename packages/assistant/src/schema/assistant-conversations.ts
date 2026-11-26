@@ -18,6 +18,9 @@ export const assistantConversations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true }).notNull().defaultNow(),
     reportedAt: timestamp('reported_at', { withTimezone: true }),
+    // The tenant the conversation acts in when it is not its owner's own, for a
+    // system administrator in another tenant; null is the owner's tenant.
+    targetTenantId: uuid('target_tenant_id'),
   },
   (table) => [primaryKey({ columns: [table.tenantId, table.id] })],
 ).enableRLS();

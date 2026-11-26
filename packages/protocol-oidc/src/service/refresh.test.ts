@@ -56,6 +56,7 @@ const grant: TokenGrantRecord = {
   expCeiling: null,
   requestedUserinfoClaims: null,
   mayAct: null,
+  targetTenantId: null,
 };
 
 // The other half of RFC6749-10.10-02; see the note on the authorization

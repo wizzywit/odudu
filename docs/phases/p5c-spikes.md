@@ -716,6 +716,11 @@ design stands unless the controller rules otherwise.
 
 ## P5c spike: the assistant for a system administrator in another tenant
 
+**Status: decided on 2026-11-26. The owner chose design A, with the audit split, "stricter wins"
+and the operator's tenant paying as recommended below. Increment 1 (Ask, read-only,
+cross-tenant) is built; Act, the console, and the trace and activity pieces follow in that
+order.**
+
 Read on 2026-11-26 from `origin/p5c-console-assistant` (HEAD `71309bc45`). Every claim carries
 the file and line it was read at, or `assumption:`. Nothing was run: this is a reading spike.
 Branch `p5c-i11` is not on origin, so the trace tables are read from the spec's text (5.9), not

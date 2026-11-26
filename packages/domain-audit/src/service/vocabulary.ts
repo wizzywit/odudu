@@ -157,7 +157,12 @@ type AgentIdentityInput =
   | (EventCommon & {
       readonly eventType: 'agent_identity';
       readonly action: 'assistant.access_refused';
-      readonly detail: WithReason<{ agent_client: string; owner: string; refusal: string }>;
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        refusal: string;
+        target_tenant?: string;
+      }>;
     })
   | (EventCommon & {
       readonly eventType: 'agent_identity';
@@ -408,7 +413,7 @@ const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> =
   'agent.delegation_revoked': ['agent_client', 'owner', 'delegation'],
   'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
   'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
-  'assistant.access_refused': ['agent_client', 'owner', 'refusal'],
+  'assistant.access_refused': ['agent_client', 'owner', 'refusal', 'target_tenant'],
   'ciba.requested': ['agent_client', 'owner', 'approval'],
   'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
   'ciba.token_issued': ['agent_client', 'owner', 'approval'],

@@ -27,13 +27,15 @@ export interface TurnSummary {
   readonly outcome: TurnOutcome;
   /** A write to the trace failed, so what the trace holds of this turn stops short. */
   readonly traceLost: boolean;
+  /** The tenant the turn acted in, when it was not the owner's own. */
+  readonly targetTenantId?: string;
 }
 
 /** The row written before a turn does anything: the same names, with nothing yet used. */
 export type TurnStart = Pick<
   TurnSummary,
   'tenantId' | 'subjectId' | 'conversationId' | 'turnId' | 'profile' | 'mode' | 'slots'
->;
+> & { readonly targetTenantId?: string };
 
 /** Which of the audit trail's outcomes a turn's ending is: a limit refused it, an error failed it. */
 export function turnOutcomeOf(stopReason: StopReason): TurnOutcome {
@@ -53,13 +55,24 @@ export interface TurnFacts {
   readonly tokens: number;
   readonly stopReason: StopReason;
   readonly traceLost: boolean;
+  readonly targetTenantId?: string;
 }
 
 export function startOf(
   facts: Omit<TurnFacts, 'steps' | 'tokens' | 'stopReason' | 'traceLost'>,
 ): TurnStart {
-  const { tenantId, subjectId, conversationId, turnId, profile, mode, slot } = facts;
-  return { tenantId, subjectId, conversationId, turnId, profile, mode, slots: [slot] };
+  const { tenantId, subjectId, conversationId, turnId, profile, mode, slot, targetTenantId } =
+    facts;
+  return {
+    tenantId,
+    subjectId,
+    conversationId,
+    turnId,
+    profile,
+    mode,
+    slots: [slot],
+    ...(targetTenantId === undefined ? {} : { targetTenantId }),
+  };
 }
 
 export function summaryOf(facts: TurnFacts): TurnSummary {

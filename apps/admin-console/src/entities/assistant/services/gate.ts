@@ -6,9 +6,15 @@ import type { Authority } from '#/shared/lib/services/principal';
 // has one and the caller may use it. Whoami answers both, so a deployment
 // without an assistant is never sent a request it would answer as a path it
 // never served, and nobody is sent one that can only be refused. While whoami
-// is out, or failed, there is no authority and so no assistant.
+// is out, or failed, there is no authority and so no assistant. In a tenant other
+// than the one signed in to there is none either, until the panel names the
+// tenant it acts in and the console gate checks `manage-tenants`.
 export function mayUseAssistant(authority: Authority | undefined): boolean {
-  return authority?.assistantAvailable === true && holds(authority, 'use-assistant');
+  return (
+    authority?.assistantAvailable === true &&
+    !authority.crossTenant &&
+    holds(authority, 'use-assistant')
+  );
 }
 
 export interface AssistantView {

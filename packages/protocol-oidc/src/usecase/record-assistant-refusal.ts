@@ -8,6 +8,8 @@ export interface AssistantRefusal {
   readonly conversationId: string;
   // A fixed code (`AssistantGrantRefusal` or `AgentTokenRefusal`), never free text.
   readonly refusal: string;
+  // The tenant the conversation was to act in, when it was not the owner's own.
+  readonly targetTenantId?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export async function recordAssistantRefusal(
       agent_client: ASSISTANT_CLIENT_ID,
       owner: input.subjectId,
       refusal: input.refusal,
+      ...(input.targetTenantId === undefined ? {} : { target_tenant: input.targetTenantId }),
     },
   });
 }

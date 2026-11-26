@@ -60,6 +60,24 @@ export async function mcpSystemWorld(
   );
 }
 
+// The same console sign-in, in the system tenant: a system administrator
+// holding `capabilities`, as a console conversation's grant is derived from.
+export async function consoleSystemWorld(
+  appDb: DatabaseHandle,
+  base: string,
+  capabilities: readonly string[],
+): Promise<World> {
+  const admin = await seedAdmin({ username: `ops-${newId()}` });
+  return worldIn(
+    appDb,
+    base,
+    { tenantId: admin.tenantId, name: SYSTEM_TENANT_NAME },
+    capabilities,
+    'openid',
+    'admin',
+  );
+}
+
 // A tenant and a person who signed in to the console: the grant is the admin
 // client's own, scope `openid`, for the admin API. What a console token stands
 // on, and what an assistant conversation's grant is derived from.

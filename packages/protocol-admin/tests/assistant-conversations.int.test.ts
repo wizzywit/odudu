@@ -387,25 +387,110 @@ describe('with no model configured', () => {
 });
 
 describe('a system-tenant administrator on another tenant', () => {
-  it('is told every conversation route does not exist, and nothing reaches the port', async () => {
+  const calls = (tenant: string) =>
+    [
+      { method: 'POST', url: BASE(tenant), payload: { page_context: CONTEXT } },
+      { method: 'GET', url: `${BASE(tenant)}/${ID}` },
+      {
+        method: 'POST',
+        url: `${BASE(tenant)}/${ID}/messages`,
+        payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
+      },
+      { method: 'POST', url: `${BASE(tenant)}/${ID}/stop` },
+    ] as const;
+
+  it('reaches the port as themselves, with the path tenant as the target', async () => {
     const tenant = await fx().createTenant(`as-${newId()}`);
     const token = await fx().systemAdminToken(['manage-tenants', 'use-assistant']);
     const headers = { authorization: `Bearer ${token}` };
     const before = recorded.callers.length;
-    const calls = [
-      { method: 'POST', url: BASE(tenant.name), payload: { page_context: CONTEXT } },
-      { method: 'GET', url: `${BASE(tenant.name)}/${ID}` },
-      {
-        method: 'POST',
-        url: `${BASE(tenant.name)}/${ID}/messages`,
-        payload: { message: { id: 'm', role: 'user', parts: [{ type: 'text', text: 'x' }] } },
-      },
-      { method: 'POST', url: `${BASE(tenant.name)}/${ID}/stop` },
-    ] as const;
-    for (const call of calls) {
+    // The message route streams until the caller goes, so it is left to the door tests.
+    for (const call of calls(tenant.name).filter((entry) => !entry.url.endsWith('/messages'))) {
       const res = await fx().http.inject({ ...call, headers });
-      expect(res.statusCode, `${call.method} ${call.url}`).toBe(404);
-      expect(res.json(), call.url).toMatchObject({ title: 'Not Found' });
+      expect(res.statusCode, `${call.method} ${call.url}`).toBeLessThan(300);
+    }
+    const seen = recorded.callers.slice(before);
+    expect(seen.length).toBe(2);
+    for (const caller of seen) {
+      expect(caller.tenantId).toBe(fx().systemTenantId);
+      expect(caller.tenantName).toBe('system');
+      expect(caller.target).toEqual({ id: tenant.id, name: tenant.name });
+    }
+  });
+
+  it('names no target for a conversation in their own tenant', async () => {
+    const token = await fx().systemAdminToken(['manage-tenants', 'use-assistant']);
+    const before = recorded.callers.length;
+    const res = await fx().http.inject({
+      method: 'GET',
+      url: `${BASE('system')}/${ID}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(recorded.callers[before]?.target).toBeUndefined();
+  });
+
+  it('is refused at the door without manage-tenants, and nothing reaches the port', async () => {
+    const tenant = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().systemAdminToken(['use-assistant']);
+    const headers = { authorization: `Bearer ${token}` };
+    const before = recorded.callers.length;
+    for (const call of calls(tenant.name)) {
+      const res = await fx().http.inject({ ...call, headers });
+      expect(res.statusCode, `${call.method} ${call.url}`).toBe(403);
+    }
+    expect(recorded.callers.length).toBe(before);
+  });
+
+  it('is refused at the door without use-assistant, even with manage-tenants', async () => {
+    const tenant = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().systemAdminToken(['manage-tenants', 'manage-clients']);
+    const headers = { authorization: `Bearer ${token}` };
+    const before = recorded.callers.length;
+    for (const call of calls(tenant.name)) {
+      const res = await fx().http.inject({ ...call, headers });
+      expect(res.statusCode, `${call.method} ${call.url}`).toBe(403);
+    }
+    expect(recorded.callers.length).toBe(before);
+  });
+
+  it('is not served an agent token, whatever its owner holds', async () => {
+    const tenant = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().systemAgentToken(['manage-tenants', 'use-assistant'], {
+      scope: 'mcp:read',
+      act: { sub: 'agent-instance' },
+      via: 'mcp',
+      assistant: true,
+      targetTenantId: tenant.id,
+    });
+    const headers = { authorization: `Bearer ${token}` };
+    const before = recorded.callers.length;
+    for (const call of calls(tenant.name)) {
+      const res = await fx().http.inject({ ...call, headers });
+      expect(res.statusCode, `${call.method} ${call.url}`).toBeGreaterThanOrEqual(400);
+    }
+    expect(recorded.callers.length).toBe(before);
+  });
+});
+
+describe('a tenant administrator at another tenant', () => {
+  it('is refused every conversation route, and nothing reaches the port', async () => {
+    const own = await fx().createTenant(`as-${newId()}`);
+    const other = await fx().createTenant(`as-${newId()}`);
+    const token = await fx().adminToken(own.name, ['use-assistant', 'manage-clients']);
+    const headers = { authorization: `Bearer ${token}` };
+    const before = recorded.callers.length;
+    for (const [method, url] of [
+      ['POST', BASE(other.name)],
+      ['GET', `${BASE(other.name)}/${ID}`],
+    ] as const) {
+      const res = await fx().http.inject({
+        method,
+        url,
+        headers,
+        ...(method === 'POST' ? { payload: { page_context: CONTEXT } } : {}),
+      });
+      expect([401, 403], `${method} ${url}`).toContain(res.statusCode);
     }
     expect(recorded.callers.length).toBe(before);
   });

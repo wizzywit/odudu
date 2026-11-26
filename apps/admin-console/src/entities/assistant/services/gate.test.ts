@@ -27,6 +27,10 @@ it('opens the gate only for a deployment with an assistant and a caller who may 
   expect(mayUseAssistant(undefined)).toBe(false);
 });
 
+it('offers nothing in a tenant other than the one signed in to', () => {
+  expect(mayUseAssistant(authority({ crossTenant: true }))).toBe(false);
+});
+
 it('treats a deployment whoami did not describe as having no assistant', () => {
   expect(mayUseAssistant({ capabilities: ['use-assistant'], crossTenant: false })).toBe(false);
 });
