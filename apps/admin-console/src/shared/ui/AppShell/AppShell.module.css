@@ -116,6 +116,7 @@
   display: none;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   min-block-size: 48px;
   padding: 0 var(--space-4);
   color: var(--ink-rail);
@@ -188,6 +189,9 @@
 }
 
 .brand {
+  /* Gives way first: the actions beside it keep their width. */
+  flex: 0 1 auto;
+  min-inline-size: 0;
   font-family: var(--font-mono);
   font-size: var(--type-13);
   font-weight: 600;

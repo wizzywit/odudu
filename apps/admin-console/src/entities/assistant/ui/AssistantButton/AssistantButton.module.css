@@ -49,6 +49,22 @@
   display: inline-flex;
 }
 
+.short {
+  display: none;
+}
+
+/* The top bar of a phone has the brand, this and the menu to hold: the short
+   word stands in, and the button is still named by its whole label. */
+@container shell (width < 480px) {
+  .full {
+    display: none;
+  }
+
+  .short {
+    display: inline;
+  }
+}
+
 /* A phone has no keyboard to press it on. */
 @container shell (width < 640px) {
   .hint {

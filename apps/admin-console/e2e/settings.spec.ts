@@ -274,4 +274,11 @@ test('the settings page fits a phone', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'On this page' })).toBeVisible();
   await expectFitsViewport(page, 'settings');
   await expectAccessible(page);
+  // The narrowest screen the console supports, where a long value in a select
+  // used to widen its card past the page.
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expectFitsViewport(page, 'settings at 320');
+  // The brand stays on one line, so the top bar keeps its single row.
+  const bar = await page.locator('header').first().boundingBox();
+  expect(bar?.height).toBeLessThanOrEqual(56);
 });

@@ -172,7 +172,7 @@ export function AppShell({
         <div className={styles.column}>
           <header className={styles.topBar}>
             <span className={styles.brand}>
-              <BrandLine>{brand}</BrandLine>
+              <BrandLine single>{brand}</BrandLine>
             </span>
             <span className={styles.topActions}>
               {railShown ? null : (

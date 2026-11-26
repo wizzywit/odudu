@@ -40,6 +40,7 @@ Dark
 Switch tenant
 Sign out
 Ask the assistant
+Ask
 or press 
 ⌘
 Command
@@ -50,6 +51,7 @@ or press
 [
 odudu · system
 Ask the assistant
+Ask
 or press 
 ⌘
 Command
