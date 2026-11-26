@@ -1,5 +1,6 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  actingInOf,
   assistantView,
   conversationFor,
   mayUseAssistant,
@@ -27,8 +28,33 @@ it('opens the gate only for a deployment with an assistant and a caller who may 
   expect(mayUseAssistant(undefined)).toBe(false);
 });
 
-it('offers nothing in a tenant other than the one signed in to', () => {
-  expect(mayUseAssistant(authority({ crossTenant: true }))).toBe(false);
+describe('a system administrator in another tenant', () => {
+  const both = authority({ crossTenant: true, capabilities: ['use-assistant', 'manage-tenants'] });
+
+  it('has the assistant when they hold use-assistant and manage-tenants', () => {
+    expect(mayUseAssistant(both)).toBe(true);
+  });
+
+  it('has none without manage-tenants, or without use-assistant', () => {
+    expect(mayUseAssistant(authority({ crossTenant: true }))).toBe(false);
+    expect(
+      mayUseAssistant(authority({ crossTenant: true, capabilities: ['manage-tenants'] })),
+    ).toBe(false);
+  });
+
+  it('has none where the deployment has no assistant', () => {
+    expect(mayUseAssistant({ ...both, assistantAvailable: false })).toBe(false);
+  });
+
+  it('is said to act in the tenant of the address, and nobody else is', () => {
+    expect(actingInOf(both, 'demo')).toBe('demo');
+    expect(actingInOf(authority({}), 'demo')).toBeNull();
+    expect(actingInOf(undefined, 'demo')).toBeNull();
+  });
+
+  it('needs manage-tenants only across tenants', () => {
+    expect(mayUseAssistant(authority({ capabilities: ['use-assistant'] }))).toBe(true);
+  });
 });
 
 it('treats a deployment whoami did not describe as having no assistant', () => {

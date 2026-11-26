@@ -1,7 +1,7 @@
 export { AssistantGate, type AssistantSlots } from '#/entities/assistant/ui/AssistantGate';
 export { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
 export { useRefreshAssistantStatus } from '#/entities/assistant/use-cases/useRefreshAssistantStatus';
-export { mayUseAssistant } from '#/entities/assistant/services/gate';
+export { actingInOf, mayUseAssistant } from '#/entities/assistant/services/gate';
 export { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 export {
   MARKDOWN_MAX_CHARS,

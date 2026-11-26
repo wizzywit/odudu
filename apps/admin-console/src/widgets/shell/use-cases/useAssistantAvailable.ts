@@ -1,13 +1,14 @@
-import { mayUseAssistant } from '#/entities/assistant';
+import { actingInOf, mayUseAssistant } from '#/entities/assistant';
 import { useAuthority } from '#/entities/session';
-import { signedInFrom } from '#/widgets/shell/services/shellText';
 
 // Whether whoami says the deployment has an assistant and the caller may use
-// it. False while whoami is out or failed, so nothing is asked, nothing drawn;
-// and false for an administrator signed in to another tenant, who may read this
-// one but has no subject here to own a conversation, so the server would not
-// serve them one.
-export function useAssistantAvailable(tenant: string, signedInTo: string): boolean {
+// it, and the tenant it would act in when that is not the caller's own. False
+// while whoami is out or failed, so nothing is asked, nothing drawn. A system
+// administrator in another tenant has it there when they hold manage-tenants.
+export function useAssistantAvailable(tenant: string): {
+  available: boolean;
+  actingIn: string | null;
+} {
   const authority = useAuthority(tenant);
-  return mayUseAssistant(authority) && signedInFrom(signedInTo, tenant) === null;
+  return { available: mayUseAssistant(authority), actingIn: actingInOf(authority, tenant) };
 }

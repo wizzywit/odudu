@@ -21,6 +21,7 @@ export function FirstRunNotice({
       </h3>
       <p className={styles.text}>{notice.sentTo}</p>
       <p className={styles.text}>{notice.seenBy}</p>
+      {notice.acting === null ? null : <p className={styles.text}>{notice.acting}</p>}
       <div className={styles.action}>
         <Button size="small" onPress={onDismiss}>
           {words.firstRunDismiss}

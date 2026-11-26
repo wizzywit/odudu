@@ -23,6 +23,8 @@ export interface ChatViewInput {
   meter: MeterState;
   expectsEnd: boolean;
   act: boolean;
+  // The tenant the conversation acts in when it is not the person's own.
+  actingIn: string | null;
 }
 
 export interface ChatView {
@@ -51,7 +53,7 @@ function drawn(messages: ChatViewInput['messages']): PanelMessage[] {
 // the stream's closing parts and the stored conversation say.
 export function chatView(input: ChatViewInput): ChatView {
   const messages = drawn(input.messages);
-  const failure = input.error === undefined ? null : failureOf(input.error);
+  const failure = input.error === undefined ? null : failureOf(input.error, input.actingIn);
   const state = panelState({
     history: input.history,
     chat: input.chat,

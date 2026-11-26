@@ -30,6 +30,37 @@
   outline-offset: 2px;
 }
 
+.acting {
+  display: block;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--ink-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  justify-self: start;
+  max-inline-size: 100%;
+}
+
+.acting::before {
+  content: '';
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  vertical-align: middle;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--ink-primary);
+}
+
 .modes {
   display: grid;
   gap: var(--space-1);

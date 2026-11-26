@@ -32,7 +32,7 @@ function SignedInShell({
   children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
-  const assistantAvailable = useAssistantAvailable(tenant, principal.tenant);
+  const assistant = useAssistantAvailable(tenant);
   const { productName } = useTenantFrame(tenant);
   const missing = useTenantMissing(tenant);
   if (missing === true) {
@@ -45,7 +45,8 @@ function SignedInShell({
   return (
     <AssistantGate
       tenant={tenant}
-      available={assistantAvailable}
+      available={assistant.available}
+      actingIn={assistant.actingIn}
       paused={shell.dialogOpen}
       renderPanel={renderAssistantPanel}
     >

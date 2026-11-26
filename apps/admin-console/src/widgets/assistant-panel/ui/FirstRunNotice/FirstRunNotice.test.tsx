@@ -16,6 +16,13 @@ it('says where messages go and who can read them, and does not take the focus', 
   expect(document.body).toHaveFocus();
 });
 
+it('adds who pays and who sees what in another tenant, and only there', () => {
+  const other = firstRunNotice({ kind: 'bedrock' }, 'demo');
+  render(<FirstRunNotice notice={other} words={PANEL_WORDING} onDismiss={vi.fn<() => void>()} />);
+  expect(screen.getByText(/Your own tenant pays/u)).toHaveTextContent('Administrators of demo');
+  expect(screen.getByText(/Your own tenant pays/u)).toHaveTextContent('not what you wrote');
+});
+
 it('is dismissed from its button', async () => {
   const user = userEvent.setup();
   const onDismiss = vi.fn<() => void>();

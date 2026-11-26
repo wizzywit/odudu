@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
 import { Button } from '#/shared/ui/Button';
+import { actingInText } from '#/widgets/assistant-panel/services/crossTenant';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import styles from '#/widgets/assistant-panel/ui/PanelHeader/PanelHeader.module.css';
@@ -24,6 +25,7 @@ export function PanelHeader({
   onStartNew,
   mode,
   modes,
+  actingIn = null,
   meter,
   models,
   words,
@@ -36,6 +38,9 @@ export function PanelHeader({
   onStartNew: () => void;
   mode: AssistantMode;
   modes: readonly AssistantMode[];
+  // The tenant the conversation acts in when it is not the person's own: named
+  // for as long as the panel is open, and Act is never offered there.
+  actingIn?: string | null;
   // Null until the server has said something about the allowance.
   meter: Meter | null;
   // Named only where there is a choice of more than one.
@@ -57,6 +62,11 @@ export function PanelHeader({
           </Button>
         </div>
       </div>
+      {actingIn === null ? null : (
+        <p className={styles.acting} title={actingInText(actingIn)}>
+          {actingInText(actingIn)}
+        </p>
+      )}
       {modes.length > 1 ? (
         <RadioGroup
           value={mode}
@@ -80,7 +90,9 @@ export function PanelHeader({
             ))}
           </div>
           <p className={styles.modeHint}>{modeWords(words)[mode].hint}</p>
-          <p className={styles.modeHint}>{words.actNote}</p>
+          <p className={styles.modeHint}>
+            {actingIn === null ? words.actNote : words.actOtherTenantNote}
+          </p>
         </RadioGroup>
       ) : null}
       {meter === null && models === null ? null : (

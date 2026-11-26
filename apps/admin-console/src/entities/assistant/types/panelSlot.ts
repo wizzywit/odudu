@@ -6,6 +6,9 @@ import type { AssistantView } from '#/entities/assistant/services/gate';
 // panel was last open on, which it reports when it starts one.
 export interface AssistantPanelSlot {
   tenant: string;
+  // The tenant named when it is not the signed-in administrator's own: the
+  // conversation is theirs, and its tools run there.
+  actingIn: string | null;
   view: AssistantView;
   id: string;
   label: string;

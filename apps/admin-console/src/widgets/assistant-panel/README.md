@@ -32,6 +32,12 @@ The conversation with the assistant, docked beside the page or laid over it.
   level at which it warned and the level that refused, and no usage figures, so
   the meter shows only that, and nothing before it has said anything. A
   warning and a refusal are kept across turns until one ends well.
+- **Another tenant.** For a system administrator acting in another tenant
+  (`AssistantPanelSlot.actingIn`) the panel names the tenant for as long as it is
+  open, draws Act disabled with the reason, and starts every conversation in
+  Ask. The server binds the conversation to the tenant of the address, so the
+  panel sends nothing more. Its first-run notice is its own, and is remembered
+  apart from the one for the administrator's own tenant.
 - **Kept mounted.** The panel is a lazy chunk, loaded when first opened, and
   stays mounted when closed, so putting it away never ends an answer; only Stop
   does (and leaving the tenant shell).
