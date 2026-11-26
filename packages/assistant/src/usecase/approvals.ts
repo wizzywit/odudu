@@ -2,6 +2,7 @@ import type { AssistantApprovalCard, AssistantMode } from '@odudu/contracts/admi
 import { approvalCardRepository, type ApprovalCardRow } from '#/repository/approvals';
 import { conversationRepository } from '#/repository/conversations';
 import { messageRepository } from '#/repository/messages';
+import { conversationIsCallers, crossTenant } from '#/service/conversation-access';
 import { modeOffered } from '#/service/proposal-rules';
 import { settleParts } from '#/service/settle-approvals';
 import type { ChatCaller, ChatDeps, DecideResult, WithdrawReason } from '#/usecase/chat-deps';
@@ -26,7 +27,7 @@ export async function listApprovals(
 ): Promise<AssistantApprovalCard[] | null> {
   return deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) return null;
+    if (record === undefined || !conversationIsCallers(record, caller)) return null;
     const rows = await approvalCardRepository(tx).pending(conversationId, deps.now());
     return rows.map(cardView);
   });
@@ -37,8 +38,8 @@ export async function listApprovals(
 // reported as not there.
 function loadCard(caller: ChatCaller, conversationId: string, approvalId: string) {
   return async (tx: Parameters<Parameters<ChatDeps['transact']>[1]>[0]) => {
-    const owner = (await conversationRepository(tx).byId(conversationId))?.ownerSubjectId;
-    if (owner !== caller.ownerSubjectId) return undefined;
+    const record = await conversationRepository(tx).byId(conversationId);
+    if (record === undefined || !conversationIsCallers(record, caller)) return undefined;
     const card = await approvalCardRepository(tx).byApproval(approvalId);
     return card?.conversationId === conversationId
       ? { conversationId, tool: card.tool }
@@ -77,7 +78,7 @@ export async function withdrawPending(
   if (deps.approvals === undefined) return 0;
   const cards = await deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) return [];
+    if (record === undefined || !conversationIsCallers(record, caller)) return [];
     return approvalCardRepository(tx).pending(conversationId, deps.now());
   });
   let withdrawn = 0;
@@ -111,7 +112,7 @@ export async function settleLastMessage(
 ): Promise<Settlement> {
   return deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) {
+    if (record === undefined || !conversationIsCallers(record, caller)) {
       return { waiting: 0, resumable: 0, settled: 0 };
     }
     const messages = messageRepository(tx);
@@ -151,7 +152,10 @@ export async function setConversationMode(
 ): Promise<SetModeOutcome> {
   const outcome = await deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) return 'not_found' as const;
+    if (record === undefined || !conversationIsCallers(record, caller)) return 'not_found' as const;
+    // Act reaches another tenant only with approvals made for it, which this
+    // path does not yet carry: the conversation stays in Ask there.
+    if (mode === 'act' && crossTenant(caller)) return 'not_offered' as const;
     if (mode === 'act') {
       const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
       if (!modeOffered({ mode, canPropose: deps.approvals !== undefined, modes: limits.modes })) {

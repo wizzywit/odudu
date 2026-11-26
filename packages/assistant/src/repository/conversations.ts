@@ -14,6 +14,8 @@ export interface NewConversation {
   instanceId: string;
   profile: string;
   mode: ConversationMode;
+  // The tenant the conversation acts in, when it is not `tenantId`; omitted otherwise.
+  targetTenantId?: string;
   now: Date;
 }
 
@@ -40,6 +42,7 @@ export function conversationRepository(tx: AssistantTx) {
           instanceId: input.instanceId,
           profile: input.profile,
           mode: input.mode,
+          targetTenantId: input.targetTenantId ?? null,
           createdAt: input.now,
           lastActiveAt: input.now,
         })

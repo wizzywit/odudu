@@ -108,6 +108,7 @@ function build(
           expCeiling: null,
           requestedUserinfoClaims: null,
           mayAct: null,
+          targetTenantId: null,
         }),
       isSessionLive: () => Promise.resolve(true),
       loadClientState: () =>

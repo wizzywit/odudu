@@ -1,5 +1,6 @@
 import type { AssistantConversation, CreateConversationRequest } from '@odudu/contracts/admin';
 import { conversationRepository } from '#/repository/conversations';
+import { conversationIsCallers, crossTenant } from '#/service/conversation-access';
 import { MAX_LOAD, messageRepository } from '#/repository/messages';
 import { conversationView, visibleMessages } from '#/usecase/conversation-view';
 import { runKey } from '#/service/run-key';
@@ -23,6 +24,11 @@ export async function createConversation(
   const id = deps.newId();
   const now = deps.now();
   const mode = request.mode ?? 'ask';
+  // A conversation in another tenant reads only until its approvals carry that
+  // tenant too, so it is not started in Act.
+  if (mode === 'act' && crossTenant(caller)) {
+    return { kind: 'access_refused', reason: 'act_not_offered' };
+  }
   const outcome = await deps.withAccess(caller, { id, mode, now }, async (tx) => {
     const created = await conversationRepository(tx).create({
       id,
@@ -31,6 +37,9 @@ export async function createConversation(
       instanceId: deps.instanceIdFor(caller, id, runKey(id, 0)),
       profile,
       mode,
+      ...(caller.target !== undefined && crossTenant(caller)
+        ? { targetTenantId: caller.target.id }
+        : {}),
       now,
     });
     await messageRepository(tx).append(id, {
@@ -52,7 +61,7 @@ export async function loadConversation(
 ): Promise<AssistantConversation | null> {
   return deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(id);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) return null;
+    if (record === undefined || !conversationIsCallers(record, caller)) return null;
     const messages = await messageRepository(tx).load(id, MAX_LOAD);
     return conversationView(record, visibleMessages(id, messages));
   });

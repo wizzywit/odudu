@@ -1,5 +1,6 @@
 import {
   createChat,
+  readSettings,
   deriveApprovalSecret,
   type BudgetAuditEvent,
   RunLapsed,
@@ -20,6 +21,7 @@ import {
   AGENT_TOKEN_MAX_TTL_SECONDS,
   AgentTokenRefused,
   AssistantGrantRefused,
+  type AssistantTargetFacts,
   grantAssistantAccess,
   MCP_READ_SCOPE,
   mintAgentToken,
@@ -80,6 +82,7 @@ function auditRefusal(
     subjectId: caller.ownerSubjectId,
     conversationId,
     refusal,
+    ...(caller.target === undefined ? {} : { targetTenantId: caller.target.id }),
   });
 }
 
@@ -251,6 +254,7 @@ function budgetAuditRecorder(parts: AssistantChatParts): NonNullable<ChatDeps['a
         resourceId: event.conversationId,
         detail: {
           tenant: event.tenantId,
+          ...(event.targetTenantId === undefined ? {} : { target_tenant: event.targetTenantId }),
           subject: event.subjectId,
           turn: event.turnId,
           slot: event.slot,
@@ -288,6 +292,7 @@ export function turnAuditRecorder(
         detail: {
           phase,
           tenant: row.tenantId,
+          ...(row.targetTenantId === undefined ? {} : { target_tenant: row.targetTenantId }),
           subject: row.subjectId,
           conversation: row.conversationId,
           turn: row.turnId,
@@ -307,6 +312,26 @@ export function turnAuditRecorder(
   };
 }
 
+// What the tenant a system administrator names looks like from outside their
+// own: whether it exists and is enabled, and whether it offers the assistant.
+// Read in a transaction of its own, because the one that makes the grant is
+// bound to the administrator's tenant and cannot see another's rows. The
+// conversation's own checks then stand on these facts, and the door re-reads
+// the tenant on every call. Undefined for a conversation in the caller's own tenant.
+async function targetFacts(
+  parts: AssistantChatParts,
+  lookup: ReturnType<typeof tenantLookupRepository>,
+  caller: ChatCaller,
+): Promise<AssistantTargetFacts | null | undefined> {
+  if (caller.target === undefined) return undefined;
+  const found = await lookup.byName(caller.target.name);
+  if (found?.id !== caller.target.id) return null;
+  const settings = await withTenantRetrying(parts.database.db, found.id, (tx) =>
+    readSettings(tx, found.id),
+  );
+  return { id: found.id, enabled: found.enabled, assistantEnabled: settings.assistant_enabled };
+}
+
 // Creates the conversation in a transaction of its own that begins with its
 // grant, made from the console sign-in the request came on. The grant's id is
 // the conversation's, so nothing else has to remember it. A refusal commits its
@@ -316,6 +341,7 @@ function accessGranter(parts: AssistantChatParts): ChatDeps['withAccess'] {
   return async (caller, conversation, fn) => {
     const tenant = await lookup.byName(caller.tenantName);
     if (tenant?.id !== caller.tenantId) throw new Error('the tenant is not available');
+    const target = await targetFacts(parts, lookup, caller);
     return withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
       const refusal = async (reason: string) => {
         parts.logger.warn({ reason, tenantId: tenant.id }, 'the assistant was refused an identity');
@@ -341,6 +367,7 @@ function accessGranter(parts: AssistantChatParts): ChatDeps['withAccess'] {
             expectedSubjectId: caller.ownerSubjectId,
             mode: conversation.mode,
             now: conversation.now,
+            ...(target === undefined ? {} : { target }),
           },
         );
       } catch (error) {

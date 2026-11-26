@@ -1,4 +1,5 @@
 import { conversationRepository } from '#/repository/conversations';
+import { conversationIsCallers } from '#/service/conversation-access';
 import type { TurnRegistry } from '#/service/turn-registry';
 import { withdrawPending } from '#/usecase/approvals';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
@@ -15,11 +16,11 @@ export async function stopTurn(
   caller: ChatCaller,
   id: string,
 ): Promise<'stopped' | 'idle' | 'not_found'> {
-  const owner = await deps.transact(
-    caller.tenantId,
-    async (tx) => (await conversationRepository(tx).byId(id))?.ownerSubjectId,
-  );
-  if (owner !== caller.ownerSubjectId) return 'not_found';
+  const owned = await deps.transact(caller.tenantId, async (tx) => {
+    const record = await conversationRepository(tx).byId(id);
+    return record !== undefined && conversationIsCallers(record, caller);
+  });
+  if (!owned) return 'not_found';
   await withdrawPending(deps, caller, id, 'stopped');
   return registry.stop(id) ? 'stopped' : 'idle';
 }

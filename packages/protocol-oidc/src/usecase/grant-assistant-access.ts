@@ -9,6 +9,7 @@ import {
   ASSISTANT_WRITE_CEILING,
   assistantGrantRefusal,
   assistantScopeCeiling,
+  type AssistantTargetFacts,
   type AssistantGrantRefusal,
   type AssistantMode,
 } from '#/service/assistant-grant-rules';
@@ -41,6 +42,12 @@ export interface GrantAssistantAccessInput {
   // Defaults to the mode's ceiling; asking for more is refused.
   readonly scope?: readonly string[];
   readonly now: Date;
+  // The tenant the conversation acts in, for a system administrator using the
+  // assistant in another tenant, as the caller read its state there (this
+  // transaction is bound to the administrator's own tenant and cannot see it):
+  // the grant is stored under the administrator's tenant and names this one.
+  // Left out, or equal to the administrator's tenant, it acts in its own.
+  readonly target?: AssistantTargetFacts | null;
 }
 
 // Makes the grant a console assistant's conversation acts on: a grant of the
@@ -132,6 +139,7 @@ async function deriveAssistantGrant(
             agentType: assistantConfig?.agentType === true,
           },
     tenantEnabled: await tenantEnabledRepository(tx).enabled(deps.tenantId),
+    ...(input.target === undefined ? {} : { target: input.target }),
     sessionLive: consoleGrant?.sessionId == null ? null : session !== null,
     subjectEnabled:
       consoleGrant !== null &&
@@ -150,5 +158,8 @@ async function deriveAssistantGrant(
     audience: [ADMIN_API_AUDIENCE],
     sessionId: consoleGrant.sessionId,
     exchangedFromGrantId: consoleGrant.id,
+    ...(input.target == null || input.target.id === deps.tenantId
+      ? {}
+      : { targetTenantId: input.target.id }),
   });
 }

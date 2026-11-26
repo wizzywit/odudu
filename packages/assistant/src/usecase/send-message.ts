@@ -1,6 +1,14 @@
 import { toUIMessageStream, type UIMessage, type UIMessageChunk } from 'ai';
 import { approvalCardRepository } from '#/repository/approvals';
 import { conversationRepository, type ConversationMode } from '#/repository/conversations';
+import { toolsFor } from '#/service/tool-set';
+import {
+  actsInTenantOf,
+  conversationIsCallers,
+  crossTenant,
+  settingsOfTwo,
+  sideOf,
+} from '#/service/conversation-access';
 import { leaseRepository } from '#/repository/leases';
 import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
@@ -64,26 +72,47 @@ interface Head {
 }
 
 // What a turn needs to know about the conversation before anything is changed:
-// null for one that is not the caller's.
+// null for one that is not the caller's. Where the caller acts in another
+// tenant, that tenant's settings are read in a transaction of its own and the
+// stricter of the two applies; the limits stay the caller's tenant's, which pays.
 async function readHead(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Head | null> {
-  return deps.transact(caller.tenantId, async (tx) => {
+  const home = await deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(id);
-    if (record?.ownerSubjectId !== caller.ownerSubjectId) return null;
+    if (record === undefined || !conversationIsCallers(record, caller)) return null;
     const head = await messageRepository(tx).first(id);
     const settings = await readSettings(tx, caller.tenantId);
     const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
-    return {
-      profileId: record.profile,
-      generation: record.runGeneration,
-      pageContext: pageContextText(readPageContext(head?.parts)),
-      maskEmails: settings.assistant_mask_emails,
-      limits,
-      // Act only where the deployment can propose a change and the tenant allows it.
-      mode:
-        record.mode === 'act' && deps.approvals !== undefined && limits.modes.includes('act')
-          ? 'act'
-          : 'ask',
-    };
+    return { record, head, settings, limits };
+  });
+  if (home === null) return null;
+  const { record, head, limits } = home;
+  const own = sideOf(home.settings, limits);
+  const side = crossTenant(caller)
+    ? settingsOfTwo(own, await targetSide(deps, actsInTenantOf(caller)))
+    : own;
+  if (!side.enabled) return null;
+  return {
+    profileId: record.profile,
+    generation: record.runGeneration,
+    pageContext: pageContextText(readPageContext(head?.parts)),
+    maskEmails: side.maskEmails,
+    limits,
+    // Act only where the deployment can propose a change, every tenant involved
+    // allows it, and the conversation is in the caller's own tenant.
+    mode:
+      record.mode === 'act' &&
+      deps.approvals !== undefined &&
+      side.modes.includes('act') &&
+      !crossTenant(caller)
+        ? 'act'
+        : 'ask',
+  };
+}
+
+async function targetSide(deps: ChatDeps, tenantId: string) {
+  return deps.transact(tenantId, async (tx) => {
+    const settings = await readSettings(tx, tenantId);
+    return sideOf(settings, await (deps.entitlements ?? openEntitlements(tx)).limits(tenantId));
   });
 }
 
@@ -286,7 +315,7 @@ function turnApprovals(
           // Only an Act conversation of the caller runs a change, and only the
           // one the card was stored for.
           const record = await conversationRepository(tx).byId(id);
-          if (record?.ownerSubjectId !== caller.ownerSubjectId || record.mode !== 'act') {
+          if (record === undefined || !conversationIsCallers(record, caller) || record.mode !== 'act') {
             return undefined;
           }
           const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
@@ -401,6 +430,7 @@ async function runConversationTurn(
     conversationId: id,
     turnId,
     slot: profile.slot,
+    ...(crossTenant(caller) ? { targetTenantId: actsInTenantOf(caller) } : {}),
     ...extra,
   });
   const ending = (): StopReason =>
@@ -421,6 +451,7 @@ async function runConversationTurn(
     profile: profile.id,
     mode: prepared.mode,
     slot: profile.slot,
+    ...(crossTenant(caller) ? { targetTenantId: actsInTenantOf(caller) } : {}),
   };
   // The closing row is written once the turn has settled; a failure of it is
   // logged and never changes what the person saw.
@@ -525,7 +556,7 @@ async function runConversationTurn(
         profile,
         tenantText: prepared.pageContext,
         maskEmails: prepared.maskEmails,
-        tools: deps.tools,
+        tools: toolsFor(deps.tools, caller),
         mode: prepared.mode,
         ...(deps.approvalSecret === undefined ? {} : { approvalSecret: deps.approvalSecret }),
         ...(deps.log === undefined ? {} : { log: deps.log }),

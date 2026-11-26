@@ -62,8 +62,12 @@ export async function callAsAssistant(
 ): Promise<ToolResult> {
   const now = parts.now ?? (() => new Date());
   const { clientId, clientDbId } = identity;
+  // The tool is called in the tenant the conversation acts in, which is the
+  // caller's own unless a system administrator named another; the token stays
+  // the administrator's, so the issuer and the owner are still theirs.
+  const actsIn = caller.target ?? { id: caller.tenantId, name: caller.tenantName };
   const token = validatedMcpToken({
-    tenant: { id: caller.tenantId, name: caller.tenantName },
+    tenant: actsIn,
     issuer: caller.issuer,
     subjectId: caller.ownerSubjectId,
     clientId,
@@ -91,8 +95,10 @@ export async function callAsAssistant(
     agent: { clientId, ownerSubjectId: caller.ownerSubjectId },
   };
   const ids = { conversation: as.conversationId, turn: as.turnId };
+  // The row is the acted-in tenant's: its own administrators can read that an
+  // operator used the assistant there, with the operator as actor.
   const write = (recorded: Parameters<typeof recordAgentToolCall>[2]) =>
-    withTenant(parts.database.db, caller.tenantId, (tx) =>
+    withTenant(parts.database.db, actsIn.id, (tx) =>
       recordAgentToolCall(tx, principal, { ...recorded, ...ids }),
     );
   return callMcpTool(

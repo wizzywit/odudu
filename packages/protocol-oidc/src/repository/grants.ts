@@ -41,6 +41,7 @@ function toRecord(row: typeof tokenGrants.$inferSelect): TokenGrantRecord {
     expCeiling: row.expCeiling,
     requestedUserinfoClaims: row.requestedUserinfoClaims,
     mayAct: row.mayAct,
+    targetTenantId: row.targetTenantId,
   };
 }
 
@@ -71,6 +72,8 @@ export interface NewTokenGrant {
   expCeiling?: Date | null;
   requestedUserinfoClaims?: readonly string[] | null;
   mayAct?: unknown;
+  // The tenant an assistant conversation's grant acts in; see the schema.
+  targetTenantId?: string | null;
 }
 
 // What a front-channel logout page needs of a client; the rest of
@@ -398,6 +401,7 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
           requestedUserinfoClaims:
             input.requestedUserinfoClaims == null ? null : [...input.requestedUserinfoClaims],
           mayAct: input.mayAct ?? null,
+          targetTenantId: input.targetTenantId ?? null,
         })
         .returning();
       const row = rows[0];

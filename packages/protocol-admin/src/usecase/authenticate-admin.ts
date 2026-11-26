@@ -36,6 +36,9 @@ export interface AdminAgent {
   // Set when the owner is the client's own service account: no person signed in to
   // that grant, so nothing counts what it creates against anybody's sign-in.
   readonly ownerIsServiceAccount?: true;
+  // The tenant the grant names, set only when the grant belongs to the built-in
+  // assistant client: no other client's grant is read for a target.
+  readonly assistantTarget?: string;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -412,6 +415,9 @@ export async function authenticateAdmin(
         ...(claims.endpointMinted ? { viaEndpoint: true as const } : {}),
         ...(client.serviceSubjectId === payload.sub
           ? { ownerIsServiceAccount: true as const }
+          : {}),
+        ...(client.builtinAssistant && grant.targetTenantId !== null
+          ? { assistantTarget: grant.targetTenantId }
           : {}),
       },
     },

@@ -15,6 +15,7 @@ import {
   agentWritesClient,
   scopeAdmits,
 } from '#/service/agent-scope';
+import { agentReaches } from '#/service/agent-reach';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
@@ -204,7 +205,13 @@ async function authorizeRoute(
   const { principal } = outcome;
   if (
     principal.agent !== undefined &&
-    (principal.issuerTenantId !== targetTenant.id ||
+    (!agentReaches({
+      agent: principal.agent,
+      issuerTenantId: principal.issuerTenantId,
+      scopes: principal.scopes,
+      pathTenantId: targetTenant.id,
+      pathTenantEnabled: targetTenant.enabled,
+    }) ||
       !scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId)) ||
       (agentWriteNeedsEndpoint(route) &&
         (principal.agent.viaEndpoint !== true || principal.agent.ownerIsServiceAccount === true)))
