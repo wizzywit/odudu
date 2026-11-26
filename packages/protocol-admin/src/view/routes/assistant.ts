@@ -300,6 +300,22 @@ export function sendMessageHandler(deps: AssistantChatRouteDeps): AdminRouteHand
       reply.header(name, value);
     });
     if (response.body === null) return reply.send();
-    return reply.send(Readable.fromWeb(response.body));
+    return reply.send(Readable.from(chunksOf(response.body)));
   });
+}
+
+// Pulls the body a chunk at a time and cancels it when the reply stops reading
+// or closes, so closing the connection reaches the model call. Written over
+// the reader because the web stream types of the DOM library and node's differ.
+async function* chunksOf(body: NonNullable<Response['body']>): AsyncGenerator<Uint8Array> {
+  const reader = body.getReader();
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) return;
+      yield next.value;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
 }
