@@ -70,7 +70,7 @@ A subject's record has a tab for each part of an account.
 
 ## Things that cannot be undone, or that end somebody's work
 
-- **Delete** removes the subject with its credentials, sessions, grants, roles and group memberships. Disabling instead keeps everything and stops the person signing in. The profile has both, as **Disable ada** and **Delete ada** for a person called ada. A client's service account cannot be deleted here: delete the client instead.
+- **Delete** removes the subject with its credentials, sessions, grants, roles and group memberships. Disabling instead keeps everything and stops the person signing in. The profile has both, as **Disable ada** and **Delete ada** for a person called ada. A client's service account cannot be deleted here: delete the client instead. An agent instance cannot be deleted either: revoke it in **Agents**, and the reaper removes it after its retention window.
 - **End every session** on the Sessions tab signs the person out everywhere, and **End session** ends one.
 - **Revoke grants** on the Grants tab ends a client's access for the person, including grants that outlive a session.
 - **Revoke recovery codes** on the Credentials tab discards the person's whole set at once.

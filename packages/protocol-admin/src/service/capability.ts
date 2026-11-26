@@ -525,7 +525,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       TARGET_CEILING.trimStart() +
       LAST_ADMINISTRATOR +
-      ' Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead.',
+      ' Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead. Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the instance instead.',
   },
   {
     method: 'GET',

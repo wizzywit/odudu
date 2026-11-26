@@ -18,6 +18,12 @@ describe('when a subject cannot be deleted on its own', () => {
     );
   });
 
+  it('says to revoke an agent instance, which the server always refuses', () => {
+    expect(deletionRefusal({ type: 'agent_instance' })).toBe(
+      'This is an agent instance. Revoke an agent instance instead; the reaper deletes it after its retention window.',
+    );
+  });
+
   it('has nothing to say for a user', () => {
     expect(deletionRefusal({ type: 'user' })).toBeNull();
   });

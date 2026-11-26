@@ -30,6 +30,13 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'client would be left with none. `detail` names the client. Delete the client instead, ' +
       'which deletes its account.',
   },
+  'agent-instance': {
+    status: 409,
+    summary:
+      'The subject of an agent instance is not deleted by hand. Revoke the instance; the ' +
+      'reaper deletes it after its retention window, so the audit rows that name it keep ' +
+      'their subject until then.',
+  },
   'builtin-scope-confirmation': {
     status: 422,
     summary:

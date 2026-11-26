@@ -14,6 +14,7 @@ import {
   problem,
   sendProblem,
   serviceAccountProblem,
+  agentInstanceProblem,
   type Problem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
@@ -69,6 +70,8 @@ function resultOf(outcome: BulkSubjectOutcome): BulkSubjectResult {
       return refusal(outcome.id, lastAdministratorProblem(outcome.reason));
     case 'service_account':
       return refusal(outcome.id, serviceAccountProblem(outcome.clientId));
+    case 'agent_instance':
+      return refusal(outcome.id, agentInstanceProblem());
   }
 }
 

@@ -11,10 +11,21 @@ export function signsInAsItself(subject: Pick<Subject, 'type'>): boolean {
 
 // Keyed on the subject's type alone: the server refuses on a client naming
 // the subject, and every service subject the product makes has one.
+export const SERVICE_ACCOUNT_DELETION =
+  "This is a client's service account. Delete the client instead; it cannot be deleted on its own.";
+
+export const AGENT_INSTANCE_DELETION =
+  'This is an agent instance. Revoke an agent instance instead; the reaper deletes it after its retention window.';
+
 export function deletionRefusal(subject: Pick<Subject, 'type'>): string | null {
-  return subject.type === 'service'
-    ? "This is a client's service account. Delete the client instead; it cannot be deleted on its own."
-    : null;
+  switch (subject.type) {
+    case 'service':
+      return SERVICE_ACCOUNT_DELETION;
+    case 'agent_instance':
+      return AGENT_INSTANCE_DELETION;
+    case 'user':
+      return null;
+  }
 }
 
 export function enabledVerb(enabled: boolean): 'enabled' | 'disabled' {

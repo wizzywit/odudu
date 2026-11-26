@@ -436,7 +436,7 @@ export interface paths {
         post?: never;
         /**
          * Requires the "manage-users" capability.
-         * @description Refused with `403` when the subject holds an admin capability the caller does not (the target ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead.
+         * @description Refused with `403` when the subject holds an admin capability the caller does not (the target ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead. Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the instance instead.
          */
         delete: {
             parameters: {

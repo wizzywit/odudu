@@ -74,6 +74,8 @@ def sync_detailed(
     ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled
     subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409`
     (`about:blank#service-account`) for the service account of a client; delete the client instead.
+    Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the
+    instance instead.
 
     Args:
         tenant (str):
@@ -111,6 +113,8 @@ def sync(
     ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled
     subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409`
     (`about:blank#service-account`) for the service account of a client; delete the client instead.
+    Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the
+    instance instead.
 
     Args:
         tenant (str):
@@ -143,6 +147,8 @@ async def asyncio_detailed(
     ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled
     subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409`
     (`about:blank#service-account`) for the service account of a client; delete the client instead.
+    Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the
+    instance instead.
 
     Args:
         tenant (str):
@@ -178,6 +184,8 @@ async def asyncio(
     ceiling). Refused with `409` (`about:blank#last-administrator`) when it would leave no enabled
     subject holding `tenant-admin` — `manage-tenants` in the system tenant. Refused with `409`
     (`about:blank#service-account`) for the service account of a client; delete the client instead.
+    Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the
+    instance instead.
 
     Args:
         tenant (str):

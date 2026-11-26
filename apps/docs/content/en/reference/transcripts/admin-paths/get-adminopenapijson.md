@@ -22,13 +22,13 @@ HTTP/1.1 200 OK
 x-request-id: 01a21686-091e-759b-9f57-7aa3375ecac7
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
-content-length: 458408
+content-length: 458525
 Date: Thu, 26 Nov 2026 06:23:32 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 126
-458408
+458525
 ```
 
 448 KB and 126 paths, which is the whole route table. It is the one admin
