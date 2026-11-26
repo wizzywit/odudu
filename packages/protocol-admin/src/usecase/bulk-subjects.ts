@@ -40,7 +40,8 @@ export type BulkSubjectOutcome =
   | { readonly id: string; readonly kind: 'not_found' }
   | { readonly id: string; readonly kind: 'target_ceiling'; readonly requested: readonly string[] }
   | { readonly id: string; readonly kind: 'last_administrator'; readonly reason: string }
-  | { readonly id: string; readonly kind: 'service_account'; readonly clientId: string };
+  | { readonly id: string; readonly kind: 'service_account'; readonly clientId: string }
+  | { readonly id: string; readonly kind: 'agent_instance' };
 
 async function applyOne(
   tx: TenantScopedDatabase,

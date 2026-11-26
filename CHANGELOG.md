@@ -8,6 +8,7 @@ All notable changes to Odudu are written here, newest first. The format follows
 
 ### Added
 
+- The subject of an agent instance can no longer be deleted by hand, through `DELETE` or the bulk delete on `/admin/tenants/<name>/subjects`, or in the console. It is refused with `409` (`about:blank#agent-instance`) and recorded as a refused `subject.delete`; revoke the instance instead, and `odudu reap` deletes it after its retention window. Deleting its owner still removes it.
 - Agent instances. A client marked as an agent (`agent_type`) that exchanges a person's token (RFC 8693) now starts a run of its own: the issued token keeps the person as `sub` and names the run in `act.sub`, and a run that exchanges its own token starts a run under it, nested in `act`. A run can only be narrower than the one above it: its scope is a subset, it ends no later than its parent or the person's session, its depth is within `agent_max_delegation_depth`, and a parent holds at most `agent_max_children` live runs and the tenant at most `agent_max_live_instances`. A client that is not an agent exchanges exactly as before.
 - `may_act` is now written into a person's access token, from the sign-in client's `delegated_actors` and from the person's own delegations (below), with the narrower scope ceiling applying to an agent client both name. The grant keeps it, so exchanging the refresh token is held to it as well. A sign-in with neither source has no `may_act`, as before.
 

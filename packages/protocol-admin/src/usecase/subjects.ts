@@ -916,6 +916,7 @@ export type DeleteSubjectOutcome =
   | { kind: 'not_found' }
   | TargetCeilingRefusal
   | { kind: 'service_account'; clientId: string }
+  | { kind: 'agent_instance' }
   | { kind: 'deleted' }
   | LastAdministratorRefusal;
 
@@ -924,7 +925,9 @@ export type DeleteSubjectOutcome =
 // cascades on it, and clients_service_subject_fk (0063_service_subject_fk.sql)
 // is the one exception, which now detaches rather than blocks it. A subject a
 // client names as its service account is refused instead: the client would be
-// left with none, and nothing gives it a new one.
+// left with none, and nothing gives it a new one. The subject of an agent
+// instance is refused too: revoking the instance keeps its audit linkage, and
+// the reaper removes it after its retention window.
 export async function deleteSubject(
   tx: TenantScopedDatabase,
   deps: DeleteSubjectDeps,
@@ -949,6 +952,24 @@ async function deleteSubjectUnguarded(
   input: DeleteSubjectInput,
 ): Promise<DeleteSubjectOutcome> {
   if (!(await lockSubjectRow(tx, input.subjectId))) return { kind: 'not_found' };
+  const [target] = await tx
+    .select({ type: subjects.type })
+    .from(subjects)
+    .where(eq(subjects.id, input.subjectId))
+    .limit(1);
+  if (target?.type === 'agent_instance') {
+    await deps.audit(tx, {
+      action: 'subject.delete',
+      resourceType: 'subject',
+      resourceId: input.subjectId,
+      actorSubjectId: input.actorSubjectId,
+      actorTenantId: input.actorTenantId,
+      actorClientId: input.actorClientId,
+      outcome: 'refused',
+      detail: { reason: 'an agent instance, removed by revoking it' },
+    });
+    return { kind: 'agent_instance' };
+  }
   const [owner] = await tx
     .select({ clientId: clients.clientId })
     .from(clients)

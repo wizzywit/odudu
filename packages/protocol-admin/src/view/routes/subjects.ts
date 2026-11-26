@@ -73,6 +73,7 @@ import {
   noMailRelayProblem,
   noPublicBaseUrlProblem,
   serviceAccountProblem,
+  agentInstanceProblem,
 } from '#/view/problem';
 import { adminTx } from '#/view/routes/admin-tx';
 import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router';
@@ -540,6 +541,8 @@ export function deleteSubjectHandler(deps: SubjectsRouteDeps): AdminRouteHandler
         return sendProblem(reply, request, problem(404, 'about:blank', 'Not Found'));
       case 'service_account':
         return sendProblem(reply, request, serviceAccountProblem(outcome.clientId));
+      case 'agent_instance':
+        return sendProblem(reply, request, agentInstanceProblem());
       case 'target_ceiling':
         return targetCeilingProblem(reply, request, outcome.requested);
       case 'deleted':

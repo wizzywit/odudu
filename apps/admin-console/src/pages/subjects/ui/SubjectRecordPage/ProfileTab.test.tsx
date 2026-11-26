@@ -517,6 +517,16 @@ it('offers no delete for a service subject, and says to delete its client', asyn
   expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
 });
 
+it('offers no delete for an agent instance, and says to revoke it', async () => {
+  const instance = subject(ADA_ID, null, { type: 'agent_instance' });
+  renderConsoleAt(
+    ADA_AT,
+    subjectRoutes(undefined, { [`GET ${S}/${ADA_ID}`]: json(instance, 200, { etag: '"b1"' }) }),
+  );
+  expect(await screen.findByText(/Revoke an agent instance instead/u)).toBeVisible();
+  expect(screen.queryByRole('button', { name: /^Delete/u })).toBeNull();
+});
+
 it('passes axe in both themes, with the deletion open', async () => {
   const user = userEvent.setup();
   expect(
