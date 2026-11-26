@@ -88,8 +88,8 @@ export const ASSISTANT_SECTION: SettingsSection = {
       control: 'count',
       unit: 'days',
       group: ASSISTANT_WORDS.groups.privacy,
-      description: `How long the step-by-step record of a conversation is kept. ${defaultAmount('assistant_trace_retention_days', 'days')}`,
-      more: 'The audit trail keeps its own rows for as long as its retention says; a trace is the detail behind them and is the first to go.',
+      description: `How long a conversation is kept after its last message, with the step-by-step record of it: from 1 to 365 days. ${defaultAmount('assistant_trace_retention_days', 'days')}`,
+      more: 'A shorter setting takes effect at the next pass of the reaper, which removes what is then older. The audit trail keeps its own rows for as long as its retention says; a trace is the detail behind them and is the first to go.',
     },
     {
       name: 'assistant_monthly_tokens_fast',

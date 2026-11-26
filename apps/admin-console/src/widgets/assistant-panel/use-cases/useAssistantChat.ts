@@ -7,7 +7,13 @@ import { NO_METER, nextMeter, readStreamPart } from '#/widgets/assistant-panel/s
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
 import { messageToSend } from '#/widgets/assistant-panel/services/composer';
 import {
+  isConversationEnded,
+  readOnlyOf,
+  unlessEnded,
+} from '#/widgets/assistant-panel/services/conversationFlow';
+import {
   historyOf,
+  historyWhileResuming,
   mayShowStored,
   modeOf,
   readIdOf,
@@ -15,6 +21,7 @@ import {
 } from '#/widgets/assistant-panel/services/history';
 import { statusLine } from '#/widgets/assistant-panel/services/statusLine';
 import { startedId } from '#/widgets/assistant-panel/services/conversationStart';
+import { assistantSwitchedOff } from '#/widgets/assistant-panel/services/switchedOff';
 import {
   type AssistantMode,
   type Meter,
@@ -25,7 +32,13 @@ import {
   type ProfileId,
   type TurnEnd,
 } from '#/widgets/assistant-panel/types/chat';
-import type { AssistantConversation } from '#/widgets/assistant-panel/types/contracts';
+import type { GatewayResult } from '#/shared/lib/services/result';
+import type {
+  AssistantConversation,
+  AssistantResumedConversation,
+  LastAssistantConversationResponse,
+} from '#/widgets/assistant-panel/types/contracts';
+import type { ReadOnlyReason } from '#/widgets/assistant-panel/types/conversations';
 
 export interface AssistantChat {
   messages: PanelMessage[];
@@ -35,6 +48,11 @@ export interface AssistantChat {
   running: boolean;
   // Nothing can be sent: the conversation waits for a decision it cannot be given here yet.
   blocked: boolean;
+  // The conversation takes no message, and why: it was archived, or the
+  // sign-in it ran under has ended.
+  readOnly: ReadOnlyReason | null;
+  // A tool answered that the assistant was switched off while this ran.
+  unavailable: boolean;
   mode: AssistantMode;
   // The sentence under the log when an allowance stopped the turn.
   note: string | null;
@@ -48,6 +66,10 @@ export interface AssistantChat {
   // A new conversation can be started: there is one, and nothing is running.
   canStartNew: boolean;
   startNew: () => void;
+  // Shows another of the person's conversations, hidden or not.
+  open: (id: string, archived: boolean) => void;
+  // The conversation was hidden or brought back from the list.
+  markArchived: (id: string, archived: boolean) => void;
   // Reads the conversation again after it failed to load.
   retry: () => void;
 }
@@ -56,6 +78,7 @@ export interface AssistantChat {
 // that has not started is started by the first message, on the page the person
 // is then looking at, and the shell is told its id so the panel can come back to it.
 // The id the shell hands back is the one this panel made, so it is not read.
+// A panel opened with none remembered reopens the latest one the server holds.
 export function useAssistantChat(
   conversationId: string | null,
   profile: ProfileId,
@@ -75,7 +98,11 @@ export function useAssistantChat(
   const [meter, setMeter] = useState<MeterState>(NO_METER);
   const [connected, setConnected] = useState(false);
   const [expectsEnd, setExpectsEnd] = useState(false);
-  const loaded = storedOf(stored, asked);
+  const [archived, setArchived] = useState(false);
+  const [continuable, setContinuable] = useState(true);
+  const [resumed, setResumed] = useState<AssistantConversation | undefined>(undefined);
+  const [resuming, setResuming] = useState(conversationId === null);
+  const loaded = storedOf(stored, asked) ?? resumed;
   const mode = modeOf(loaded);
   const latest = useLatest({ profile, pageContext, onConversation: env.onConversation });
 
@@ -124,15 +151,58 @@ export function useAssistantChat(
     if (loaded !== undefined) seed(loaded);
   }, [loaded]);
 
-  const drawn = chatView({
-    history: historyOf(stored, asked),
+  // The latest conversation is taken up once, and only by a panel that has
+  // nothing of its own yet: a person who began typing first keeps what they began.
+  const takeUp = (found: AssistantResumedConversation): void => {
+    known.current = found.id;
+    seeded.current = true;
+    setCreatedId(found.id);
+    setResumed(found);
+    setArchived(found.archived);
+    setContinuable(found.continuable);
+    session.showConversation(found);
+    latest().onConversation(found.id);
+  };
+  const resumeWith = useEffectEvent((result: GatewayResult<LastAssistantConversationResponse>) => {
+    setResuming(false);
+    const found = result.ok ? result.data.conversation : null;
+    if (found === null || known.current !== null) return;
+    if (mayShowStored(session.status, session.messages.length)) takeUp(found);
+  });
+  const findLast = useEffectEvent(() => {
+    if (!resuming) return;
+    calls
+      .last()
+      .then(resumeWith)
+      .catch(() => {
+        setResuming(false);
+      });
+  });
+  // Once, as the panel opens.
+  useEffect(() => {
+    findLast();
+  }, []);
+
+  // A message the server refused because the sign-in ended is not a failure
+  // the person can retry: the conversation stays to be read, and the message
+  // the server did not take is not drawn as if it had.
+  const ended = isConversationEnded(session.error);
+  const live = unlessEnded(ended, {
     chat: session.status,
     messages: session.messages,
     error: session.error,
+    expectsEnd,
+  });
+
+  const drawn = chatView({
+    history: historyWhileResuming(historyOf(stored, asked), resuming),
+    chat: live.chat,
+    messages: live.messages,
+    error: live.error,
     connected,
     turn,
     meter,
-    expectsEnd,
+    expectsEnd: live.expectsEnd,
     act: mode === 'act',
     actingIn: env.actingIn,
   });
@@ -153,15 +223,32 @@ export function useAssistantChat(
     [],
   );
 
-  const startNew = (): void => {
-    known.current = null;
-    seeded.current = true;
+  // Empties what the panel holds of the conversation it showed.
+  const clear = (): void => {
     setCreatedId(null);
     setTurn(null);
     setConnected(false);
     setExpectsEnd(false);
+    setResuming(false);
+    setResumed(undefined);
+    setArchived(false);
+    setContinuable(true);
     session.reset();
+  };
+
+  const startNew = (): void => {
+    known.current = null;
+    seeded.current = true;
+    clear();
     env.onConversation(null);
+  };
+
+  const open = (id: string, hidden: boolean): void => {
+    known.current = id;
+    seeded.current = false;
+    clear();
+    setArchived(hidden);
+    env.onConversation(id);
   };
 
   const begin = (): void => {
@@ -177,6 +264,8 @@ export function useAssistantChat(
     statusText: statusLine(drawn.state),
     running: drawn.running,
     blocked: drawn.state.kind === 'waiting',
+    readOnly: readOnlyOf({ archived, continuable: continuable && !ended }),
+    unavailable: assistantSwitchedOff(session.messages),
     mode,
     note: drawn.note,
     meter: drawn.meter,
@@ -187,6 +276,10 @@ export function useAssistantChat(
     },
     canStartNew: drawn.messages.length > 0 && !drawn.running,
     startNew,
+    open,
+    markArchived: (id, hidden) => {
+      if (id === known.current) setArchived(hidden);
+    },
     stop,
     resume: () => {
       begin();

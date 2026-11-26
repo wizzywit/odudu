@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   historyOf,
+  historyWhileResuming,
   mayShowStored,
   modeOf,
   readIdOf,
@@ -12,6 +13,13 @@ it('says where the stored conversation is, and nothing for one that has not star
   expect(historyOf({ status: 'loading' }, true)).toBe('loading');
   expect(historyOf({ status: 'ready' }, true)).toBe('ready');
   expect(historyOf({ status: 'failed' }, true)).toBe('failed');
+});
+
+it('is loading while the panel finds the conversation to reopen, and otherwise as it was', () => {
+  expect(historyWhileResuming('none', true)).toBe('loading');
+  expect(historyWhileResuming('none', false)).toBe('none');
+  expect(historyWhileResuming('ready', true)).toBe('ready');
+  expect(historyWhileResuming('failed', true)).toBe('failed');
 });
 
 it('hands over what was read only once it has been', () => {

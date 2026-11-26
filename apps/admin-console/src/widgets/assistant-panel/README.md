@@ -38,6 +38,20 @@ The conversation with the assistant, docked beside the page or laid over it.
   Ask. The server binds the conversation to the tenant of the address, so the
   panel sends nothing more. Its first-run notice is its own, and is remembered
   apart from the one for the administrator's own tenant.
+- **The person's own conversations.** A panel opened with none remembered asks
+  the server for the latest one that is not archived and shows it
+  (`useAssistantChat`); one whose sign-in ended (`continuable: false`) is read
+  only, as is an archived one, and the composer gives way to a `ReadOnlyBar`.
+  A message refused as `conversation-ended` is drawn as never sent
+  (`unlessEnded`), not as a failure. The Conversations view
+  (`ui/ConversationsView`, `use-cases/useConversations`) shares the panel's
+  grid cell with the chat and swaps with it by transform and opacity only, so
+  nothing is laid out again and the chat, and an answer running in it, stays
+  mounted. Its rows are a react-aria `GridList`; a pick while an answer runs
+  waits on **Stop and switch** or **Keep waiting**. Archive acts at once and is
+  offered back; delete is asked about; export saves a file through
+  `shared/api/adapter/files`. Nothing here keeps a second copy of what the
+  server holds: the two lists are `useListPages` reads, read again after a change.
 - **Kept mounted.** The panel is a lazy chunk, loaded when first opened, and
   stays mounted when closed, so putting it away never ends an answer; only Stop
   does (and leaving the tenant shell).

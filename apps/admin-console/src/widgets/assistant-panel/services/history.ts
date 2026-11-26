@@ -7,6 +7,12 @@ export function historyOf(read: Pick<Read<unknown>, 'status'>, asked: boolean): 
   return asked ? read.status : 'none';
 }
 
+// While the panel is finding out which conversation to reopen it has none to
+// show, which reads as loading and not as empty.
+export function historyWhileResuming(history: HistoryState, resuming: boolean): HistoryState {
+  return resuming && history === 'none' ? 'loading' : history;
+}
+
 // What the stored conversation holds, once it has been read.
 export function storedOf<T>(read: Read<T>, asked: boolean): T | undefined {
   return asked && read.status === 'ready' ? read.data : undefined;

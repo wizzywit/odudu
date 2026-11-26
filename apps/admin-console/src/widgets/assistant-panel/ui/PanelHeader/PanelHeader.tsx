@@ -22,6 +22,8 @@ export function PanelHeader({
   onClose,
   canStartNew,
   onStartNew,
+  onShowConversations,
+  conversationsRef,
   mode,
   modes,
   acting = null,
@@ -35,6 +37,10 @@ export function PanelHeader({
   onClose: () => void;
   canStartNew: boolean;
   onStartNew: () => void;
+  // Shows the list of the person's conversations; `conversationsRef` is where
+  // the focus comes back to when it is put away.
+  onShowConversations: () => void;
+  conversationsRef: RefObject<HTMLButtonElement | null>;
   mode: AssistantMode;
   modes: readonly AssistantMode[];
   // What names the tenant the conversation acts in, when it is not the person's
@@ -58,14 +64,22 @@ export function PanelHeader({
         <h2 ref={headingRef} tabIndex={-1} className={styles.title}>
           {title}
         </h2>
-        <div className={styles.actions}>
-          <Button size="small" variant="quiet" isDisabled={!canStartNew} onPress={onStartNew}>
-            {words.newConversation}
-          </Button>
-          <Button size="small" variant="quiet" onPress={onClose}>
-            {closeLabel}
-          </Button>
-        </div>
+        <Button size="small" variant="quiet" onPress={onClose}>
+          {closeLabel}
+        </Button>
+      </div>
+      <div className={styles.tools}>
+        <Button
+          ref={conversationsRef}
+          size="small"
+          variant="secondary"
+          onPress={onShowConversations}
+        >
+          {words.conversationsButton}
+        </Button>
+        <Button size="small" variant="quiet" isDisabled={!canStartNew} onPress={onStartNew}>
+          {words.newConversation}
+        </Button>
       </div>
       {modes.length > 1 ? (
         <RadioGroup

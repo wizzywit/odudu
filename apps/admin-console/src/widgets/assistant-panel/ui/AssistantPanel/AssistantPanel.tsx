@@ -1,9 +1,11 @@
-import { useEffect, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import type { AssistantPanelSlot } from '#/entities/assistant';
 import { useAssistantPanel } from '#/widgets/assistant-panel/use-cases/useAssistantPanel';
 import { ChatLog } from '#/widgets/assistant-panel/ui/ChatLog';
 import { Composer } from '#/widgets/assistant-panel/ui/Composer';
+import { ConversationsView } from '#/widgets/assistant-panel/ui/ConversationsView';
+import { ReadOnlyBar } from '#/widgets/assistant-panel/ui/ReadOnlyBar';
 import { FirstRunNotice } from '#/widgets/assistant-panel/ui/FirstRunNotice';
 import { PanelHeader } from '#/widgets/assistant-panel/ui/PanelHeader';
 import { PanelNotices } from '#/widgets/assistant-panel/ui/PanelNotices';
@@ -24,6 +26,21 @@ function FocusHeading({
   return children;
 }
 
+// Puts the focus back on the button that opened the list once it is put away.
+// Not on the first draw, which belongs to the heading.
+function useListReturn(open: boolean, buttonRef: RefObject<HTMLButtonElement | null>): void {
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) {
+      wasOpen.current = true;
+      return;
+    }
+    if (!wasOpen.current) return;
+    wasOpen.current = false;
+    buttonRef.current?.focus();
+  }, [open, buttonRef]);
+}
+
 // The assistant beside the page (and kept mounted while it is closed): a column of its own where the shell has the
 // room, and a dialog laid over the page where it has not, with the page behind
 // it out of reach and Escape to close it.
@@ -37,54 +54,89 @@ export function AssistantPanel(props: AssistantPanelSlot) {
     conversationId: props.conversationId,
     onConversation: props.onConversation,
   });
-  const { chat } = panel;
+  const { chat, conversations } = panel;
+  const conversationsRef = useRef<HTMLButtonElement>(null);
+  useListReturn(conversations.open, conversationsRef);
+  // While the list shows, Escape goes back to the conversation; closing the
+  // panel is for the next one.
+  const backOnEscape = (event: KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented || !conversations.open) return;
+    event.preventDefault();
+    conversations.hide();
+  };
   const body = (
     <FocusHeading headingRef={headingRef}>
-      <PanelHeader
-        title={title}
-        headingRef={headingRef}
-        closeLabel={closeLabel}
-        onClose={onClose}
-        canStartNew={chat.canStartNew}
-        onStartNew={chat.startNew}
-        mode={panel.mode}
-        modes={panel.modeChoices}
-        acting={panel.acting}
-        meter={chat.meter}
-        models={panel.models}
-        words={panel.words}
-      />
-      {panel.notice === null ? null : (
-        <FirstRunNotice notice={panel.notice} words={panel.words} onDismiss={panel.dismissNotice} />
-      )}
-      <ChatLog
-        messages={chat.messages}
-        running={chat.running}
-        loading={chat.status.kind === 'loading'}
-        mode={panel.mode}
-        words={panel.words}
-        logRef={panel.logRef}
-        onScroll={panel.onScroll}
-      />
-      <PanelNotices
-        state={chat.status}
-        statusText={chat.statusText}
-        running={chat.running}
-        note={chat.note}
-        meter={chat.meter}
-        words={panel.words}
-      />
-      <Composer
-        running={chat.running}
-        blocked={chat.blocked}
-        contextLabel={panel.where}
-        draft={panel.draft}
-        onDraft={panel.setDraft}
-        words={panel.words}
-        maxLength={panel.maxLength}
-        onSend={chat.send}
-        onStop={chat.stop}
-      />
+      <div className={styles.stage} onKeyDown={backOnEscape}>
+        <div
+          className={styles.chat}
+          data-away={conversations.open || undefined}
+          aria-hidden={conversations.open || undefined}
+          inert={conversations.open}
+        >
+          <PanelHeader
+            title={title}
+            headingRef={headingRef}
+            closeLabel={closeLabel}
+            onClose={onClose}
+            canStartNew={chat.canStartNew}
+            onStartNew={chat.startNew}
+            onShowConversations={conversations.show}
+            conversationsRef={conversationsRef}
+            mode={panel.mode}
+            modes={panel.modeChoices}
+            acting={panel.acting}
+            meter={chat.meter}
+            models={panel.models}
+            words={panel.words}
+          />
+          {panel.notice === null ? null : (
+            <FirstRunNotice
+              notice={panel.notice}
+              words={panel.words}
+              onDismiss={panel.dismissNotice}
+            />
+          )}
+          <ChatLog
+            messages={chat.messages}
+            running={chat.running}
+            loading={chat.status.kind === 'loading'}
+            mode={panel.mode}
+            words={panel.words}
+            logRef={panel.logRef}
+            onScroll={panel.onScroll}
+          />
+          <PanelNotices
+            state={chat.status}
+            statusText={chat.statusText}
+            running={chat.running}
+            note={chat.note}
+            meter={chat.meter}
+            unavailable={chat.unavailable}
+            words={panel.words}
+          />
+          {chat.readOnly === null ? (
+            <Composer
+              running={chat.running}
+              blocked={chat.blocked}
+              contextLabel={panel.where}
+              draft={panel.draft}
+              onDraft={panel.setDraft}
+              words={panel.words}
+              maxLength={panel.maxLength}
+              onSend={chat.send}
+              onStop={chat.stop}
+            />
+          ) : (
+            <ReadOnlyBar
+              reason={chat.readOnly}
+              words={panel.words}
+              onRestore={conversations.onRestoreCurrent}
+              onStartNew={chat.startNew}
+            />
+          )}
+        </div>
+        <ConversationsView state={conversations} words={panel.words} />
+      </div>
     </FocusHeading>
   );
   // Closed, the panel draws nothing but stays mounted, so an answer in progress
@@ -95,6 +147,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
       <ModalOverlay
         isOpen
         isDismissable
+        isKeyboardDismissDisabled={conversations.open}
         onOpenChange={(open) => {
           if (!open) onClose();
         }}
