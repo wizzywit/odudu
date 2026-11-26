@@ -541,3 +541,136 @@ used, so 2.5 was not an upper bound there. The divisor is now 1.9, the Bedrock r
 20 percent, which reserves 28,798 tokens against the 22,983 Bedrock counted and 28,798
 against the 14,441 llama3.2 counted. Two providers and one prompt are measured; a
 provider whose tokenizer is harsher on JSON than Claude's is not.
+
+# P5c act-mode design: how an approved write gets its token
+
+Question: how does a write the assistant proposes in Act mode become an approval that
+names the exact change, obtain a token that can make it without widening the
+conversation's read-only grant, and who may decide it?
+Method: read the code named below. Nothing was run; `assumption:` marks what a test must
+settle first (each has one in the increment).
+
+## What P5 already gives
+
+- `requestApproval` writes an `agent_approvals` row (owner, requesting client, summary,
+  `actionDigest`, ttl from the tenant's `agent_approval_ttl_seconds`, 20 pending per owner)
+  and an audit row; `decideApproval` is the only writer of the decision, refuses anyone
+  but the owner (`not_owner`) and lets one of two racing decisions through;
+  `consumeApproval` is one conditional UPDATE valid only while `approved`, unexpired and
+  for the same digest (`packages/protocol-oidc/src/usecase/approvals.ts:59,132,158`).
+- `approvalDigest` hashes `{name, input, tenantId, ownerSubjectId, instanceId}` canonically
+  (`packages/domain-agents/src/service/approval-digest.ts:46`).
+- An agent token writes only through a route in `AGENT_WRITE_ROUTES`, only with `mcp:write`,
+  only when minted by `mintAgentToken` (`via: mcp`) for POST, PUT and DELETE, and only
+  inside the body fields the entry lists (`packages/protocol-admin/src/service/agent-scope.ts`,
+  `router.ts:204-210`). Every other POST, such as a decision, is refused to any token that
+  holds an MCP scope or names an actor, because a route outside the list admits nothing.
+- The MCP endpoint reserves a write from the grant's budget before it forwards one
+  (`callMcpTool`, `grantWriteBudget` in `apps/server/src/mcp-deps.ts:148`). A grant made
+  by exchange takes its budget from the root grant (`budgetGrantId`,
+  `repository/grants.ts:379-396`), so a new grant does not reset the allowance, and the
+  owner's daily window is keyed by owner and agent client.
+
+## (1) A write call becomes an approval that names the change
+
+The twelve write tools are in the tool list in both modes; a policy decides per call
+(`approvalPolicy`: reads `auto`, writes `deny` in Ask with a reason the model reads, `ask`
+in Act). For `ask` the server, not the model, does three things before the stream says
+anything:
+
+1. It reads the target's current state with the conversation's own read token through the
+   read tool that matches the write (a fixed table, one row per write tool, checked against
+   the catalogue by a test), so the card's before is what the server read, never text the
+   model wrote. A target that cannot be read is refused to the model, not shown blind. A
+   create has no before; a message override or a theme that does not exist yet reads as
+   "does not exist".
+2. It derives the after from the validated tool input's body fields (`bodyFields` of the
+   tool), the same fields the door admits, and a title from a constant per tool.
+3. It stores one approval: `requestApproval` with `kind: assistant_write`, the assistant
+   client as requester, `instanceId` null and `actionDigest` =
+   `approvalDigest({ name: tool, input: { conversation, arguments }, tenantId,
+   ownerSubjectId, instanceId: null })`. The conversation is inside the digest so an
+   approval cannot be spent in another conversation, and the tool name and every argument
+   are in it, so approval for tool A cannot run tool B or a changed input. The card
+   (title, target, before, after) is stored beside it in a new assistant-owned table
+   `assistant_approvals`, keyed by approval id and by (conversation, tool call id).
+
+The SDK's `toolApproval` returns `user-approval`, the stream ends with its
+`tool-approval-request` and a `data-approval_card` part built from the stored card, with
+the expiry read from the stored row. Nothing the model writes reaches the card.
+
+## (2) The token: a grant of its own per approval, made when the approval is spent
+
+The conversation's grant stays `mcp:read` (ADR 0060 says so: "until a write has a grant of
+its own"). The narrowest mechanism that reuses P5 is a second grant of `odudu-assistant`,
+made at the moment the approval is spent and living for that one call:
+
+- **When.** In the resume request, inside the write tool's own `execute`, in one
+  transaction: `consumeApproval(id, digest)` for the digest recomputed from the call about
+  to run, then `grantAssistantWrite`, a sibling of `grantAssistantAccess`. If the consume
+  fails nothing is made. If the grant is refused the transaction rolls back and the
+  approval is still unspent, so the model is told it failed and the person is not asked
+  twice for nothing.
+- **What.** Subject and session of the console grant, `exchangedFromGrantId` the console
+  grant (the request is the person's own, so the console grant is on the principal),
+  scope `mcp:write` alone, id equal to the approval id. A primary key on that id means one
+  approval makes at most one grant even if the consume were ever bypassed. It refuses the
+  same things `grantAssistantAccess` does (not a live console sign-in of this tenant and
+  subject, ended session, disabled subject or tenant, assistant client unavailable) and
+  its own ceiling is `mcp:write` for one approval, never `mcp:read` plus.
+- **Token.** `mintAgentToken` unchanged, with `subjectGrantId` the approval id, scope
+  `[mcp:write]`, no `run`: the token's `act.sub` is the built-in client, not a new instance,
+  so no new instance row, no live-instance limit and nothing to reap. It expires in the
+  mint's own five minutes at most and its grant is revoked in `finally` the moment the call
+  returns, so a copy of it dies with the call.
+- **Call.** The same `callMcpTool` the MCP endpoint uses, now with `holdsWrite: true` and a
+  real `grantWriteBudget` for the approval's grant, so the budget, the owner's daily window
+  and the `agent.tool_call` row are P5's. The admin door still judges the owner's own
+  capability and the route's agent rules.
+- **Reused:** `requestApproval`, `decideApproval`, `consumeApproval`, `approvalDigest`,
+  `mintAgentToken`, `AGENT_WRITE_ROUTES`, `callMcpTool`, `grantWriteBudget`, the grant
+  lineage and revoke. **New:** `grantAssistantWrite` (one function and its rules), one table.
+- **Not chosen.** A standing `mcp:write` grant per Act conversation: a write-capable
+  credential would exist for the whole conversation and one bug in the policy would be a
+  write with no person. A scope bypass in `mintAgentToken`: rejected for the reason ADR 0060
+  gives. A per-approval instance (`run` key = approval id): the same, plus a row per write
+  and the owner's live-instance limit for something one call long.
+
+assumption: `mintAgentToken` without `run` for an agent-type client returns a token the door
+admits for a PATCH; the mint's code path says it does (`runIdFor` returns null,
+`mint-agent-token.ts:164-170`). Test first: a PATCH with it succeeds, and the same token
+for a POST is refused unless `via: mcp` (it is set).
+
+## (3) Who may decide
+
+Only the signed-in administrator's own console session, through the console gateway. The
+route is `POST …/assistant/conversations/:id/approvals/:approvalId` with `{ approve }`:
+
+- A person's console token carries no `act` and no MCP scope, so the door treats it as an
+  ordinary admin caller. A token the assistant minted (`mcp:read` or `mcp:write`, named
+  actor) is an agent and the route is not in `AGENT_WRITE_ROUTES`, so it is refused with
+  the door's `insufficient_scope` before the handler runs. That is the model's own token
+  and any outside agent's. The same holds for the resume and mode routes.
+- The handler calls `decideApproval` with `subjectId` from the verified token, `via:
+  'console'`. The owner check is P5's: another administrator, even one holding every
+  capability, gets `not_owner`, and the route answers 404 so no approval id is confirmed.
+  P5 allows no one else to decide; this increment adds no such path.
+- CSRF is the gateway's: every write the browser makes passes its origin guard
+  (`console-gateway/src/view/csrf-guard.ts`), and the admin API itself accepts only a bearer,
+  so there is no ambient credential for a cross-site request to use.
+- The conversation must be the caller's and the approval must be the conversation's, by
+  the card table, so an approval id of another conversation of the same person is refused
+  too. Every decision writes `assistant.approval` in the decision's own transaction (who,
+  conversation, approval, tool, state, via; never the input or any text).
+- A new message or a stop on a conversation with a pending approval withdraws it as a
+  denial by the same owner, through `decideApproval`, so no second writer of `state` exists
+  and `tests/lint/approval-decision-single-writer.test.ts` holds.
+
+## Does it change ADR 0060 or a P5 invariant?
+
+No P5 invariant changes: `mintAgentToken`, the approval object and its single writer, the
+door's allowlist and the write budget are used as they stand. ADR 0060 gains an amendment
+that says what its "until a write has a grant of its own" now is (one grant per approval,
+`mcp:write`, spent and revoked with the call); its decision that the conversation's own
+grant is `mcp:read` is untouched. Decision recorded for the controller to overrule: the
+design stands unless the controller rules otherwise.
