@@ -35,6 +35,7 @@ export const AGENT_DENIED_READS: readonly string[] = [
   'GET /admin/tenants/:tenant/agents/:id',
   'GET /admin/tenants/:tenant/agent-approvals',
   'GET /admin/tenants/:tenant/assistant/status',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id',
 ];
 
 // The two reads that span tenants. An agent acts inside the one tenant its

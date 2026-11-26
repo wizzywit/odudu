@@ -37,14 +37,21 @@ export type ForwardResult =
   | { readonly kind: 'principal-changed' }
   | { readonly kind: 'unavailable' };
 
-// The admin API also answers 401 for a path naming an unknown tenant or
-// one the token was not issued by, so a 401 ends the session only once the
-// token is refused at its own tenant too. Nothing is refreshed on it: that
-// would present a refresh token the lock no longer guards.
-export async function forwardAdminCall(
+export interface PreparedCall {
+  readonly kind: 'ready';
+  readonly session: ConsoleSessionRecord;
+  readonly accessToken: string;
+}
+
+export type Refusal = Exclude<ForwardResult, { readonly kind: 'forwarded' }>;
+
+// What comes before any admin call: the session the cookie names, the check
+// that the tab and the session agree on who is signed in, and a token fresh
+// enough to send.
+export async function prepareCall(
   deps: ForwardDeps,
   call: ConsoleAdminCall,
-): Promise<ForwardResult> {
+): Promise<PreparedCall | Refusal> {
   const cookie = call.headers.cookie;
   const resolved = await resolveSession(
     deps,
@@ -58,26 +65,54 @@ export async function forwardAdminCall(
   }
   const token = await freshAccessToken(deps, resolved.session, call.now, call.from);
   if (token.kind !== 'ok') return token;
+  return { kind: 'ready', session: resolved.session, accessToken: token.accessToken };
+}
+
+export function upstreamHeaders(
+  call: ConsoleAdminCall,
+  accessToken: string,
+): Record<string, string> {
+  return { ...forwardedRequestHeaders(call.headers), authorization: `Bearer ${accessToken}` };
+}
+
+// The admin API also answers 401 for a path naming an unknown tenant or
+// one the token was not issued by, so a 401 ends the session only once the
+// token is refused at its own tenant too. Nothing is refreshed on it: that
+// would present a refresh token the lock no longer guards.
+export async function endIfRefused(
+  deps: ForwardDeps,
+  prepared: PreparedCall,
+  status: number,
+  from: Caller,
+): Promise<Refusal | null> {
+  if (
+    status !== 401 ||
+    !(await refusedAtHome(deps, prepared.session, prepared.accessToken, from))
+  ) {
+    return null;
+  }
+  return orUnavailable(async () => {
+    await endSession(deps, prepared.session, from);
+    return { kind: 'ended' } as const;
+  });
+}
+
+export async function forwardAdminCall(
+  deps: ForwardDeps,
+  call: ConsoleAdminCall,
+): Promise<ForwardResult> {
+  const prepared = await prepareCall(deps, call);
+  if (prepared.kind !== 'ready') return prepared;
 
   const response: AdminResponse = await deps.odudu.forward({
     method: call.method,
     path: call.path,
-    headers: {
-      ...forwardedRequestHeaders(call.headers),
-      authorization: `Bearer ${token.accessToken}`,
-    },
+    headers: upstreamHeaders(call, prepared.accessToken),
     body: call.body,
     from: call.from,
   });
-  if (
-    response.status === 401 &&
-    (await refusedAtHome(deps, resolved.session, token.accessToken, call.from))
-  ) {
-    return orUnavailable(async () => {
-      await endSession(deps, resolved.session, call.from);
-      return { kind: 'ended' } as const;
-    });
-  }
+  const ended = await endIfRefused(deps, prepared, response.status, call.from);
+  if (ended !== null) return ended;
   return {
     kind: 'forwarded',
     status: response.status,

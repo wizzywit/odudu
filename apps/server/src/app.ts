@@ -72,7 +72,7 @@ import {
   type ToolLimiterOptions,
 } from '@odudu/mcp';
 import { isMeRoute, meRefusalHeaders, registerMeOpenApiRoute, registerMeRoutes } from '@odudu/me';
-import { status as assistantStatus, type StatusDeps } from '@odudu/assistant';
+import { status as assistantStatus, type ChatDeps, type StatusDeps } from '@odudu/assistant';
 import { adminRoutes, composeUserSubject } from '@odudu/protocol-admin';
 import {
   clientKeySet,
@@ -123,6 +123,7 @@ import { mailGate as createMailGate } from '#/mail-limiter';
 import { queueOwnVerification } from '#/own-verification';
 import { neutraliseRequestInput } from '#/input-hygiene';
 import { loginBudgetKey } from '#/login-throttle';
+import { assistantChatFor } from '#/assistant-chat';
 import { mcpRouteDepsFor } from '#/mcp-deps';
 import { meRouteDepsFor } from '#/me-deps';
 import { mcpRegistrationBudget } from '#/mcp-registration-budget';
@@ -333,6 +334,11 @@ export interface AppDeps {
    * which `GET …/assistant/status` reports. Omitted, the assistant is off.
    */
   readonly assistant?: StatusDeps;
+  /**
+   * The model each slot runs, which `serve.ts` builds with the provider keys
+   * in hand. With the slots resolved, it turns the conversation routes on.
+   */
+  readonly assistantModels?: ChatDeps['model'];
   /** `ODUDU_OUTBOX_MAX_ATTEMPTS`, what the admin API's mail listing calls `failed`. */
   readonly outboxMaxAttempts?: number;
   /**
@@ -846,6 +852,20 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       deploymentSmtp: deps.deploymentSmtp ?? false,
       outboxMaxAttempts: deps.outboxMaxAttempts ?? DEFAULT_OUTBOX_MAX_ATTEMPTS,
       assistantStatus: () => assistantStatus(deps.assistant ?? { slots: null, env: {} }),
+      ...(deps.assistant?.slots == null || deps.assistantModels === undefined
+        ? {}
+        : {
+            assistantChat: assistantChatFor({
+              app,
+              database: deps.database,
+              ownerDatabase: deps.ownerDatabase,
+              kek: deps.kek,
+              claimMappers,
+              logger: deps.logger,
+              publicBaseUrl: deps.publicBaseUrl,
+              models: deps.assistantModels,
+            }),
+          }),
       retireResetLinks: (tx, subjectId) =>
         actionTokenRepository(tx).invalidateOutstandingPasswordLinks(subjectId),
       resolveMailLook: mailLook,

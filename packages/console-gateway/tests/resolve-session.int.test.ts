@@ -37,6 +37,7 @@ const port: OduduPort = {
   exchangeCode: unused,
   refresh: unused,
   forward: unused,
+  forwardStream: unused,
   revoke: (tenant, refreshToken, from) => {
     revoked.push({ tenant, refreshToken, from });
     return Promise.resolve();

@@ -227,6 +227,17 @@ describe('every method refuses a foreign tenant', () => {
     });
   });
 
+  it('first', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedConversation,
+      verifySeeded,
+      attempt: async (tx, seeded) => messageRepository(tx).first(seeded.conversationId),
+      expectBlocked: (result) => {
+        expect(result).toBeUndefined();
+      },
+    });
+  });
+
   it('replaceTail', async () => {
     await expectCrossTenantMethodProbe(app.db, {
       seed: seedConversation,

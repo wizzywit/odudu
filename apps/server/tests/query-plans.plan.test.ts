@@ -579,6 +579,14 @@ const NOT_DRIVEN: Readonly<Record<string, string>> = {
     'reads the tenant\u2019s one settings row and opens a socket to the SMTP host: no query depends on the volume',
   'GET /admin/tenants/:tenant/assistant/status':
     'answers from the server\u2019s resolved model configuration and the caller\u2019s capabilities: it reads no table',
+  'POST /admin/tenants/:tenant/assistant/conversations':
+    'served only with a model configured, which this stack has none of; its two statements are a primary-key insert and an append locked on that key, whatever the volume',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id':
+    'served only with a model configured; reads one row by primary key and the latest MAX_LOAD messages of one conversation by its primary key, in descending order',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
+    'served only with a model configured, and its time is the model\u2019s; each statement is a primary-key read, an append or a tail replacement on one conversation, none of which grows with the tenant',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
+    'served only with a model configured; reads one conversation by primary key and touches an in-process map',
 };
 
 function routePattern(pattern: string): RegExp {

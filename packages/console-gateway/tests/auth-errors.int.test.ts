@@ -52,6 +52,7 @@ const throwingPort: OduduPort = {
   revoke: () => Promise.resolve(),
   refresh: () => Promise.resolve({ kind: 'failed' }),
   forward: () => Promise.reject(new Error('not forwarded')),
+  forwardStream: () => Promise.reject(new Error('not forwarded')),
 };
 
 async function seedLogin(): Promise<string> {
@@ -231,6 +232,7 @@ describe('a sign-in that fails inside the gateway', () => {
       },
       refresh: () => Promise.resolve({ kind: 'failed' }),
       forward: () => Promise.reject(new Error('not forwarded')),
+      forwardStream: () => Promise.reject(new Error('not forwarded')),
     };
 
     const res = await callback(port, await seedLogin());

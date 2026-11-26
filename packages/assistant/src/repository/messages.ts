@@ -79,6 +79,18 @@ export function messageRepository(tx: AssistantTx) {
       return seq;
     },
 
+    // The conversation's first message, which a long conversation's latest
+    // `load` no longer reaches.
+    async first(conversationId: string): Promise<MessageRecord | undefined> {
+      const [row] = await tx
+        .select()
+        .from(assistantMessages)
+        .where(eq(assistantMessages.conversationId, conversationId))
+        .orderBy(assistantMessages.seq)
+        .limit(1);
+      return row;
+    },
+
     // The latest `limit` messages, oldest first, never more than MAX_LOAD.
     async load(conversationId: string, limit: number): Promise<MessageRecord[]> {
       const rows = await tx

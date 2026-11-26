@@ -38,6 +38,14 @@ const NEVER: Readonly<Record<string, string>> = {
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
   'GET /admin/tenants/:tenant/assistant/status':
     'Read by the assistant panel, which is added after this route; until it lands no screen asks whether the assistant is on. Remove this entry when the panel ships.',
+  'POST /admin/tenants/:tenant/assistant/conversations':
+    'Called by the assistant panel, which is added after this route; until it lands no screen starts a conversation. Remove this entry when the panel ships.',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id':
+    'Called by the assistant panel, which is added after this route; until it lands no screen loads a conversation. Remove this entry when the panel ships.',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
+    'Called by the assistant panel, which is added after this route; until it lands no screen sends a message. Remove this entry when the panel ships.',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
+    'Called by the assistant panel, which is added after this route; until it lands no screen stops a turn. Remove this entry when the panel ships.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

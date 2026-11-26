@@ -3,7 +3,7 @@ import { loadConfig, ModuleRegistry, systemClock } from '@odudu/kernel';
 import { idleServiceAccounts, publicExchangeClientsAtRisk } from '@odudu/protocol-oidc';
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from '#/app';
-import { assistantFromEnv } from '#/assistant-boot';
+import { assistantFromEnv, modelsFrom } from '#/assistant-boot';
 import { appDepsFromConfig } from '#/app-deps';
 import {
   assertConsoleConfigured,
@@ -63,6 +63,10 @@ await warnOfIdleServiceAccounts(() => idleServiceAccounts(owner.db), logger);
 
 const emailFallback = buildEmailSender(config, logger);
 
+const assistant = assistantFromEnv(process.env, (line) => {
+  logger.info({}, line);
+});
+
 const app = buildApp(
   appDepsFromConfig(config, {
     runtime,
@@ -70,9 +74,10 @@ const app = buildApp(
     logger,
     consoleKeys,
     deploymentSmtp: emailFallback.kind === 'smtp',
-    assistant: assistantFromEnv(process.env, (line) => {
-      logger.info({}, line);
-    }),
+    assistant,
+    ...(assistant.slots === null
+      ? {}
+      : { assistantModels: modelsFrom(assistant.slots, process.env) }),
   }),
 );
 
