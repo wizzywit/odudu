@@ -182,6 +182,11 @@ export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {
 export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'agent.instance_revoke':
     'An administrator revoked an agent instance, with everything beneath it and the grants it acted in, or was refused because the instance’s owner holds an admin capability the administrator does not. `detail` carries the numbers; the lineage row `agent.instance_revoked` names the instance.',
+  'assistant.approval':
+    'A person decided a change the console assistant proposed, or sending a new message or stopping ' +
+    'withdrew it. `detail` names the tenant, the person, the conversation, the approval, the tool ' +
+    'and the state (`approved` or `denied`), and for a withdrawal the reason. It holds neither the ' +
+    'change nor any message text.',
   'assistant.budget':
     'The console assistant stopped a turn because a token limit was reached, or a model provider ' +
     'charged more than was reserved for a call. `detail` names the level (`tenant_month`, ' +

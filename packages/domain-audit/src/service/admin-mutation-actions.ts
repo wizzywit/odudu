@@ -3,6 +3,7 @@
 // listed here does not compile.
 export const ADMIN_MUTATION_ACTIONS = [
   'agent.instance_revoke',
+  'assistant.approval',
   'assistant.budget',
   'assistant.config',
   'audit.export',

@@ -143,6 +143,15 @@ describe('stopReasonOf', () => {
     expect(stopReasonOf({ ...base, steps: 8, lastFinish: 'tool-calls' })).toBe('step_cap');
   });
 
+  it('is awaiting_approval when the turn stopped for a change that waits for the person', () => {
+    expect(
+      stopReasonOf({ ...base, steps: 8, lastFinish: 'tool-calls', awaitingApproval: true }),
+    ).toBe('awaiting_approval');
+    expect(
+      stopReasonOf({ ...base, lastFinish: 'tool-calls', awaitingApproval: true, aborted: true }),
+    ).toBe('aborted');
+  });
+
   it('prefers the refusal, then an abort, then a failure', () => {
     const refused = { level: 'turn', stopReason: 'budget_turn' } as const;
     expect(

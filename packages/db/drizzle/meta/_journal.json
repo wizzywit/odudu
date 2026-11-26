@@ -1065,6 +1065,13 @@
       "when": 1792617783737,
       "tag": "0151_assistant_budget_upkeep",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1792704183737,
+      "tag": "0152_assistant_approvals",
+      "breakpoints": true
     }
   ]
 }

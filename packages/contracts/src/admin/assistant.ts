@@ -157,3 +157,48 @@ export const assistantConversationSchema = z.object({
   messages: z.array(assistantMessageSchema),
 });
 export type AssistantConversation = z.infer<typeof assistantConversationSchema>;
+
+// What a person is shown for one change the assistant proposes, written by the
+// server from the stored call and the state it read, never from the model's
+// words. `before` is the target as the server read it (null for one that does
+// not exist yet) and `after` what the call would set; values are short text,
+// cut, so a card is bounded whatever the call carries.
+export const CARD_FIELD_MAX = 2_000;
+const cardFieldsSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
+export const assistantApprovalCardSchema = z.object({
+  approval_id: z.string(),
+  tool_call_id: z.string(),
+  tool: z.string(),
+  title: z.string(),
+  target: z.object({
+    type: z.string(),
+    id: z.string().optional(),
+    name: z.string().optional(),
+  }),
+  before: cardFieldsSchema.nullable(),
+  after: cardFieldsSchema.nullable(),
+  // Server time: the client counts down to it and never extends it.
+  expires_at: z.string(),
+});
+export type AssistantApprovalCard = z.infer<typeof assistantApprovalCardSchema>;
+
+// The owner's own cap on pending approvals (P5) is 20 and nothing here raises it.
+export const CONVERSATION_APPROVALS_MAX = 20;
+export const assistantApprovalListSchema = z.object({
+  items: z.array(assistantApprovalCardSchema).max(CONVERSATION_APPROVALS_MAX),
+});
+export type AssistantApprovalList = z.infer<typeof assistantApprovalListSchema>;
+
+export const decideApprovalRequestSchema = z.strictObject({ approve: z.boolean() });
+export type DecideApprovalRequest = z.infer<typeof decideApprovalRequestSchema>;
+
+export const decideApprovalResponseSchema = z.object({ state: z.enum(['approved', 'denied']) });
+export type DecideApprovalResponse = z.infer<typeof decideApprovalResponseSchema>;
+
+// The mode is the person's to switch, from the console, per conversation.
+export const setConversationModeRequestSchema = z.strictObject({ mode: assistantModeSchema });
+export type SetConversationModeRequest = z.infer<typeof setConversationModeRequestSchema>;
+export const setConversationModeResponseSchema = z.object({ mode: assistantModeSchema });

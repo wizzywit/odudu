@@ -6,7 +6,18 @@ export { runTurn } from '#/usecase/run-turn';
 export { RunLapsed } from '#/service/run-key';
 export type { RunTurnDeps, StreamResult, TurnInput } from '#/usecase/run-turn';
 export { createChat } from '#/view/chat-route';
-export type { Chat, ChatCaller, ChatDeps, CreateOutcome, SendResult } from '#/view/chat-route';
+export type {
+  Chat,
+  ChatCaller,
+  ChatDeps,
+  CreateOutcome,
+  DecideResult,
+  ResumeResult,
+  SendResult,
+  SetModeOutcome,
+} from '#/view/chat-route';
+export type { ApprovalPorts, DecidedTarget, WithdrawReason } from '#/usecase/chat-deps';
+export type { WriteOutcome } from '#/service/tool-bridge';
 export { profileById } from '#/service/profile';
 export type { TaskProfile } from '#/service/profile';
 export type { StatusDeps } from '#/usecase/status';

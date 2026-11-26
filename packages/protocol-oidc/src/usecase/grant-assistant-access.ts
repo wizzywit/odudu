@@ -6,6 +6,7 @@ import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { tokenGrantRepository, type TokenGrantRecord } from '#/repository/grants';
 import { tenantEnabledRepository } from '#/repository/tenant-enabled';
 import {
+  ASSISTANT_WRITE_CEILING,
   assistantGrantRefusal,
   assistantScopeCeiling,
   type AssistantGrantRefusal,
@@ -49,10 +50,55 @@ export interface GrantAssistantAccessInput {
 // and `mintAgentToken` refuses any token that asks for more. The console grant
 // is read-locked first, so a revoke that commits meanwhile finds the new grant
 // or leaves nothing to derive from.
-export async function grantAssistantAccess(
+export function grantAssistantAccess(
   tx: TenantScopedDatabase,
   deps: GrantAssistantAccessDeps,
   input: GrantAssistantAccessInput,
+): Promise<TokenGrantRecord> {
+  return deriveAssistantGrant(tx, deps, {
+    ...input,
+    scope: input.scope ?? assistantScopeCeiling(input.mode),
+    ceiling: assistantScopeCeiling(input.mode),
+  });
+}
+
+export interface GrantAssistantWriteInput {
+  // The approval's own id, so one approval can make at most one grant.
+  readonly approvalId: string;
+  readonly consoleGrantId: string;
+  readonly expectedSubjectId: string;
+  readonly now: Date;
+}
+
+// The grant one approved write acts on: the console sign-in's subject and
+// session, exchanged from it, holding `mcp:write` alone. It is made when the
+// approval is spent and ended when the write returns, so the conversation's own
+// read-only grant is never widened.
+export function grantAssistantWrite(
+  tx: TenantScopedDatabase,
+  deps: GrantAssistantAccessDeps,
+  input: GrantAssistantWriteInput,
+): Promise<TokenGrantRecord> {
+  return deriveAssistantGrant(tx, deps, {
+    newGrantId: input.approvalId,
+    consoleGrantId: input.consoleGrantId,
+    expectedSubjectId: input.expectedSubjectId,
+    mode: 'act',
+    scope: ASSISTANT_WRITE_CEILING,
+    ceiling: ASSISTANT_WRITE_CEILING,
+    now: input.now,
+  });
+}
+
+interface DerivedGrant extends Omit<GrantAssistantAccessInput, 'scope'> {
+  readonly scope: readonly string[];
+  readonly ceiling: readonly string[];
+}
+
+async function deriveAssistantGrant(
+  tx: TenantScopedDatabase,
+  deps: GrantAssistantAccessDeps,
+  input: DerivedGrant,
 ): Promise<TokenGrantRecord> {
   const grants = tokenGrantRepository(tx);
   const clients = clientRepository(tx);
@@ -65,12 +111,13 @@ export async function grantAssistantAccess(
     consoleGrant?.sessionId == null
       ? null
       : await sessionRepository(tx).liveById(consoleGrant.sessionId, deps.lifespans, input.now);
-  const scope = input.scope ?? assistantScopeCeiling(input.mode);
+  const { scope } = input;
   const refusal = assistantGrantRefusal({
     tenantId: deps.tenantId,
     expectedSubjectId: input.expectedSubjectId,
     scope,
     mode: input.mode,
+    ceiling: input.ceiling,
     console: consoleGrant,
     consoleClient:
       consoleClient === null

@@ -23,13 +23,19 @@ import {
   revokeAgentResponseSchema,
 } from '#/admin/agents';
 import {
+  assistantApprovalCardSchema,
+  assistantApprovalListSchema,
   assistantConversationSchema,
   assistantMessageSchema,
   assistantPageContextSchema,
   assistantTextPartSchema,
   assistantUserMessageSchema,
   createConversationRequestSchema,
+  decideApprovalRequestSchema,
+  decideApprovalResponseSchema,
   sendMessageRequestSchema,
+  setConversationModeRequestSchema,
+  setConversationModeResponseSchema,
 } from '#/admin/assistant';
 import {
   auditEventSchema,
@@ -1279,6 +1285,35 @@ describeFields(assistantConversationSchema, {
   messages:
     'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
 });
+
+describeFields(assistantApprovalCardSchema, {
+  approval_id: 'The approval to decide, the id the decision route takes.',
+  tool_call_id: 'The model’s call this change is for; the same id the stream’s approval request names.',
+  tool: 'The name of the change tool, one of the twelve the assistant may propose.',
+  title: 'What the change does, in one line, written by the server.',
+  target:
+    'What it changes: the kind of object and, where there is one, its id and the name the server read.',
+  before:
+    'The target as the server read it just now, as short text per field, or null for something that does not exist yet. Never text the model wrote.',
+  after:
+    'What the call would set, as short text per field, taken from the stored call; null for a removal.',
+  expires_at:
+    'When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it.',
+});
+describeFields(assistantApprovalListSchema, {
+  items: 'The conversation’s pending changes, newest first, at most 20.',
+});
+describeFields(decideApprovalRequestSchema, {
+  approve:
+    'True to let the one change run, false to refuse it. Only the administrator the conversation belongs to may send it, from their own console session.',
+});
+describeFields(decideApprovalResponseSchema, {
+  state: 'What was recorded: `approved` or `denied`.',
+});
+describeFields(setConversationModeRequestSchema, {
+  mode: '`ask` for reads only, `act` to let the assistant propose changes that wait for approval.',
+});
+describeFields(setConversationModeResponseSchema, { mode: 'The mode the conversation is now in.' });
 
 const GROUP_WORDS: Fields = {
   id: 'The group’s identifier, a UUID.',

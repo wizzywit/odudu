@@ -1,4 +1,4 @@
-import { MCP_READ_SCOPE } from '#/service/mcp-scopes';
+import { MCP_READ_SCOPE, MCP_WRITE_SCOPE } from '#/service/mcp-scopes';
 
 export type AssistantMode = 'ask' | 'act';
 
@@ -26,12 +26,19 @@ export function assistantScopeCeiling(mode: AssistantMode): readonly string[] {
   return CEILINGS[mode];
 }
 
+// What the grant made for one approved write may hold: the write scope and
+// nothing beside it, so the conversation's own read-only grant is never the
+// one a write acts on.
+export const ASSISTANT_WRITE_CEILING: readonly string[] = [MCP_WRITE_SCOPE];
+
 export interface AssistantGrantGrounds {
   readonly tenantId: string;
   // The `sub` of the verified console principal, which must own the grant.
   readonly expectedSubjectId: string;
   readonly scope: readonly string[];
   readonly mode: AssistantMode;
+  // Defaults to the mode's ceiling.
+  readonly ceiling?: readonly string[];
   readonly console: {
     readonly tenantId: string;
     readonly subjectId: string;
@@ -71,7 +78,7 @@ export function assistantGrantRefusal(
     return 'grant_not_console';
   }
   if (grant.sessionId === null) return 'session_required';
-  const ceiling = assistantScopeCeiling(grounds.mode);
+  const ceiling = grounds.ceiling ?? assistantScopeCeiling(grounds.mode);
   if (grounds.scope.length === 0 || !grounds.scope.every((entry) => ceiling.includes(entry))) {
     return 'scope_widened';
   }

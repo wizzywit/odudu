@@ -31,6 +31,7 @@ export interface AssistantLimits {
 export type StopReason =
   | 'done'
   | 'step_cap'
+  | 'awaiting_approval'
   | 'budget_turn'
   | 'budget_conversation'
   | 'budget_admin'
@@ -172,6 +173,8 @@ export interface TurnEnding {
   readonly steps: number;
   readonly maxSteps: number;
   readonly lastFinish: string | undefined;
+  // The turn stopped on a change that waits for the person to decide.
+  readonly awaitingApproval?: boolean;
 }
 
 /** Why a turn ended, in the one vocabulary the panel and the audit row share. */
@@ -179,6 +182,7 @@ export function stopReasonOf(ending: TurnEnding): StopReason {
   if (ending.refused !== undefined) return ending.refused.stopReason;
   if (ending.aborted) return 'aborted';
   if (ending.failed) return 'error';
+  if (ending.awaitingApproval === true) return 'awaiting_approval';
   if (ending.lastFinish === 'tool-calls' && ending.steps >= ending.maxSteps) return 'step_cap';
   return 'done';
 }

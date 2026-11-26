@@ -21,7 +21,9 @@ import {
   toolDefinitionsText,
 } from '#/service/request-size';
 import { runKey, RunLapsed } from '#/service/run-key';
-import { assistantTools } from '#/service/tool-set';
+import { assistantTools, assistantWriteTools } from '#/service/tool-set';
+import type { ConversationMode } from '#/repository/conversations';
+import { toolApprovalFor, type TurnApprovals } from '#/usecase/tool-approval';
 import { buildSystemPrompt } from '#/service/system-prompt';
 import { toSdkTools } from '#/service/tool-bridge';
 import type { TurnBudgetPort } from '#/usecase/budget-hooks';
@@ -33,6 +35,12 @@ export interface RunTurnDeps {
   // The tenant's `assistant_mask_emails`, read for each turn.
   readonly maskEmails?: boolean;
   readonly tools: readonly RegisteredTool[];
+  // The conversation's mode; Ask when absent.
+  readonly mode?: ConversationMode;
+  // Present, the twelve changes are offered beside the reads, and each waits for
+  // the person; absent, a turn reads only.
+  readonly approvals?: TurnApprovals;
+  readonly log?: (event: string, detail: Record<string, unknown>) => void;
   // Reserves before each model call and settles after it; absent, the turn is unmetered.
   readonly budget?: TurnBudgetPort;
   // The tenant's most steps for one turn; the profile's own cap applies if it is lower.
@@ -69,7 +77,9 @@ export interface TurnInput {
   readonly conversationId: string;
   // The run the conversation is on; 0 for one that has never lapsed.
   readonly generation?: number;
-  readonly message: UIMessage;
+  // The person's new message; absent when a turn resumes after a decision, and
+  // the stored messages already end with the answer to carry on from.
+  readonly message?: UIMessage;
   readonly signal: AbortSignal;
 }
 
@@ -106,8 +116,13 @@ function buildAgent(
   tools: ToolSet,
   toolDefinitions: string,
   progress: Progress,
+  toolApproval: ReturnType<typeof toolApprovalFor> | undefined,
 ) {
-  const prompt = buildSystemPrompt(deps.profile, masking(deps)(deps.tenantText));
+  const prompt = buildSystemPrompt(
+    deps.profile,
+    masking(deps)(deps.tenantText),
+    deps.approvals === undefined ? 'ask' : (deps.mode ?? 'ask'),
+  );
   return new ToolLoopAgent({
     model: metered(deps),
     instructions: [
@@ -115,6 +130,7 @@ function buildAgent(
       { role: 'system', content: prompt.tenant },
     ],
     tools,
+    ...(toolApproval === undefined ? {} : { toolApproval }),
     maxOutputTokens: MAX_OUTPUT_TOKENS,
     stopWhen: stepCountIs(stepLimit(deps)),
     // The compacted messages carry forward, so a long turn is trimmed once and
@@ -165,20 +181,34 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
       return deps.mintToken({ key: runKey(conversationId, generation), conversationId }, signal);
     }
   };
-  const tools = toSdkTools(
-    assistantTools(deps.tools),
-    async (name, args, signal) => {
-      const { accessToken } = await mint(signal);
-      return deps.callTool(accessToken, name, args, signal);
-    },
-    masking(deps),
-  );
+  const read = async (name: string, args: unknown, signal?: AbortSignal) => {
+    const { accessToken } = await mint(signal);
+    return deps.callTool(accessToken, name, args, signal);
+  };
+  const { approvals } = deps;
+  const offered = [
+    ...assistantTools(deps.tools),
+    ...(approvals === undefined ? [] : assistantWriteTools(deps.tools)),
+  ];
+  const tools = toSdkTools(offered, read, masking(deps), approvals?.write);
   const progress: Progress = { steps: 0, lastFinish: undefined };
-  const agent = buildAgent(deps, tools, await toolDefinitionsText(tools), progress);
+  const toolApproval =
+    approvals === undefined
+      ? undefined
+      : toolApprovalFor({
+          mode: deps.mode ?? 'ask',
+          tools: offered,
+          read: (name, args, signal) => read(name, args, signal),
+          approvals,
+          signal: input.signal,
+          ...(deps.log === undefined ? {} : { log: deps.log }),
+        });
+  const agent = buildAgent(deps, tools, await toolDefinitionsText(tools), progress, toolApproval);
   const earlier = boundHistory(await deps.history(input.conversationId));
-  const messages = await convertToModelMessages([...earlier, input.message], {
-    ignoreIncompleteToolCalls: true,
-  });
+  const messages = await convertToModelMessages(
+    input.message === undefined ? earlier : [...earlier, input.message],
+    { ignoreIncompleteToolCalls: true },
+  );
   return {
     result: await agent.stream({ messages, abortSignal: input.signal }),
     tools,

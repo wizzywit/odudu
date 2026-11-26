@@ -1,6 +1,6 @@
 import { TOOLS, type RegisteredTool } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
-import { assistantTools } from '#/service/tool-set';
+import { assistantTools, assistantWriteTools } from '#/service/tool-set';
 
 describe('assistantTools', () => {
   it('keeps the reads and drops the audit tools', () => {
@@ -22,5 +22,19 @@ describe('assistantTools', () => {
         tool('GET /admin/tenants/:tenant/clients'),
       ]).map((entry) => entry.routeKey),
     ).toEqual(['GET /admin/tenants/:tenant/clients']);
+  });
+});
+
+describe('assistantWriteTools', () => {
+  it('are the twelve changes, and no read among them', () => {
+    const tools = assistantWriteTools(TOOLS);
+    expect(tools).toHaveLength(12);
+    expect(tools.every((tool) => tool.access === 'write')).toBe(true);
+    expect(assistantTools(TOOLS).some((tool) => tools.includes(tool))).toBe(false);
+  });
+
+  it('leave out a write that is not among the twelve', () => {
+    const stray = { name: 'delete_client', access: 'write', routeKey: 'DELETE /x' } as RegisteredTool;
+    expect(assistantWriteTools([stray])).toEqual([]);
   });
 });

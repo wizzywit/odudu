@@ -6,6 +6,7 @@ import type { RunTurnDeps } from '#/usecase/run-turn';
 import type { Entitlements } from '#/service/entitlements';
 import type { LevelName, StopReason } from '#/service/limits';
 import type { Slot } from '#/service/slots';
+import type { WriteOutcome } from '#/service/tool-bridge';
 
 /**
  * The signed-in administrator a request is made for, and the address the
@@ -43,6 +44,77 @@ export interface BudgetAuditEvent {
 
 export type AccessOutcome<T> = { kind: 'granted'; value: T } | { kind: 'refused'; reason: string };
 
+/** The card a decision is for: which conversation holds it and which tool it is about. */
+export interface DecidedTarget {
+  readonly conversationId: string;
+  readonly tool: string;
+}
+
+export type WithdrawReason = 'superseded' | 'mode_changed' | 'stopped';
+
+export type DecideResult =
+  | { kind: 'decided'; state: 'approved' | 'denied' }
+  | { kind: 'not_found' }
+  | { kind: 'not_pending' };
+
+/**
+ * What the assistant needs of P5's approvals and of the write door, supplied by
+ * the server, which sits above the packages that own them. Each call that
+ * touches the assistant's own tables takes a closure that runs in the
+ * transaction the server opens, so the two sets of rows move together.
+ */
+export interface ApprovalPorts {
+  /**
+   * Stores a pending approval for one proposed change, for the caller as its
+   * owner, and runs `store` in the same transaction. Refused when the owner
+   * already holds the most pending approvals allowed.
+   */
+  readonly open: <T>(
+    caller: ChatCaller,
+    input: {
+      readonly conversationId: string;
+      readonly tool: string;
+      readonly input: unknown;
+      readonly summary: string;
+      readonly now: Date;
+    },
+    store: (tx: AssistantTx, opened: { approvalId: string; expiresAt: Date }) => Promise<T>,
+  ) => Promise<{ kind: 'opened'; value: T } | { kind: 'refused'; reason: 'limit' }>;
+  /**
+   * Records the caller's decision as the approval's owner, from the console,
+   * and the `assistant.approval` row with it. `load` names the card in the
+   * same transaction; undefined means this conversation holds no such card.
+   * `withdrawn` says the person moved on rather than answered.
+   */
+  readonly decide: (
+    caller: ChatCaller,
+    input: {
+      readonly approvalId: string;
+      readonly approve: boolean;
+      readonly now: Date;
+      readonly withdrawn?: WithdrawReason;
+    },
+    load: (tx: AssistantTx) => Promise<DecidedTarget | undefined>,
+  ) => Promise<DecideResult>;
+  /**
+   * Runs one approved change: spends the approval for exactly this call,
+   * gives it a grant of its own, makes it and ends the grant. `find` names the
+   * approval the stored card holds for the call, or undefined where there is none.
+   */
+  readonly write: (
+    caller: ChatCaller,
+    input: {
+      readonly conversationId: string;
+      readonly toolCallId: string;
+      readonly tool: string;
+      readonly input: unknown;
+      readonly now: Date;
+      readonly signal?: AbortSignal | undefined;
+    },
+    find: (tx: AssistantTx) => Promise<string | undefined>,
+  ) => Promise<WriteOutcome>;
+}
+
 export interface ChatDeps {
   /** Runs `fn` in one short transaction bound to the tenant. */
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
@@ -67,6 +139,8 @@ export interface ChatDeps {
     conversation: { readonly id: string; readonly mode: ConversationMode; readonly now: Date },
     fn: (tx: AssistantTx) => Promise<T>,
   ) => Promise<AccessOutcome<T>>;
+  /** Present, Act mode can propose changes; absent, every conversation reads only. */
+  readonly approvals?: ApprovalPorts;
   /** What a tenant may use; the open implementation reads the tenant's settings. */
   readonly entitlements?: Entitlements;
   /** Writes an `assistant.budget` row. A failure is logged and does not change the outcome. */

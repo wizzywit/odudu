@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ASSISTANT_WRITE_CEILING,
   assistantGrantRefusal,
   assistantScopeCeiling,
   type AssistantGrantGrounds,
@@ -94,5 +95,23 @@ describe('assistantGrantRefusal', () => {
     ['no scope', { scope: [] }, 'scope_widened'],
   ] as const)('refuses %s', (_, over, reason) => {
     expect(assistantGrantRefusal({ ...grounds, ...over })).toBe(reason);
+  });
+});
+
+describe('the ceiling of a grant made for one approved write', () => {
+  it('is mcp:write alone, and a conversation grant never reaches it', () => {
+    expect(ASSISTANT_WRITE_CEILING).toEqual(['mcp:write']);
+    expect(assistantGrantRefusal({ ...grounds, scope: ['mcp:write'], mode: 'act' })).toBe(
+      'scope_widened',
+    );
+  });
+
+  it('admits mcp:write under its own ceiling and nothing beside it', () => {
+    const write = { ...grounds, mode: 'act' as const, ceiling: ASSISTANT_WRITE_CEILING };
+    expect(assistantGrantRefusal({ ...write, scope: ['mcp:write'] })).toBeNull();
+    expect(assistantGrantRefusal({ ...write, scope: ['mcp:read', 'mcp:write'] })).toBe(
+      'scope_widened',
+    );
+    expect(assistantGrantRefusal({ ...write, scope: ['mcp:read'] })).toBe('scope_widened');
   });
 });

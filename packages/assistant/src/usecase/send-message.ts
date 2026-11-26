@@ -1,5 +1,6 @@
 import { toUIMessageStream, type UIMessage, type UIMessageChunk } from 'ai';
-import { conversationRepository } from '#/repository/conversations';
+import { approvalCardRepository } from '#/repository/approvals';
+import { conversationRepository, type ConversationMode } from '#/repository/conversations';
 import { leaseRepository } from '#/repository/leases';
 import { messageRepository } from '#/repository/messages';
 import { visibleMessages } from '#/usecase/conversation-view';
@@ -8,13 +9,25 @@ import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from 
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import { profileById } from '#/service/profile';
-import { budgetWarningChunk, errorTextFor, turnEndChunk } from '#/service/stream-parts';
+import {
+  approvalCardChunk,
+  budgetWarningChunk,
+  errorTextFor,
+  turnEndChunk,
+} from '#/service/stream-parts';
 import type { TurnRegistry } from '#/service/turn-registry';
+import { cardView, settleLastMessage, withdrawPending } from '#/usecase/approvals';
 import { createTurnBudget } from '#/usecase/budget-hooks';
-import { DEFAULT_TURN_DEADLINE_MS, type ChatCaller, type ChatDeps } from '#/usecase/chat-deps';
+import {
+  DEFAULT_TURN_DEADLINE_MS,
+  type ApprovalPorts,
+  type ChatCaller,
+  type ChatDeps,
+} from '#/usecase/chat-deps';
 import { openEntitlements } from '#/usecase/entitlements';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
+import type { TurnApprovals } from '#/usecase/tool-approval';
 
 export type SendOutcome =
   | {
@@ -26,34 +39,64 @@ export type SendOutcome =
   | { kind: 'not_found' }
   | { kind: 'busy' }
   | { kind: 'saturated' }
-  | { kind: 'limited'; retryAfterSeconds: number };
+  | { kind: 'limited'; retryAfterSeconds: number }
+  // A resume while a change still waits for the person, or with none to resume.
+  | { kind: 'waiting' }
+  | { kind: 'nothing_waiting' };
 
 // How long a refused caller is told to wait before trying again.
 export const LIMITED_RETRY_SECONDS = 5;
 
-interface Prepared {
+// How a turn starts: from the person's new message, or from the stored
+// conversation after they decided a change.
+type Start = { kind: 'message'; message: UIMessage } | { kind: 'resume' };
+
+interface Head {
   readonly profileId: string;
-  readonly earlier: UIMessage[];
-  readonly pageContext: string;
   readonly generation: number;
+  readonly pageContext: string;
   readonly maskEmails: boolean;
   readonly limits: AssistantLimits;
+  readonly mode: ConversationMode;
 }
 
-async function prepare(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Prepared | null> {
+// What a turn needs to know about the conversation before anything is changed:
+// null for one that is not the caller's.
+async function readHead(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Head | null> {
   return deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(id);
     if (record?.ownerSubjectId !== caller.ownerSubjectId) return null;
-    const messages = messageRepository(tx);
-    const head = await messages.first(id);
+    const head = await messageRepository(tx).first(id);
     const settings = await readSettings(tx, caller.tenantId);
+    const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
     return {
       profileId: record.profile,
       generation: record.runGeneration,
-      earlier: visibleMessages(id, await messages.load(id, HISTORY_MESSAGES)),
       pageContext: pageContextText(readPageContext(head?.parts)),
       maskEmails: settings.assistant_mask_emails,
-      limits: await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId),
+      limits,
+      // Act only where the deployment can propose a change and the tenant allows it.
+      mode:
+        record.mode === 'act' && deps.approvals !== undefined && limits.modes.includes('act')
+          ? 'act'
+          : 'ask',
+    };
+  });
+}
+
+interface Loaded {
+  readonly earlier: UIMessage[];
+  // The last message's number when it is the assistant's, which a resumed turn continues.
+  readonly lastSeq: number | undefined;
+}
+
+async function loadMessages(deps: ChatDeps, caller: ChatCaller, id: string): Promise<Loaded> {
+  return deps.transact(caller.tenantId, async (tx) => {
+    const records = await messageRepository(tx).load(id, HISTORY_MESSAGES);
+    const last = records[records.length - 1];
+    return {
+      earlier: visibleMessages(id, records),
+      lastSeq: last?.role === 'assistant' ? last.seq : undefined,
     };
   });
 }
@@ -118,7 +161,7 @@ async function advance(
  * on answers at once counts every server, and each model call is reserved
  * against the budget first.
  */
-export async function sendMessage(
+export function sendMessage(
   deps: ChatDeps,
   registry: TurnRegistry,
   caller: ChatCaller,
@@ -126,9 +169,108 @@ export async function sendMessage(
   message: UIMessage,
   signal: AbortSignal,
 ): Promise<SendOutcome> {
-  const prepared = await prepare(deps, caller, id);
-  const profile = prepared === null ? undefined : profileById(prepared.profileId);
-  if (prepared === null || profile === undefined) return { kind: 'not_found' };
+  return runConversationTurn(deps, registry, caller, id, { kind: 'message', message }, signal);
+}
+
+/**
+ * Carries a conversation on after the person decided a change: the stored
+ * messages end with the answer that asked, the decision is applied to it, and
+ * the model is called again, which runs a change that was approved and lets the
+ * model read the refusal of one that was not. Nothing is added by the person.
+ */
+export function resumeTurn(
+  deps: ChatDeps,
+  registry: TurnRegistry,
+  caller: ChatCaller,
+  id: string,
+  signal: AbortSignal,
+): Promise<SendOutcome> {
+  return runConversationTurn(deps, registry, caller, id, { kind: 'resume' }, signal);
+}
+
+// Where the turn's changes go: the deployment's approval ports, with the cards
+// this conversation stores and the card chunk the person is sent.
+function turnApprovals(
+  ports: ApprovalPorts,
+  deps: ChatDeps,
+  caller: ChatCaller,
+  id: string,
+  proposed: TurnApprovals['proposed'],
+): TurnApprovals {
+  return {
+    proposed,
+    open: async (call) => {
+      const outcome = await ports.open(
+        caller,
+        {
+          conversationId: id,
+          tool: call.tool,
+          input: call.input,
+          summary: call.body.title,
+          now: deps.now(),
+        },
+        async (tx, opened) => {
+          await approvalCardRepository(tx).create({
+            approvalId: opened.approvalId,
+            conversationId: id,
+            toolCallId: call.toolCallId,
+            tool: call.tool,
+            body: call.body,
+          });
+          return opened;
+        },
+      );
+      if (outcome.kind === 'refused') return outcome;
+      return {
+        kind: 'opened',
+        card: cardView({
+          approvalId: outcome.value.approvalId,
+          conversationId: id,
+          toolCallId: call.toolCallId,
+          tool: call.tool,
+          body: call.body,
+          state: 'pending',
+          expiresAt: outcome.value.expiresAt,
+        }),
+      };
+    },
+    write: (tool, input, context) =>
+      ports.write(
+        caller,
+        {
+          conversationId: id,
+          toolCallId: context.toolCallId,
+          tool,
+          input,
+          now: deps.now(),
+          signal: context.signal,
+        },
+        async (tx) => {
+          // Only an Act conversation of the caller runs a change, and only the
+          // one the card was stored for.
+          const record = await conversationRepository(tx).byId(id);
+          if (record?.ownerSubjectId !== caller.ownerSubjectId || record.mode !== 'act') {
+            return undefined;
+          }
+          const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
+          return card?.tool === tool ? card.approvalId : undefined;
+        },
+      ),
+  };
+}
+
+async function runConversationTurn(
+  deps: ChatDeps,
+  registry: TurnRegistry,
+  caller: ChatCaller,
+  id: string,
+  start: Start,
+  signal: AbortSignal,
+): Promise<SendOutcome> {
+  const head = await readHead(deps, caller, id);
+  const profile = head === null ? undefined : profileById(head.profileId);
+  if (head === null || profile === undefined) return { kind: 'not_found' };
+  const prepared = head;
 
   const turn = new AbortController();
   const admitted = registry.begin(id, () => {
@@ -186,6 +328,8 @@ export async function sendMessage(
   let concluding: Promise<void> | undefined;
   let progress = () => ({ steps: 0, lastFinish: undefined as string | undefined });
   let maxSteps = profile.maxSteps;
+  // A change was stored for the person and the turn is ending on it.
+  let awaitingApproval = false;
   const audit = async (event: Parameters<NonNullable<ChatDeps['audit']>>[0]): Promise<void> => {
     try {
       await deps.audit?.(event);
@@ -212,6 +356,7 @@ export async function sendMessage(
       steps: progress().steps,
       maxSteps,
       lastFinish: progress().lastFinish,
+      awaitingApproval,
     });
   // Settles what the turn still holds and gives its place back, once, whichever
   // way it ends; the audit rows follow, and a failure of one never changes
@@ -250,10 +395,34 @@ export async function sendMessage(
   };
 
   try {
-    await deps.transact(caller.tenantId, async (tx) => {
-      await messageRepository(tx).append(id, { role: 'user', parts: message.parts });
-      await conversationRepository(tx).touch(id, deps.now());
-    });
+    // What was asked of the person is settled before the model reads the
+    // conversation: a change they moved on from is withdrawn, one they decided
+    // is closed or handed back, and a resume with nothing to carry on from says so.
+    if (deps.approvals !== undefined) {
+      if (start.kind === 'message') await withdrawPending(deps, caller, id, 'superseded');
+      const settlement = await settleLastMessage(deps, caller, id, start.kind);
+      if (start.kind === 'resume' && settlement.waiting > 0) {
+        await conclude();
+        return { kind: 'waiting' };
+      }
+      if (start.kind === 'resume' && settlement.resumable + settlement.settled === 0) {
+        await conclude();
+        return { kind: 'nothing_waiting' };
+      }
+    } else if (start.kind === 'resume') {
+      await conclude();
+      return { kind: 'nothing_waiting' };
+    }
+    const loaded = await loadMessages(deps, caller, id);
+    if (start.kind === 'message') {
+      const { message } = start;
+      await deps.transact(caller.tenantId, async (tx) => {
+        await messageRepository(tx).append(id, { role: 'user', parts: message.parts });
+        await conversationRepository(tx).touch(id, deps.now());
+      });
+    }
+    const earlier = loaded.earlier;
+    const original = start.kind === 'message' ? [...earlier, start.message] : earlier;
 
     const started = await startTurn(
       {
@@ -262,23 +431,35 @@ export async function sendMessage(
         tenantText: prepared.pageContext,
         maskEmails: prepared.maskEmails,
         tools: deps.tools,
+        mode: prepared.mode,
+        ...(deps.log === undefined ? {} : { log: deps.log }),
+        ...(deps.approvals === undefined
+          ? {}
+          : {
+              approvals: turnApprovals(deps.approvals, deps, caller, id, (card) => {
+                awaitingApproval = true;
+                raised.push(approvalCardChunk(card));
+              }),
+            }),
         budget,
         maxStepsPerTurn: prepared.limits.maxStepsPerTurn,
-        history: () => Promise.resolve(prepared.earlier),
+        history: () => Promise.resolve(earlier),
         ...deps.turn(caller, id),
         advanceRun: (observed) => advance(deps, caller, id, observed),
       },
       {
         conversationId: id,
         generation: prepared.generation,
-        message,
+        ...(start.kind === 'message' ? { message: start.message } : {}),
         signal: AbortSignal.any([signal, turn.signal]),
       },
     );
     progress = started.progress;
     maxSteps = started.maxSteps;
 
-    let seq: number | undefined;
+    // A resumed turn carries on the answer that asked, so its first store
+    // rewrites that message and the ones after it follow.
+    let seq: number | undefined = start.kind === 'resume' ? loaded.lastSeq : undefined;
     let stored = '';
     // Stores run one after another, so a step never overtakes the one before.
     let stores: Promise<void> = Promise.resolve();
@@ -314,7 +495,7 @@ export async function sendMessage(
     const ui = toUIMessageStream({
       stream: started.result.stream,
       tools: started.tools,
-      originalMessages: [...prepared.earlier, message],
+      originalMessages: original,
       generateMessageId: deps.newId,
       onError: () => errorTextFor(budget.refused(), profile.slot),
       onStepEnd: ({ responseMessage }) => store(responseMessage.parts),

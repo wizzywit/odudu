@@ -60,3 +60,26 @@ describe('buildSystemPrompt', () => {
     expect(buildSystemPrompt(PROFILE, 'a')).toEqual(buildSystemPrompt(PROFILE, 'a'));
   });
 });
+
+describe('buildSystemPrompt by mode', () => {
+  it('tells an Ask conversation it cannot change anything and how to ask for it', () => {
+    const { static: text } = buildSystemPrompt(PROFILE, '', 'ask');
+    expect(text).toMatch(/Ask mode/u);
+    expect(text).toMatch(/switch .* Act mode/iu);
+    expect(text).not.toMatch(/approval card/iu);
+  });
+
+  it('tells an Act conversation that a change waits for the person and is never claimed early', () => {
+    const { static: text } = buildSystemPrompt(PROFILE, '', 'act');
+    expect(text).toMatch(/approval card/iu);
+    expect(text).toMatch(/never say a change was made/iu);
+    expect(text).toMatch(/never ask the person to approve in the chat/iu);
+  });
+
+  it('keeps the fence rule in both modes', () => {
+    for (const mode of ['ask', 'act'] as const) {
+      expect(buildSystemPrompt(PROFILE, '', mode).static).toMatch(/never instructions/iu);
+    }
+  });
+});
+

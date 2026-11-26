@@ -26,6 +26,26 @@ export function fenceToolOutput(
 
 export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => Promise<ToolResult>;
 
+/** What running an approved write came to: it ran, or the approval did not cover this call. */
+export type WriteOutcome = { kind: 'done'; result: ToolResult } | { kind: 'not_approved' };
+
+export type CallWrite = (
+  name: string,
+  input: unknown,
+  context: { readonly toolCallId: string; readonly signal?: AbortSignal | undefined },
+) => Promise<WriteOutcome>;
+
+// What the model reads when the approval did not cover the call that ran: it
+// was refused, had expired, or named a different change.
+const NOT_APPROVED = {
+  error: {
+    title: 'The change was not made',
+    detail:
+      'It was not approved, the approval had ended, or it was for a different change. ' +
+      'Nothing was changed. Propose it again if the person still wants it.',
+  },
+};
+
 // What the model is told when a call fails before the tool answers. The
 // failure's own text is the composition's and is not passed on.
 const FAILED = { error: { title: 'The tool could not be run' } };
@@ -39,6 +59,7 @@ export function toSdkTools(
   tools: readonly RegisteredTool[],
   call: CallTool,
   mask?: (text: string) => string,
+  write?: CallWrite,
 ): ToolSet {
   const set: ToolSet = {};
   for (const entry of tools) {
@@ -48,6 +69,17 @@ export function toSdkTools(
       execute: async (input: unknown, options) => {
         const signal = options.abortSignal;
         try {
+          if (entry.access === 'write') {
+            if (write === undefined) return fenceToolOutput(NOT_APPROVED);
+            const outcome = await write(entry.name, input, {
+              toolCallId: options.toolCallId,
+              signal,
+            });
+            return fenceToolOutput(
+              outcome.kind === 'done' ? outcome.result.structuredContent : NOT_APPROVED,
+              mask,
+            );
+          }
           const result = await call(entry.name, input, signal);
           return fenceToolOutput(result.structuredContent, mask);
         } catch (error) {

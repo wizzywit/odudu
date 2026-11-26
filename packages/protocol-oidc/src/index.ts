@@ -1440,8 +1440,10 @@ export { runInstanceId } from '#/service/agent-mint';
 export {
   AssistantGrantRefused,
   grantAssistantAccess,
+  grantAssistantWrite,
   type GrantAssistantAccessDeps,
   type GrantAssistantAccessInput,
+  type GrantAssistantWriteInput,
 } from '#/usecase/grant-assistant-access';
 export { recordAssistantRefusal } from '#/usecase/record-assistant-refusal';
 export type { AssistantGrantRefusal, AssistantMode } from '#/service/assistant-grant-rules';
