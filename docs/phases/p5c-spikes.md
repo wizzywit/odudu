@@ -713,3 +713,513 @@ design stands unless the controller rules otherwise.
   was tried and dropped, because the row would then say `allowed` for a call the door refused,
   which `assistant-identity.int.test.ts` pins as `refused`. `callMcpTool` is shared with the
   SDKs and unchanged.
+
+## P5c spike: the assistant for a system administrator in another tenant
+
+Read on 2026-11-26 from `origin/p5c-console-assistant` (HEAD `71309bc45`). Every claim carries
+the file and line it was read at, or `assumption:`. Nothing was run: this is a reading spike.
+Branch `p5c-i11` is not on origin, so the trace tables are read from the spec's text (5.9), not
+from migration 0153 (`assumption:` they are `assistant_turns`, `assistant_steps` and
+`assistant_events`, tenant-scoped, as 5.9 says).
+
+### The question
+
+The owner expects a system administrator in `/console/<other-tenant>/...`, holding
+`manage-tenants` and the tenant's capabilities, to get the assistant, because it should do what
+the console does. Today the chat routes answer that caller with the never-served 404
+(`packages/protocol-admin/src/view/routes/assistant.ts:214-229`, `callerOf`). The brief expected
+the console to hide the button. As read, it does not (see "The console gate"); that is a finding.
+
+### (1) The failing paths and every place that assumes owner tenant = target tenant
+
+The path of one Ask-mode conversation for a system administrator `S` (a subject of the `system`
+tenant) in tenant `X`, in order. After each refusal the next row assumes it away to find the
+following one. "Home" is the tenant `S` belongs to (`principal.issuerTenantId`); "target" is `X`,
+the tenant in the path.
+
+| #   | Where                                                                                                                                                                                                                                                                      | What breaks                                                                                                                                                                                                                                            |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Door: `authenticate-admin.ts:141-177` accepts a system-issued token at any path; `:390` sets `issuerTenantId: matched.id` (system); `authorize-admin.ts:52-62` needs `manage-tenants` and the route capability, both read in the home tenant                               | Passes for `S`. It is the door the console's own cross-tenant calls use. Not a failure: the base the designs lean on.                                                                                                                                  |
+| 2   | `assistant.ts:227` `if (principal.issuerTenantId !== tenantId) return null` in `callerOf`; `createConversationHandler` turns null into 404                                                                                                                                 | The refusal today. Clean, nothing written.                                                                                                                                                                                                             |
+| 3   | `apps/server/src/assistant-chat.ts:315-317` (`accessGranter`): `lookup.byName(caller.tenantName)`, then `withTenantRetrying(db, tenant.id, ...)`; `grant-assistant-access.ts:105` reads the console grant under that tenant's context                                      | The console grant is a row of the home tenant. Under `X`'s context RLS hides it: `byId` returns null and `assistantGrantRefusal` says `grant_not_found` (`assistant-grant-rules.ts:70`, `grant?.tenantId !== grounds.tenantId`).                       |
+| 4   | Foreign keys if the grant were made in `X`: `token_grants_subject_fk` (`0010_token_grants.sql:13`), `assistant_conversations_owner_fk` (`0147:19-20`), `agent_instances_owner_fk` and `_subject_fk` (`0141:27-30`)                                                         | `S` has no `subjects` row in `X`. The conversation insert is the 500 the brief names. The same composite key is on `agent_approvals_subject_fk` and `agent_budget_windows_owner_fk` (`0141_agent_identity.sql`, read above).                           |
+| 5   | `mint-agent-token.ts:215-236` and `agent-token-rules.ts:56`: `grant.tenantId` must equal `deps.tenantId`, and the token is issued by `deps.issuer`                                                                                                                         | A token minted for `X` carries `X`'s issuer and `sub = S`. The door then treats it as `X`'s own administrator and resolves `S`'s roles in `X` (`authorize-admin.ts:55`), where there are none. Issuing it from the home tenant instead leads to row 6. |
+| 6   | **`router.ts:205-212`: an agent token whose `issuerTenantId` is not the path tenant is refused `insufficient_scope`, for every route.** P5a's whole-branch review added it (`docs/phases/p5a.md:2079`; test `packages/protocol-admin/tests/agent-door-tenant.int.test.ts`) | The assistant's tool token is an agent token (`act` claim, minted by `mintAgentToken`). A system-issued one at `X`'s path is refused here whatever else is fixed. The brief did not name this one, and it has the largest blast radius of any design.  |
+| 7   | P5a spec section 10, decision 3 (`docs/archive/specs/2026-11-06-p5a-mcp-parity-design.md:456-457`): "No `tenant` argument for a system administrator's agent ... Recommend: none in this phase; revisit in P5b with confirmation"                                          | A recorded decision, accepted by the owner on 2026-11-06. The owner's expectation now reverses it for the assistant, with an approval step. The amendment below says so.                                                                               |
+
+Every other place that assumes owner tenant = target tenant, each read in the code:
+
+- **Chat caller.** `ChatCaller.tenantId`, `tenantName` and `issuer` are one tenant
+  (`packages/assistant/src/usecase/chat-deps.ts`, the `ChatCaller` interface). `caller.tenantId`
+  is the tenant of every assistant transaction, 21 sites in `packages/assistant/src`
+  (`git grep caller.tenantId`): conversations (`conversations.ts:53`), messages and the turn
+  (`send-message.ts:67-71, 96, 150, 289, 310, 410, 458, 513`), approvals (`approvals.ts:27, 78,
+112, 152`).
+- **Conversation owner.** `conversationRepository.create` writes one `tenantId`
+  (`repository/conversations.ts:34-46`); the read check is `record.ownerSubjectId !==
+caller.ownerSubjectId` (`conversations.ts:55`, `send-message.ts:68`). Subject ids are UUIDs, so
+  the owner check does not depend on the tenant; RLS does (`0147:50-60`, policy `tenant_id =
+app.tenant_id`).
+- **Grant derivation.** `assistantGrantRefusal` requires `grant.tenantId === tenantId`
+  (`assistant-grant-rules.ts:70`); the `odudu-assistant` client is looked up by
+  `byClientId(ASSISTANT_CLIENT_ID)` under the tx tenant (`grant-assistant-access.ts:107`), one per
+  tenant (`clients_one_builtin_assistant`, `0150`). The system tenant has one: `0150` inserts it
+  for every row of `tenants`, and `seed.ts:492, 780, 1196` provision it for new tenants
+  (`assumption:` the system tenant's bootstrap goes through one of those; a test proves it).
+- **Mint audience and issuer.** `mintAgentToken` takes the tenant from `deps.tenantId` and
+  `deps.issuer` (`mint-agent-token.ts:215-270`); the assistant wires both from the caller
+  (`assistant-chat.ts:128-141`). The token's audience is the fixed `ADMIN_API_AUDIENCE`.
+- **In-process call.** The tool path is `expandPattern(pattern, token.tenant.name, params)`
+  (`packages/mcp/src/adapter/in-process-caller.ts:49`) and the `host` header falls back to
+  `token.issuer` (`:65`). `validatedMcpToken` takes `tenant` and `issuer` as separate fields
+  (`packages/mcp/src/service/validated-token.ts:24-33`), so a target tenant with a home issuer
+  fits without a change to `@odudu/mcp` (`assumption:` nothing else in `callMcpTool` reads
+  `token.tenant`; `git grep 'token\.tenant' -- packages/mcp/src` found only that line and
+  `admit-mcp-request.ts:130`, which the assistant does not use).
+- **Approvals.** `open` takes the per-owner advisory lock `agent-approvals:<owner>` and counts
+  pending rows `where a.tenant_id = <tenant> and a.subject_id = <owner>`
+  (`assistant-approvals.ts:92-102`); `answer` demands that the console grant is a live sign-in of
+  the built-in admin client in the tenant it runs in and that `grant.subjectId` is the owner
+  (`:147-157`); the digest binds `tenantId`, owner, conversation, tool and arguments (`:34-51`). A
+  card is `assistant_approvals`, with composite FKs to the approval and to the conversation, so
+  approval, card and conversation must share one tenant (`0152:22-25`).
+- **Write grant.** `grantAssistantWrite` derives from the console grant in the tx tenant
+  (`grant-assistant-access.ts:77-91`), its id the approval's id.
+- **Budgets.** Four levels, all rows of one tenant (`0148:6-13`, policy `0148:60-62`); keys are
+  `tenant_month: tenantId`, `admin_day: ownerSubjectId`, `conversation`, `turn`
+  (`service/limits.ts:74-96`). One reservation charges all four in one transaction
+  (`budget-hooks.ts`), so all four must be rows of one tenant context. The turn lease counts per
+  tenant (`repository/leases.ts:36-43`). The limits come from the tenant's own settings
+  (`usecase/entitlements.ts:6-9`, read through the tx given).
+- **Settings.** `assistant_enabled`, `assistant_mask_emails`, `assistant_default_mode`,
+  `assistant_trace_retention_days` and `assistant_auditor_visible` are columns of the tenant row
+  (`repository/settings.ts:8-26`; contract `contracts/src/admin/assistant.ts:21-56`). The turn
+  reads `settings.assistant_mask_emails` through the home tx (`send-message.ts:71, 77`) and
+  narrows the mode by the limits of that same tx (`:79-83`); the status and the create gate read
+  the path tenant (`assistant.ts:58-67` status handler, `assistant.ts:199-207`
+  `tenantOffersAssistant`, both `adminTx(..., tenantId)` of the path). So today's code already
+  reads the **target's** `assistant_enabled` and would read the **home's** `mask_emails` and
+  limits: the split is half there, by accident.
+- **Audit.** `audit_events.tenant_id` is "the tenant the event happened to": a system
+  administrator acting on another tenant writes a row that tenant's own administrators can read
+  (`0067_admin_audit.sql:1-3`), with `actor_tenant_id` separate (`:16`). The tool-call row is
+  written with `withTenant(db, caller.tenantId)` and `actorTenantId: principal.issuerTenantId`
+  (`assistant-call.ts:92-95`, `access-audit.ts:84-88`). The `assistant.turn`, `.budget` and
+  `.approval` rows are written in `caller.tenantId` (`assistant-chat.ts:241-306`,
+  `assistant-approvals.ts:174-192`).
+- **Trace and activity.** Spec 5.9: the trace tables are tenant-scoped and the activity screen is
+  gated by `read-assistant-activity` of the tenant it is opened in; retention is a per-tenant
+  setting; a reported conversation survives retention (`reported_at`, `0147:16-17`).
+- **Gateway.** The console cookie is bound to the tenant the person signed in to
+  (`resolve-session.ts:35-41, 57-70`); the gateway forwards `/admin/tenants/<X>/...` with the
+  **home** session's token and the path unchanged (`forward.ts:51-68`: `prepareCall` never reads
+  the path tenant; `:124-139` `refusedAtHome` asks the home tenant's whoami). The stream route
+  does the same (`forward-stream.ts`). So a system administrator's console grant, session and
+  refresh token are home rows, and nothing in the gateway needs to change.
+- **whoami and the gate.** whoami answers the **home** tenant's `capabilities`, `crossTenant`, and
+  a deployment-wide `assistant_available` (`whoami.ts:29-40`). The console gate is
+  `assistantAvailable === true && holds(use-assistant)` (`gate.ts:10-12`;
+  `useAssistantAvailable.ts:6-7`); it asks `GET .../assistant/status` of the path tenant.
+
+#### The console gate
+
+`apps/admin-console/src/widgets/shell/use-cases/useAssistantAvailable.ts:6-7` calls
+`mayUseAssistant(useAuthority(tenant))` and nothing else. `signedInTo` does not occur in the
+assistant code: it is the parameter of the banner for a person signed in to a **different**
+tenant (`shellText.ts:12`, `sessionStatusText.ts:44`). So, as read, a system administrator who
+holds `use-assistant` in the system tenant sees the button in `/console/X` when `X` has the
+assistant enabled, opens the panel, and the first create answers 404. (`assumption:` a console
+test confirms it; `gate.test.ts` and `AssistantGate.test.tsx` have no cross-tenant case, read by
+file name only.) That is a visible defect today whichever design is chosen, and the cheapest
+correct stopgap is one condition in the gate: hide when `authority.crossTenant`.
+
+### (2) Candidate designs
+
+Facts every design meets (read above): the console session and the grant a conversation derives
+from belong to the home tenant; the door already accepts the home-issued token at the target's
+path and checks `manage-tenants` plus the route capability in the home tenant on every call
+(`authorize-admin.ts:52-62`). `assumption:` `effectiveRoles` is not cached across requests, so a
+role removed mid-conversation refuses the next call; a test proves it.
+
+#### A. Everything the assistant owns lives in the operator's tenant, the target is a column, the door gets one narrow exception
+
+- Conversation, messages, trace, budget counters, leases, approvals, cards, the derived grant, the
+  agent instance and every `assistant.*` audit row: tenant = home. `assistant_conversations`
+  gains `target_tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE`, null meaning "the home
+  tenant itself" (today's case, unchanged).
+- The derived grant is made in the home tenant by `grantAssistantAccess`, which also writes the
+  grant's target: `token_grants` gains nullable `target_tenant_id` (`REFERENCES tenants (id) ON
+DELETE CASCADE`). Only that function writes it, and it refuses unless the home tenant is the
+  system tenant (`isSystemTenantId`, `packages/domain-tenant/src/service/admin-capabilities.ts:64`).
+- `mintAgentToken` is called exactly as today, in the home tenant, with the home issuer. Its token
+  has `sub = S`, the home issuer and `act.sub` = the instance.
+- The door exception (`router.ts:205-212`): an agent principal whose issuer is not the path tenant
+  is admitted only when **all** of these hold. The agent client is `builtin_assistant`
+  (`ClientState.builtinAssistant` is already loaded by `authenticateAdmin`,
+  `authenticate-admin.ts:69`, and `checkGrantLiveness` returns it, `:302-343`; today
+  `AdminAgent` has no such flag, `:29-39`, so it is added). The token carries the endpoint marker
+  (`via: mcp`, as `agentWriteNeedsEndpoint` already requires). The issuer is the system tenant.
+  **The grant's `target_tenant_id` equals the path tenant's id.** The binding is a database row,
+  not a claim in the token, so `mintAgentToken` stays unchanged and a leaked five-minute token
+  reaches one tenant. Then `authorizeAdmin` runs as it does for the console: `manage-tenants` plus
+  the route capability, both live.
+- The tool call is made with `validatedMcpToken({ tenant: target, issuer: home issuer, ... })`, so
+  the path is the target's and the bearer is the home's. The `agent.tool_call` row is written in
+  the **target's** trail (`withTenant(db, target.id)`) with `actor_tenant_id` = home and the
+  conversation and turn ids, which is the existing meaning of `audit_events.tenant_id`
+  (`0067:1-3`). The admin API's own mutation rows land in the target's trail as they do for the
+  console.
+- `ChatCaller.tenantId/tenantName/issuer` stay the **home** tenant, so the 21 `caller.tenantId`
+  sites and the approval and grant ports are untouched; it gains `target: { id, name }`, equal to
+  the home tenant when same-tenant. Only five things read the target: the tool call, the tool
+  set's visibility, the settings read, the digest and card, and the path-versus-conversation
+  check.
+- Keeps (ADR 0060 and P5): the owner's session end revokes the grant and instances (same tenant as
+  the console grant, `exchangedFromGrantId`, unchanged); no scope widening (the ceiling check is
+  untouched, and the target binding only narrows the assistant below the console token, which
+  reaches every tenant); never more than the signed-in administrator (the door's live
+  `manage-tenants` and capability checks); budget slices unchanged; the approval decision is the
+  owner's own console sign-in in the home tenant (`assistant-approvals.ts:147-157` unchanged).
+- Changes: a migration (two nullable columns, two partial indexes, the trace tables later); the
+  door; `grantAssistantAccess` and `grantAssistantWrite` take a target; `callerOf`; the in-process
+  call's tenant; the settings rule; the digest and card carry the target; the console gate and
+  panel.
+- Blast radius (files): `packages/protocol-admin/src/view/routes/router.ts`,
+  `src/usecase/authenticate-admin.ts` (the `assistant` flag on `AdminAgent`),
+  `src/view/routes/assistant.ts`; `packages/protocol-oidc` `grant-assistant-access.ts`,
+  `assistant-grant-rules.ts`, the grant repository and record; `packages/assistant`
+  `chat-deps.ts` (`ChatCaller.target`), `conversations.ts`, `send-message.ts` (`readHead`),
+  `tool-set.ts`; `apps/server/src/assistant-call.ts`, `assistant-chat.ts`,
+  `assistant-approvals.ts`; one migration under `packages/db/drizzle`; `packages/contracts` (the
+  card and the conversation view); the console `entities/assistant`, `widgets/assistant-panel` and
+  the shell gate; docs and transcripts. `@odudu/mcp`, the console gateway, `mintAgentToken` and
+  the P5 approval and budget tables: no change.
+- Risks: (a) the door exception is the first place an agent token crosses a tenant, so it is
+  security-critical; it is narrowed by four conditions and one row binding, and the P5a test
+  `agent-door-tenant.int.test.ts` stays as it is for every other agent (the `mcp` job passes with
+  no changed expectation). (b) Cross-tenant data lands in the home tenant's tables (messages,
+  trace): see "Who sees the conversation". (c) A tenant's own settings must not be overridden: the
+  settings rule below. (d) A conversation bound to `X` presented at `Y`'s path: refused by the
+  path-versus-conversation check and, for the tool call, by the grant binding at the door, two
+  independent refusals. (e) A bug that writes a target onto a non-assistant grant is harmless:
+  the door honors it only for the built-in assistant client, with the endpoint marker, from the
+  system tenant.
+- Data model: `assistant_conversations.target_tenant_id` (null = home), `token_grants.
+target_tenant_id` (null = no cross-tenant reach), partial indexes `WHERE target_tenant_id IS NOT
+NULL` for the cascade deletes and the activity filter (ADR 0041: a tenant delete must not scan;
+  10,000 tenants; `token_grants` is large and the column is almost always null, so the partial
+  index is tiny).
+- RLS: policies unchanged, `tenant_id = app.tenant_id`; every new row carries the **home**
+  `tenant_id`. `target_tenant_id` is in no policy. A tenant `X` administrator's context sees none
+  of the operator's conversations (the foreign-tenant probe is a test).
+- Scale: one extra short read of the target's settings per turn start and per create, constant;
+  no new per-request query at the door (the grant is already loaded by `checkGrantLiveness`; the
+  record gains one column). A system administrator's conversation is a human act of a few people,
+  the bound ADR 0060 states.
+- Testability: reachable with the existing fixtures: `startAdminFixture` (the door), the assistant
+  identity integration tests, a two-tenant world.
+
+#### B. The conversation lives in the target tenant, the owner is `(owner_tenant_id, owner_subject_id)`, the FKs are loosened
+
+- Conversation, messages, trace and approvals in `X`; owner columns without the `subjects` FK; the
+  grant and the instance either in `X` too or split.
+- If the grant is in `X`: `token_grants_subject_fk`, `agent_instances_owner_fk` and `_subject_fk`,
+  `agent_approvals_subject_fk` and `agent_budget_windows_owner_fk` all lose their tenant-composite
+  key (five constraints on tables that are P5's and, for `token_grants`, every OIDC flow's), and
+  the token is issued by `X` for a subject `X` does not have. The door would have to resolve `S`'s
+  roles in `S`'s tenant for a foreign subject. That breaks the property `authenticateAdmin` is
+  built on, that a token's issuer is the tenant of its subject (ADR 0037's foreign-issuer refusal
+  rests on the same property). Rejected.
+- If the grant stays in the home tenant and only the conversation is in `X` (B'): the grant, the
+  instance and the approval are home rows and the conversation, messages and card are `X` rows, so
+  "the grant is made in the transaction that creates the conversation" (ADR 0060) cannot hold: one
+  transaction has one `app.tenant_id` and RLS is `FORCE`d. The card's FKs to the approval and to
+  the conversation (`0152:22-25`) cannot span two tenants. It needs two transactions with an
+  orphan sweep between them. Rejected: it gives up the atomicity ADR 0060 is built on, to put rows
+  where they are not needed.
+- It does keep what A cannot: the conversation text sits in the tenant it is about, so that
+  tenant's auditors see it on the existing screen and its retention and erasure apply with no
+  join. A's answer to the same need is the cheap read path in "Who sees the conversation".
+
+#### C. A per-tenant operator stand-in subject
+
+- Each target tenant gets a subject for each operator; the grant, instance and conversation are
+  ordinary rows of `X`; the stand-in holds the operator's capabilities in `X`.
+- `assumption:` it needs a role assignment in `X` for each operator, kept equal to the operator's
+  `manage-tenants` plus capabilities. Any drift is privilege escalation or a stale grant; removing
+  `manage-tenants` from `S` does not remove the stand-in's roles unless a sync does, so "never
+  more than the signed-in administrator" is held by a job and not by the door. A phantom subject
+  appears in `X`'s user list, counts, exports and erasure, and `X`'s administrators can edit or
+  delete it. The audit actor is the stand-in, not `S`, unless columns are added. Rejected on the
+  first invariant alone.
+
+#### D. Other options considered
+
+- **D1. Keep refusing, and make it honest.** Hide the button when `crossTenant`; document that a
+  system administrator uses `odudu mcp` or signs in as a tenant administrator of `X`. No security
+  change, an hour of work, and not what the owner expects. It is the stopgap while A is built
+  (increment 0), not the answer.
+- **D2. The administrator's own console token, no agent token.** No door exception is needed, but
+  the call then carries the console token's full authority with no `mcp:read` ceiling, no
+  per-call instance and no write budget, and the audit names `odudu-admin`. It undoes ADR 0060.
+  Rejected.
+- **D3. A tenant argument on the tools** (the other branch of P5a decision 3): one conversation
+  could reach several tenants. It widens what the owner did not ask for and puts the tenant in the
+  model's hands. Rejected: the target is fixed at creation, from the path, and the model never
+  names a tenant.
+
+### (3) Recommendation: A
+
+A is the only candidate that keeps ADR 0060's single transaction (the grant and the conversation
+are made together), keeps the home-tenant identity chain intact (session, console grant, derived
+grant, instance, approval, owner lock, budget), so no P5 table or invariant changes, and needs no
+phantom subject. Its one real cost is the door exception, which is the right place for that
+decision to live because the door already decides every cross-tenant call for the console, live,
+per request. The exception is narrower than the console's own reach: one tenant, fixed at
+creation, bound by a row.
+
+B and B' trade the ADR 0060 atomicity, or the "token issuer is the subject's tenant" property, for
+the placement of rows. C trades the door's live check for a sync job. D1 is the stopgap, D2 undoes
+0060, D3 widens the reach.
+
+#### Settings: whose apply
+
+One rule: **the stricter of the two tenants applies, and the target's wishes are never overridden
+by the operator.** The conversation is the operator's (their provider spend, their tenant); the
+data is the target's.
+
+| Setting                               | Applies                                                                                                                                                                                                                                             |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assistant_enabled`                   | Both must be on. Target off: create and send answer 404 and the console shows nothing (the `offered` check already reads the path tenant, `assistant.ts:199-207`). Home off: the operator's own switch, checked at create.                          |
+| `assistant_mask_emails`               | On if **either** is on. The target's data reaches the provider; the target's mask is the one that matters and the operator's is added to it.                                                                                                        |
+| `assistant_default_mode`, Act allowed | Act only where **both** allow it: `readHead`'s mode narrowing (`send-message.ts:79-83`) must read the target's limits as well as the home's. Default mode: the target's.                                                                            |
+| Token limits (`limitsFromSettings`)   | The home tenant's (the operator pays); all four levels are home rows (one reservation, one transaction). `tenant_month`'s key stays the home tenant id. `assumption:` a per-target cap would be a fifth level or a key change; not recommended now. |
+| `assistant_trace_retention_days`      | The **shorter** of the two, evaluated by the reaper with a join to the target (rows are the home's, the data is the target's).                                                                                                                      |
+| `assistant_auditor_visible`           | The home's, for who in the home tenant sees it; the target's auditors learn of it from the audit trail, not by being shown the text (below).                                                                                                        |
+
+#### Audit: in which trail does a cross-tenant action appear
+
+Split by where the thing happened, which is the existing rule (`0067:1-3`):
+
+- **Target trail** (visible to `X`'s own `view-audit` holders): every `agent.tool_call` row (tool,
+  route, outcome, `actor_tenant_id` = home, `actor_subject_id` = `S`, conversation and turn ids)
+  and the admin API's own mutation rows for an approved write, as for the console. `X`'s
+  administrators can therefore see that an operator used the assistant in their tenant, which
+  tools and when, without the text.
+- **Home trail:** `assistant.turn` (started and ended), `assistant.budget`, `assistant.approval`,
+  `assistant.access_refused`, `assistant.config`. They carry `target_tenant` (id) in `detail`.
+- **One row in both:** `assistant.approval`. A decision authorises a change in `X`; write it in
+  both trails (the volume is one per approved write). The turn rows are not duplicated: they would
+  give `X` a row per turn for what the tool-call rows already say. `assumption:` the owner
+  confirms this split; the alternative is an `assistant.turn` marker in `X` (the `started` row).
+- A refused cross-tenant create (no `manage-tenants`, no capability): the door already records
+  `capability.refused` in the target (`router.ts:216-227`); the assistant's own
+  `assistant.access_refused` goes to the home trail.
+
+#### Who sees the conversation
+
+The conversation, its messages and its trace are home rows, so they are visible to the owner and,
+through the activity screen, to home-tenant holders of `read-assistant-activity` when
+`assistant_auditor_visible` is on in the home tenant. The target's auditors do **not** see the
+text: it is not their row (RLS), and a system administrator reading `X`'s data through the console
+leaves a trail of actions, not of what was read, as it does today. Stated as residual risk in the
+spec: an operator's conversation contains `X`'s data and sits under the operator's retention
+(capped by `X`'s, below). `X` is told by its own audit trail. A later increment may add a
+redacted "operator sessions" list to `X`'s activity screen (turn, time, tool counts) from the
+target-trail rows; it needs no new table.
+
+#### The trace tables (spec 5.9)
+
+`assistant_turns`, `_steps` and `_events` are home rows; each gains `target_tenant_id` (null =
+home), so the activity screen can filter by target and the reaper can join the target's retention.
+A tool result that carries `X`'s data is stored in the home trace as it is stored in `X`'s trace
+today (masked for secrets, ADR 0058). `assumption:` the recorder takes `tenantId` from the same
+`ChatCaller`; confirm when `p5c-i11` lands.
+
+#### Retention, erasure, export
+
+Retention: the reaper's predicate becomes `least(home_days, coalesce(target_days, home_days))`
+with a join to `tenants` on `target_tenant_id` (bounded: the reaper walks `(tenant_id,
+created_at)` as today and joins only rows with a target). `reported_at` still exempts. Erasure of
+the target tenant cascades: `ON DELETE CASCADE` on both new columns removes the conversations
+about it, their messages (the existing conversation FK) and the grants. Erasure of the operator
+removes theirs (`owner_fk`, unchanged). A tenant export of `X` does not include the operator's
+conversations about it (they are not `X` rows); say so in the export documentation.
+
+#### The console gate
+
+The button shows for a system administrator in `/console/<X>` exactly when: whoami says the
+deployment has an assistant; whoami's `capabilities` hold `use-assistant`; and, when `crossTenant`
+is true, they also hold `manage-tenants` (the vocabulary includes it, `whoami.ts:17-20`; the door
+checks it anyway, so this only avoids a button a 403 would answer). Then `GET
+/admin/tenants/<X>/assistant/status` decides, which reads the **target's** settings
+(`assistant.ts:58-67`): `enabled: false` there draws nothing. The operator's own
+`assistant_enabled` is checked by the server when the conversation is created (the gate cannot read
+it without a second request to the home tenant, and the answer for an operator who turned it off
+is the existing 404-as-disabled). The panel's header names the tenant ("Acting in acme as a system
+administrator"), next to the context bar that `actsWithSystemAuthority` already shows
+(`systemAuthority.ts:20-27`). The panel starts a new conversation when the route's tenant changes
+(`assumption:` `AssistantGate` is not remounted per tenant today; a conversation bound to `X`
+answers 404 at `Y`'s path by the check in test 5, so the worst case is an error, never a
+wrong-tenant action), and the approval card shows the tenant. Until A ships, hide the button when
+`crossTenant` (increment 0).
+
+#### Amendment text (drafts)
+
+**ADR 0060, a new amendment ("A system administrator in another tenant").**
+
+> A system administrator acting in another tenant has the assistant for that tenant. The
+> conversation, its grant, its instance, its approvals, its budget and its trace are rows of the
+> administrator's own tenant (the system tenant), because the console grant they derive from, the
+> subject that owns them and the tenant-composite keys of every table involved are there.
+> `assistant_conversations.target_tenant_id` and `token_grants.target_tenant_id` name the tenant
+> the conversation acts in; both are null for a conversation in the administrator's own tenant,
+> which is unchanged. `grantAssistantAccess` writes the target and refuses unless the console
+> grant's tenant is the system tenant. `mintAgentToken` is not changed: the token is issued by the
+> system tenant, for the administrator, with the instance as `act.sub`, as today.
+>
+> The admin API's rule that an agent acts only in the tenant its token names (P5a) gains one
+> exception, and only one: a token whose agent is the built-in assistant client of the system
+> tenant, carrying the endpoint marker, is admitted at a path whose tenant is the
+> `target_tenant_id` of the grant it stands on, and at no other. The administrator's
+> `manage-tenants` and the route's capability are then checked live on every call, as for the
+> console. A grant with no target, any other agent client and any other tenant keep the rule as it
+> was.
+>
+> The target is fixed when the conversation is created, from the verified path, and never from the
+> request body or the model. A tool names no tenant. An approval's digest binds the target and its
+> card names it. The call's audit row is in the target's trail, with the administrator as actor
+> and the system tenant as actor tenant; the assistant's own rows are in the administrator's. The
+> target's `assistant_enabled`, `assistant_mask_emails` and Act setting are never overridden by
+> the operator: the stricter of the two applies.
+
+Rejected, to add to the ADR's list: **a conversation in the target tenant with a foreign owner**
+(it gives up the single transaction and the rule that a token's issuer is its subject's tenant);
+**a stand-in subject per tenant** (its authority is kept equal to the operator's by a sync, not by
+the door); **the console token as the agent's** (no ceiling, no instance, audit names
+`odudu-admin`).
+
+**Spec 5.3, appended to the paragraph on the conversation's identity.**
+
+> When the administrator is a system administrator acting in another tenant, the conversation, its
+> grant, instance, approvals, budget and trace belong to their own tenant, and the conversation
+> names the tenant it acts in. The tool calls are made in that tenant with the administrator's own
+> authority: the admin API checks `manage-tenants` and the route's capability on every call, and
+> admits the assistant's token at that one tenant's routes only (ADR 0060's amendment). The
+> assistant names no tenant in a tool call.
+
+**Spec 5.2, appended to the paragraph on the tenant's switch.** "Where a system administrator
+uses the assistant in another tenant, that tenant's switch, email masking and Act setting apply as
+well as their own tenant's, and the stricter wins; the administrator's tenant pays the token
+spend."
+
+**Spec 5.9, appended to Audit.** "A tool call made in another tenant leaves its `agent.tool_call`
+row in that tenant's trail, naming the administrator and the conversation; the turn, budget and
+approval rows stay in the administrator's tenant, and an approval is recorded in both."
+
+**Spec section 2, Anti-goals, one clause:** "An assistant that reaches a tenant its conversation
+was not created for."
+
+**Spec section 9 (residual risk).** "A system administrator's conversation holds the target
+tenant's data under the operator's retention, capped by the target's; the target's administrators
+see the actions in their own audit trail and not the text."
+
+**P5a spec section 10, decision 3** is archived and not edited; the pointer goes in the P5c phase
+note and `docs/NEXT.md`: "revisited for the console assistant only, ADR 0060 amendment; the MCP
+endpoint and external agents keep the same-tenant rule."
+
+### Tests that would prove the invariants
+
+Integration (real PostgreSQL, the existing fixtures), each negative one first:
+
+1. **A tenant administrator cannot reach another tenant.** A tenant `X` administrator with
+   `use-assistant` posts `POST /admin/tenants/Y/assistant/conversations`: 403 at the door
+   (`authorize-admin.ts:57-59`), no row, no grant, no `assistant.*` row in either tenant.
+2. **A system administrator without `manage-tenants`:** 403 at the door, `capability.refused` in
+   the target's trail.
+3. **A system administrator with `manage-tenants` but without the target capability**
+   (`use-assistant`): 403, nothing created. With `use-assistant` but without a tool's own
+   capability (for example `manage-clients`): the tool call is refused 403 by the door,
+   `agent.tool_call` outcome `refused`, in the target's trail.
+4. **A role removed mid-conversation.** Remove `manage-tenants` from `S` after the create: the
+   next tool call is refused; add it back: the same conversation works again (the grant and the
+   instance did not depend on it).
+5. **The binding, three ways.** (a) A conversation created at `X` presented at `Y`'s path (load,
+   send, stop, resume, approvals, mode): 404 each. (b) The conversation's own token used by hand
+   at `Y`'s tool route (in-process caller given `Y`): refused `insufficient_scope` by the door
+   because the grant's target is `X`. (c) The same token at `X`'s route: admitted.
+6. **The exception is narrow.** `agent-door-tenant.int.test.ts` unchanged and green (read, PATCH,
+   POST, PUT and DELETE for a direct, an exchanged and an endpoint token). New, each refused at a
+   foreign path: a system-issued assistant token **without** the endpoint marker; one of an
+   **external MCP** client (`builtin_mcp`); one whose grant has `target_tenant_id` null; one of a
+   **tenant**-issued assistant grant. A non-system tenant cannot create a grant with a target:
+   `grantAssistantAccess` refuses (unit and integration).
+7. **A cross-tenant read returns only the target's data.** For two tenants with distinct
+   subjects: `list_subjects`, `get_subject`, `list_clients` and `list_audit` in the conversation
+   for `X` return `X`'s rows and never `Y`'s; `get_subject` given `Y`'s subject id answers 404; no
+   tool schema has a property naming a tenant (a lint over `TOOLS`). Instance reads
+   (`list_tenants`, `count_tenants`) are not offered in a conversation whose target is not the
+   system tenant.
+8. **An approval cannot be decided by another administrator.** `S2`, another system administrator
+   holding every capability, decides `S`'s approval: `not_found` (`not_owner`); a tenant `X`
+   administrator: 403 at the door; the assistant's own agent token deciding: refused
+   (`assistant-approvals.ts:147-157`: the grant must be the built-in admin client's sign-in); `S`
+   after signing out: the grant is revoked, 404. An approval minted for `X` replayed after the
+   conversation is re-targeted fails `consumeApproval`, because the digest includes the target.
+9. **Ending the owner's session** (console sign-out of `S`, and a revoke of the console grant)
+   revokes the derived grant and the instance of a **cross-tenant** conversation and the next call
+   is refused: ADR 0060's invariant, shown for a conversation with a target.
+10. **Settings.** Target `assistant_enabled = false`: create 404, console shows nothing; home off:
+    create refused; either `mask_emails`: masked; Act off in either: Act refused; retention the
+    shorter. Target disabled mid-conversation: calls fail closed.
+11. **Audit placement.** After a read and an approved write in `X`: the `agent.tool_call` rows and
+    the mutation row are in `X`'s trail with `actor_tenant_id` = system; `assistant.turn` rows are
+    only in the system trail; `assistant.approval` is in both; `X`'s administrator can list the
+    first set and cannot list the second.
+12. **RLS and foreign-tenant probes** for every table carrying `target_tenant_id` (conversations,
+    token grants, the trace tables): a context of `X` reads none of the operator's rows; a context
+    of the system tenant reads only its own. Deleting tenant `X` removes the conversations,
+    messages, cards and grants that target it.
+13. **Budget.** Spend in a cross-tenant conversation is counted in the home tenant's four levels
+    and never in `X`'s counters (`select` under `X`'s context: no counter rows).
+14. **Unchanged cases.** A system administrator in the **system** tenant and a tenant
+    administrator in their own: behaviour identical to today (`target_tenant_id` null); the
+    existing identity and approvals integration tests pass with no changed expectation.
+15. **Console** (component and Playwright): the gate matrix (same-tenant, cross-tenant with and
+    without `manage-tenants`, target off, assistant unavailable); the panel shows the tenant;
+    switching `/console/X` to `/console/Y` ends the panel's conversation; the approval card shows
+    the tenant.
+
+### Increment plan
+
+0. **Stopgap, 1 h.** Hide the button when `crossTenant` (`mayUseAssistant`), with the gate matrix
+   test. Independent of A; removes today's dead button.
+1. **A read-only cross-tenant conversation (Ask), 12 to 14 h.** Migration (two nullable columns,
+   partial indexes, FKs with cascade); `grantAssistantAccess` with a target and its refusal;
+   `ChatCaller.target`; `callerOf` and the path-versus-conversation check; the door exception and
+   the `assistant` flag on `AdminAgent`; `callAsAssistant` with the target tenant and the
+   target-trail audit write; the settings rule; the negative suite (tests 1 to 7, 9, 10, 12 to
+   14). This is the increment that gets the security review.
+2. **Act mode across tenants, 5 to 6 h.** `grantAssistantWrite` with the target; digest and card
+   carry the target; `assistant.approval` in both trails; tests 8 and 11 for writes.
+3. **Console, 5 to 6 h.** The gate (with `manage-tenants`), the tenant-named panel and card, the
+   panel reset on tenant change, wording constants, console tests (15), the transcript of the
+   cross-tenant create re-run on a live stack, docs (concept, console area page, the settings
+   rule in the configuration reference), `CHANGELOG.md`, the `docs/NEXT.md` pointer.
+4. **Trace, activity and retention, 3 to 4 h** (folds into the trace increment if `p5c-i11` is not
+   yet merged): `target_tenant_id` on the trace tables, the activity filter, the reaper's
+   `least()` with the join; the redacted list in `X`'s screen stays deferred.
+
+About 26 to 31 hours in all. Increment 1 is the only one that needs the owner's confirmation first
+(it relaxes a rule P5a recorded); the others follow from it.
+
+### Open points for the owner
+
+- Confirm the door exception: it reverses P5a decision 3 for the assistant only, not for
+  `odudu mcp` or external agents.
+- Confirm the audit split (assistant rows at home, tool-call rows in the target, approvals in
+  both), and that the target's administrators see actions and not text.
+- Confirm "stricter wins" for settings and that the operator's tenant pays.
+- `assumption:` the system tenant has the `odudu-assistant` client and its console client is not
+  configured with `delegated_actors` that omit it (`assistant-chat.ts:178-180` already states the
+  failure); a test starts from the bootstrap command's system tenant.
