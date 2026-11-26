@@ -471,7 +471,7 @@ describe('the trace at volume', () => {
     await owner.sql`
       insert into assistant_turns (tenant_id, id, conversation_id, profile, prompt_hash, started_at)
       select ${tenantId}, gen_random_uuid(), c.id, 'free-chat', repeat('a', 64),
-             now() - (n || ' minutes')::interval
+             now() - ((n * 2) || ' minutes')::interval
         from generate_series(1, 40000) n
         join (select id, row_number() over () as r from assistant_conversations
                where tenant_id = ${tenantId}) c on c.r = 1 + n % 200`;
@@ -481,11 +481,48 @@ describe('the trace at volume', () => {
         from assistant_turns where tenant_id = ${tenantId}`;
     await owner.sql`
       insert into assistant_events (tenant_id, turn_id, seq, step_id, kind, payload, at)
-      select s.tenant_id, s.turn_id, k, s.id, 'text', '{}'::jsonb, s.started_at
+      select s.tenant_id, s.turn_id, k, s.id, 'text',
+             jsonb_build_object('text', repeat('x', 1500)), s.started_at
         from assistant_steps s, generate_series(0, 2) k where s.tenant_id = ${tenantId}`;
+    // A tenth of the turns have a second step that a first one spawned.
+    await owner.sql`
+      insert into assistant_steps (tenant_id, turn_id, id, parent_step_id, slot, model, started_at)
+      select tenant_id, turn_id, gen_random_uuid(), id, 'fast', 'mock', started_at
+        from assistant_steps where tenant_id = ${tenantId} and abs(hashtext(id::text)) % 10 = 0`;
+    // Another tenant's rows beside them, as in a deployment with many.
+    const noise = newId();
+    await owner.sql`insert into tenants (id, name) values (${noise}, ${`noise-${noise.slice(-12)}`})`;
+    const noiseSubject = newId();
+    await owner.sql`insert into subjects (id, tenant_id, type) values (${noiseSubject}, ${noise}, 'user')`;
+    await owner.sql`
+      insert into assistant_conversations (tenant_id, id, owner_subject_id, instance_id, profile, mode)
+      select ${noise}, gen_random_uuid(), ${noiseSubject}, gen_random_uuid(), 'free-chat', 'ask'
+        from generate_series(1, 50)`;
+    await owner.sql`
+      insert into assistant_turns (tenant_id, id, conversation_id, profile, prompt_hash, started_at)
+      select ${noise}, gen_random_uuid(), c.id, 'free-chat', repeat('b', 64),
+             now() - ((n * 3) || ' minutes')::interval
+        from generate_series(1, 10000) n
+        join (select id, row_number() over () as r from assistant_conversations
+               where tenant_id = ${noise}) c on c.r = 1 + n % 50`;
     await owner.sql`analyze assistant_turns`;
     await owner.sql`analyze assistant_steps`;
     await owner.sql`analyze assistant_events`;
+
+    // What a turn of three 1.5 KB events costs on disk with its indexes, so the
+    // estimate in the operating page rests on a measurement.
+    const [{ bytes_per_turn: bytesPerTurn } = { bytes_per_turn: 0 }] = await owner.sql<
+      { bytes_per_turn: number }[]
+    >`select (
+         (pg_total_relation_size('assistant_turns') + pg_total_relation_size('assistant_steps')
+          + pg_total_relation_size('assistant_events')) / (select count(*) from assistant_turns)
+       )::int as bytes_per_turn`;
+    expect(bytesPerTurn).toBeGreaterThan(4_000);
+    expect(bytesPerTurn).toBeLessThan(12_000);
+    const [{ old: old } = { old: 0 }] = await owner.sql<{ old: number }[]>`
+      select count(*)::int as old from assistant_turns
+       where tenant_id = ${tenantId} and started_at < now() - interval '30 days'`;
+    expect(old).toBeGreaterThan(10_000);
 
     const [{ conversation_id: conversationId, id: turnId, step_id: stepId } = {}] = await owner.sql<
       { conversation_id: string; id: string; step_id: string }[]

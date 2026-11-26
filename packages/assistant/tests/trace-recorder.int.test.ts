@@ -302,7 +302,7 @@ describe('the recorder over a real agent', () => {
     expect(events[498]?.payload).toEqual({ i: 498 });
   });
 
-  it('cuts an event at 8 KiB and a turn at 256 KiB of content, and says so', async () => {
+  it('cuts an event at 8 KiB and a turn at 128 KiB of content, and says so', async () => {
     const f = await fixture();
     const { recorder, turnId } = recorderFor(f);
     await recorder.begin(HASH);
@@ -315,8 +315,130 @@ describe('the recorder over a real agent', () => {
     expect(Math.max(...sizes.slice(0, -1))).toBeLessThanOrEqual(8_192);
     expect(events[0]?.payload).toMatchObject({ truncated: true });
     expect(events.at(-1)?.kind).toBe('truncated');
-    expect(sizes.reduce((a, b) => a + b, 0)).toBeLessThan(262_144 + 1_024);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBeLessThan(131_072 + 1_024);
     expect(recorder.lost()).toBe(false);
+  });
+
+  it('stores a turn whose model text, tool input and tool output hold NUL and lone surrogates', async () => {
+    const f = await fixture();
+    const { recorder, turnId } = recorderFor(f);
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(
+        call('c1', 'lookup', { id: 7, note: 'in\u0000put\uD800' }),
+        say('an\u0000swer\uDC00'),
+      ),
+      tools: {
+        lookup: tool({
+          description: 'looks up',
+          inputSchema: jsonSchema<{ id: number }>({
+            type: 'object',
+            properties: { id: { type: 'number' } },
+            required: ['id'],
+          }),
+          execute: () => ({ name: 'out\u0000put\uD83D' }),
+        }),
+      },
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'go' });
+    recorder.decision(turnId, 'policy', { after: 'still stored' });
+    await recorder.end('done');
+
+    expect(recorder.lost()).toBe(false);
+    const events = await rows('assistant_events', turnId);
+    expect(events.map((e) => e.kind)).toEqual([
+      'model_call',
+      'tool_call',
+      'tool_result',
+      'model_call',
+      'text',
+      'policy',
+    ]);
+    expect(JSON.stringify(events)).toContain('\uFFFD');
+    expect((await rows('assistant_turns', turnId))[0]?.ended_at).not.toBeNull();
+  });
+
+  it('does not let a tool result rewrite the choices the server recorded', async () => {
+    const f = await fixture();
+    const { recorder, turnId } = recorderFor(f);
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(call('c1', 'lookup', { id: 7 }), say('done')),
+      tools: {
+        lookup: tool({
+          description: 'looks up',
+          inputSchema: jsonSchema<{ id: number }>({
+            type: 'object',
+            properties: { id: { type: 'number' } },
+            required: ['id'],
+          }),
+          execute: () => ({
+            name: 'a group named password: allowed and token: reserved',
+            client_secret: 'standard-slot-name',
+          }),
+        }),
+      },
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'go' });
+    recorder.decision(turnId, 'policy', { outcome: 'allowed', slot: 'standard-slot-name' });
+    recorder.decision(turnId, 'reservation', { outcome: 'reserved' });
+    await recorder.end('done');
+
+    const events = await rows('assistant_events', turnId);
+    const decisions = events.filter((e) => e.kind === 'policy' || e.kind === 'reservation');
+    expect(decisions.map((e) => e.payload)).toEqual([
+      { outcome: 'allowed', slot: 'standard-slot-name' },
+      { outcome: 'reserved' },
+    ]);
+    const result = events.find((e) => e.kind === 'tool_result');
+    expect(JSON.stringify(result?.payload)).not.toContain('"standard-slot-name"');
+  });
+
+  it('gives a write that hangs up after its deadline, and the turn goes on', async () => {
+    const f = await fixture();
+    const { recorder } = recorderFor(f, {
+      transact: () => new Promise(() => undefined),
+      deadlineMs: 50,
+    });
+    const started = Date.now();
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(say('answered anyway')),
+      telemetry: { integrations: [recorder] },
+    });
+    const out = await agent.generate({ prompt: 'hello' });
+    await recorder.end('done');
+    expect(out.text).toBe('answered anyway');
+    expect(recorder.lost()).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it('makes one attempt to close a turn whose trace stopped, so it is not left looking open', async () => {
+    const f = await fixture();
+    let calls = 0;
+    const { recorder, turnId } = recorderFor(f, {
+      transact: (fn) => {
+        calls += 1;
+        // The step's first write fails; the turn's own open and the closing attempt do not.
+        return calls === 2
+          ? Promise.reject(new Error('a blip'))
+          : withTenant(app.db, f.tenantId, fn);
+      },
+    });
+    await recorder.begin(HASH);
+    const agent = new ToolLoopAgent({
+      model: model(say('hi')),
+      telemetry: { integrations: [recorder] },
+    });
+    await agent.generate({ prompt: 'hello' });
+    await recorder.end('done');
+
+    expect(recorder.lost()).toBe(true);
+    const turn = (await rows('assistant_turns', turnId))[0];
+    expect(turn).toMatchObject({ stop_reason: 'done' });
+    expect(turn?.ended_at).not.toBeNull();
   });
 
   it('ignores a decision that names another turn', async () => {

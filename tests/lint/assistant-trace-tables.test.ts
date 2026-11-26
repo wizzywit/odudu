@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// The trace holds what the audit trail must not: message text, tool inputs and
-// outputs. Only the assistant package's own repository and schema name its
-// tables, so no admin route, MCP tool or other package reads them, and the
-// agent has no way to; reading them for a person is a capability-gated route
-// that goes through that repository.
+// The trace holds what the audit trail must not: message text and tool data.
+// Only the assistant package's repository and schema name its tables, so no
+// route, MCP tool or other package reads them. Limits: a name built at runtime
+// (`'assistant_' + 'events'`) and any `*.test.ts` file are not seen; the second
+// check closes that door, since the package index exports neither the
+// repository nor the schema.
 
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
 const TABLES = /\bassistant_(?:turns|steps|events)\b/u;
@@ -39,6 +40,14 @@ describe('the assistant’s trace tables', () => {
       .filter((file) => !ALLOWED.some((pattern) => pattern.test(file)))
       .filter((file) => TABLES.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')));
     expect(offenders).toEqual([]);
+  });
+
+  it('are not reachable from outside the package: its index exports no repository or schema', () => {
+    const index = readFileSync(path.join(REPO_ROOT, 'packages/assistant/src/index.ts'), 'utf8');
+    expect(index).not.toMatch(/#\/(?:repository|schema)\//u);
+    expect(index).not.toMatch(
+      /assistant-trace|traceRepository|assistantTurns|assistantSteps|assistantEvents/u,
+    );
   });
 
   it('are named by the repository, so the check above looks at something', () => {

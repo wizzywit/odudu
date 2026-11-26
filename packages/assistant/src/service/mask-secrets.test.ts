@@ -88,7 +88,6 @@ describe('maskSecrets', () => {
   });
 
   it.each([
-    ['a bearer token', 'curl -H "Authorization: Bearer abc.def-ghi_jkl123456"'],
     ['a JWT', `the token ${JWT} was issued`],
     ['a PEM block', '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END PRIVATE KEY-----'],
     ['an argon2 hash', 'hash $argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$aGFzaGhhc2hoYXNo'],
@@ -112,6 +111,73 @@ describe('maskSecrets', () => {
     expect(maskSecrets(text)).toBe(expected);
   });
 
+  // The token itself, never only its prefix, is what must be gone.
+  it.each([
+    ['a header', 'curl -H "Authorization: Bearer abc.def-ghi_jkl123456"', 'abc.def-ghi_jkl123456'],
+    ['a header line', 'Authorization: Bearer abcdefghijklmnop1234', 'abcdefghijklmnop1234'],
+    ['an assignment', 'authorization=Bearer abc1234xyz', 'abc1234xyz'],
+    ['basic credentials', 'Authorization: Basic dXNlcjpwYXNzd29yZA==', 'dXNlcjpwYXNzd29yZA'],
+    ['JSON text', '{"authorization":"Bearer abc1234xyz","n":1}', 'abc1234xyz'],
+    ['escaped JSON text', '{"t":"{\\"authorization\\":\\"Bearer abc1234xyz\\"}"}', 'abc1234xyz'],
+    ['prose', 'it was sent as Bearer 8f3a9c2d1e', '8f3a9c2d1e'],
+  ])('leaves no part of the token of %s', (_name, text, token) => {
+    const out = maskSecrets(text);
+    expect(out).not.toContain(token);
+    expect(out).toContain(MASKED);
+  });
+
+  it('leaves the word Bearer alone in prose', () => {
+    for (const text of [
+      'sent as a Bearer token',
+      'Bearer authentication is used',
+      'a bearer scheme',
+    ]) {
+      expect(maskSecrets(text)).toBe(text);
+    }
+  });
+
+  it.each([
+    ['{"clientSecret":"Sup3rS3cretValue123"}', 'Sup3rS3cretValue123'],
+    ['{"new_password":"Hunter2Hunter2!"}', 'Hunter2Hunter2!'],
+    ['{"x-api-key":"k-9999-aaaa"}', 'k-9999-aaaa'],
+    ['{"session_token":"st-5555-bbbb"}', 'st-5555-bbbb'],
+    ['{"accessToken":"at-7777-cccc"}', 'at-7777-cccc'],
+    ['{"backup_key":"bk-1111-dddd"}', 'bk-1111-dddd'],
+    ['client_secret_value=csv-2222-eeee', 'csv-2222-eeee'],
+  ])('masks a member named in an unusual way: %s', (text, value) => {
+    expect(maskSecrets(text)).not.toContain(value);
+  });
+
+  it('masks object members by the same names, however they are written', () => {
+    const out = maskSecrets({
+      clientSecret: 'a',
+      'x-api-key': 'b',
+      sessionToken: 'c',
+      db_password: 'd',
+      signing_key: 'e',
+      etag_hash: 'f',
+    });
+    expect(Object.values(out as Record<string, string>)).toEqual(Array(6).fill(MASKED));
+  });
+
+  it('keeps members that only look like secrets', () => {
+    const value: JsonValue = {
+      input_tokens: 5,
+      output_tokens: 3,
+      tokens: 900,
+      public_key: 'pk',
+      kid: 'k1',
+      keys: 2,
+      prompt: 'x',
+    };
+    expect(maskSecrets(value)).toEqual(value);
+  });
+
+  it('masks a 32 character run of mixed case and digits, and keeps a UUID', () => {
+    expect(maskSecrets('tok aB3dE5gH7jK9mN1pQ3sT5vW7yZ9bD1fH end')).toContain(MASKED);
+    expect(maskSecrets('id 6f1e2d3c-1111-4222-8333-944455556666')).toContain('6f1e2d3c');
+  });
+
   it('keeps ordinary text, identifiers and hex digests', () => {
     const text = 'Client 6f1e2d3c-1111-4222-8333-944455556666 uses sha256 ' + 'ab12'.repeat(16);
     expect(maskSecrets(text)).toBe(text);
@@ -130,6 +196,53 @@ describe('maskSecrets', () => {
 });
 
 describe('createMasker', () => {
+  it('does not learn from prose, so text another person wrote cannot steer what is masked', () => {
+    const masker = createMasker({ emails: false });
+    masker.mask('a group named password: required-field and token: policy-allowed');
+    expect(masker.mask('A required-field is policy-allowed')).toBe(
+      'A required-field is policy-allowed',
+    );
+  });
+
+  it('does not learn a short value held under a secret member', () => {
+    const masker = createMasker({ emails: false });
+    masker.mask({ client_secret: 'a', password: 'true', token: 'short' });
+    expect(masker.mask('a true short')).toBe('a true short');
+  });
+
+  it('keeps what it learned out of server-written records', () => {
+    const masker = createMasker({ emails: false });
+    masker.mask({ client_secret: 'standard-slot-name' });
+    expect(masker.mask('uses standard-slot-name')).toBe(`uses ${MASKED}`);
+    expect(masker.maskRecord({ slot: 'standard-slot-name', outcome: 'allowed' })).toEqual({
+      slot: 'standard-slot-name',
+      outcome: 'allowed',
+    });
+  });
+
+  it('still masks the shapes and members in a server-written record', () => {
+    const masker = createMasker({ emails: false });
+    expect(masker.maskRecord({ note: `Bearer abc1234xyz`, secret: 'x' })).toEqual({
+      note: `Bearer ${MASKED}`,
+      secret: MASKED,
+    });
+  });
+
+  it('learns from the secrets the server holds', () => {
+    const masker = createMasker({ emails: false, known: ['server-held-secret-value'] });
+    expect(masker.mask('it said server-held-secret-value')).toBe(`it said ${MASKED}`);
+  });
+
+  it('bounds what it remembers: the number of values and their total size', () => {
+    const masker = createMasker({ emails: false });
+    for (let i = 0; i < 300; i += 1)
+      masker.mask({ client_secret: `value-number-${String(i).padStart(4, '0')}` });
+    // The first values are kept, the ones past the bound are not.
+    expect(masker.mask('value-number-0000')).toBe(MASKED);
+    expect(masker.mask('value-number-0299')).toBe('value-number-0299');
+    masker.mask({ client_secret: 'y'.repeat(100_000) });
+  });
+
   it('masks a value it saw under a secret member wherever it turns up later', () => {
     const masker = createMasker({ emails: false });
     masker.mask({ client_secret: 'short-secret-1' });
@@ -158,5 +271,36 @@ describe('createMasker', () => {
     const off = createMasker({ emails: false });
     expect(on.mask({ who: 'ada@example.com' })).toEqual({ who: 'a***@example.com' });
     expect(off.mask({ who: 'ada@example.com' })).toEqual({ who: 'ada@example.com' });
+  });
+});
+
+describe('the cost of masking', () => {
+  // Generous headroom: a linear scan takes a few milliseconds, a quadratic one
+  // over this input took close to a second.
+  const LIMIT_MS = 150;
+  const hostile = [
+    '"secret":['.repeat(6_000),
+    '"kty"'.repeat(12_000),
+    '{"kty":'.repeat(8_000),
+    '\\"token\\":['.repeat(5_000),
+    'password:'.repeat(8_000),
+  ];
+
+  it.each(hostile.map((text, i) => [i, text] as const))(
+    'masks 64 KiB of hostile text %i in the time of a linear scan',
+    (_i, text) => {
+      const started = performance.now();
+      const out = maskSecrets(text);
+      expect(typeof out).toBe('string');
+      expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+    },
+  );
+
+  it('does the same for the 8 KiB an event holds', () => {
+    for (const text of hostile) {
+      const started = performance.now();
+      maskSecrets(text.slice(0, 8_192));
+      expect(performance.now() - started).toBeLessThan(LIMIT_MS);
+    }
   });
 });

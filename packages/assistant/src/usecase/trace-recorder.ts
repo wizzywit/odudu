@@ -2,17 +2,13 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Telemetry } from 'ai';
 import { traceRepository, type EventKind, type NewEvent } from '#/repository/trace';
 import type { AssistantTx } from '#/repository/tx';
+import { cleanJson, cleanText } from '#/service/clean-text';
 import { cutText } from '#/service/cut';
 import type { StopReason } from '#/service/limits';
 import { createMasker } from '#/service/mask-secrets';
 import type { Slot } from '#/service/slots';
-import {
-  boundPayload,
-  payloadBytes,
-  toJson,
-  TURN_BYTES,
-  TURN_EVENTS,
-} from '#/service/trace-payload';
+import { createLedger } from '#/service/trace-ledger';
+import { boundPayload, errorPayload, payloadBytes, toJson } from '#/service/trace-payload';
 
 /** The choices around a model call that the SDK cannot see, recorded by the code that makes them. */
 export type DecisionKind = 'slot_chosen' | 'reservation' | 'narrowing' | 'policy' | 'trimming';
@@ -32,6 +28,10 @@ export interface TraceDeps {
   /** The tenant's `assistant_mask_emails`: the trace holds no address the model was not shown. */
   readonly maskEmails: boolean;
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  /** The longest one trace transaction may take before the trace is given up; 2,000 ms. */
+  readonly deadlineMs?: number;
+  /** Secrets the server holds, masked wherever they turn up. */
+  readonly known?: readonly string[];
 }
 
 /**
@@ -53,27 +53,28 @@ export interface TraceRecorder extends Telemetry {
 
 const MODEL_LENGTH = 200;
 const REQUEST_ID_LENGTH = 256;
+export const TRACE_DEADLINE_MS = 2_000;
 
 const orNull = (value: number | undefined): number | null => value ?? null;
 
-// The SDK hands `onError` an event that carries the error, and a tool's own error as it is.
-function errorPayload(thrown: unknown): Record<string, unknown> {
-  const error =
-    typeof thrown === 'object' && thrown !== null && 'error' in thrown ? thrown.error : thrown;
-  if (error instanceof Error) return { name: error.name, message: error.message };
-  return { name: 'unknown', message: typeof error === 'string' ? error : '' };
+class TraceTimeout extends Error {
+  constructor() {
+    super('a trace write took too long');
+    this.name = 'TraceTimeout';
+  }
 }
 
 export function traceRecorder(deps: TraceDeps): TraceRecorder {
-  const masker = createMasker({ emails: deps.maskEmails });
+  const masker = createMasker({
+    emails: deps.maskEmails,
+    ...(deps.known === undefined ? {} : { known: deps.known }),
+  });
+  const ledger = createLedger();
   // A tool that runs another agent has its steps recorded under the step that called it.
   const nesting = new AsyncLocalStorage<{ readonly stepId: string }>();
   const stepOf = new Map<string, string>();
   const open = new Set<string>();
   let pending: NewEvent[] = [];
-  let seq = 0;
-  let bytes = 0;
-  let dropped = 0;
   let failed = false;
   let begun = false;
   let ended = false;
@@ -89,21 +90,33 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
     });
   };
 
-  // Masked first, then bounded: a secret cut in half no longer matches a shape.
-  const add = (kind: EventKind, payload: unknown, stepId: string | null): void => {
+  // Made storable, then masked, then bounded: a secret cut in half no longer
+  // matches a shape. What the server wrote itself (`own`) is masked by structure
+  // only, so nothing a tool returned can rewrite it.
+  const add = (kind: EventKind, payload: unknown, stepId: string | null, own = false): void => {
     if (failed) return;
     try {
-      const kept = boundPayload(masker.mask(toJson(payload)));
-      const size = payloadBytes(kept);
-      if (seq >= TURN_EVENTS - 1 || bytes + size > TURN_BYTES) {
-        dropped += 1;
-        return;
-      }
-      pending.push({ seq, stepId, kind, payload: kept, at: deps.now() });
-      seq += 1;
-      bytes += size;
+      const clean = cleanJson(toJson(payload));
+      const kept = boundPayload(own ? masker.maskRecord(clean) : masker.mask(clean));
+      const seq = ledger.admit(payloadBytes(kept));
+      if (seq !== undefined) pending.push({ seq, stepId, kind, payload: kept, at: deps.now() });
     } catch (error) {
       fail(error);
+    }
+  };
+
+  // The SDK waits for the trace's writes, so one that hangs would stall the turn.
+  const within = async <T>(work: Promise<T>): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        reject(new TraceTimeout());
+      }, deps.deadlineMs ?? TRACE_DEADLINE_MS);
+    });
+    try {
+      return await Promise.race([work, late]);
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -118,11 +131,13 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
       const batch = pending;
       pending = [];
       try {
-        await deps.transact(async (tx) => {
-          const repo = traceRepository(tx);
-          await work(repo);
-          await repo.appendEvents(deps.tenantId, deps.turnId, batch);
-        });
+        await within(
+          deps.transact(async (tx) => {
+            const repo = traceRepository(tx);
+            await work(repo);
+            await repo.appendEvents(deps.tenantId, deps.turnId, batch);
+          }),
+        );
       } catch (error) {
         fail(error);
       }
@@ -151,7 +166,7 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
           id,
           parentStepId: nesting.getStore()?.stepId ?? null,
           slot: deps.slot,
-          model: cutText(`${event.provider}/${event.modelId}`, MODEL_LENGTH),
+          model: cutText(cleanText(`${event.provider}/${event.modelId}`), MODEL_LENGTH),
           startedAt,
         }),
       );
@@ -216,7 +231,9 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
           tenantId: deps.tenantId,
           id,
           providerRequestId:
-            step.response.id === '' ? null : cutText(step.response.id, REQUEST_ID_LENGTH),
+            step.response.id === ''
+              ? null
+              : cutText(cleanText(step.response.id), REQUEST_ID_LENGTH),
           inputTokens: orNull(step.usage.inputTokens),
           outputTokens: orNull(step.usage.outputTokens),
           endedAt: deps.now(),
@@ -263,28 +280,18 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
     decision(turnId, kind, payload) {
       if (turnId !== deps.turnId) return;
       safely(() => {
-        add(kind, payload, null);
+        add(kind, payload, null, true);
       });
     },
 
     async end(stopReason) {
       if (ended) return queue;
       ended = true;
-      if (!begun || failed) return queue;
+      if (!begun) return queue;
       const endedAt = deps.now();
       const unfinished = [...open];
       open.clear();
-      if (dropped > 0) {
-        // The last place in the turn is kept for saying that others were left out.
-        pending.push({
-          seq: TURN_EVENTS - 1,
-          stepId: null,
-          kind: 'truncated',
-          payload: { dropped },
-          at: endedAt,
-        });
-      }
-      return commit(async (repo) => {
+      const close = async (repo: ReturnType<typeof traceRepository>): Promise<void> => {
         for (const id of unfinished) {
           await repo.closeStep({
             tenantId: deps.tenantId,
@@ -296,7 +303,28 @@ export function traceRecorder(deps: TraceDeps): TraceRecorder {
           });
         }
         await repo.closeTurn(deps.tenantId, deps.turnId, endedAt, stopReason);
-      });
+      };
+      if (failed) {
+        // One attempt, so that what stops short is not left looking as if it were
+        // still running; if the database is the trouble, this fails as well.
+        try {
+          await within(deps.transact((tx) => close(traceRepository(tx))));
+        } catch {
+          // The audit row says the trace was lost.
+        }
+        return;
+      }
+      if (ledger.dropped() > 0) {
+        // The last place in the turn is kept for saying that others were left out.
+        pending.push({
+          seq: ledger.closingSeq(),
+          stepId: null,
+          kind: 'truncated',
+          payload: { dropped: ledger.dropped() },
+          at: endedAt,
+        });
+      }
+      return commit(close);
     },
 
     lost: () => failed,

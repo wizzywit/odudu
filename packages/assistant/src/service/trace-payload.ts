@@ -6,8 +6,8 @@ import { cutText } from '#/service/cut';
 export const EVENT_BYTES = 8_192;
 // The most events one turn keeps, counting the one that says others were left out.
 export const TURN_EVENTS = 500;
-// The most payload bytes one turn keeps in all.
-export const TURN_BYTES = 262_144;
+// The most payload bytes one turn keeps in all: 16 events of the largest size.
+export const TURN_BYTES = 131_072;
 
 const UNSERIALIZABLE = '[unserializable]';
 const SLACK = 256;
@@ -42,4 +42,12 @@ export function boundPayload(payload: JsonValue): JsonValue {
     if (payloadBytes(bounded) <= EVENT_BYTES || length <= 0) return bounded;
     length = Math.floor(length * 0.75);
   }
+}
+
+// The SDK hands `onError` an event that carries the error, and a tool's own error as it is.
+export function errorPayload(thrown: unknown): Record<string, unknown> {
+  const error =
+    typeof thrown === 'object' && thrown !== null && 'error' in thrown ? thrown.error : thrown;
+  if (error instanceof Error) return { name: error.name, message: error.message };
+  return { name: 'unknown', message: typeof error === 'string' ? error : '' };
 }
