@@ -109,7 +109,13 @@ import {
   assistantStatusSchema,
   putAssistantSettingsRequestSchema,
   assistantApprovalListSchema,
+  assistantConversationExportSchema,
   assistantConversationSchema,
+  lastAssistantConversationResponseSchema,
+  listAssistantConversationsQuerySchema,
+  listAssistantConversationsResponseSchema,
+  setConversationArchivedRequestSchema,
+  setConversationArchivedResponseSchema,
   assistantActivityReplaySchema,
   assistantPromptfooCaseSchema,
   listAssistantActivityQuerySchema,
@@ -2163,6 +2169,86 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'the administrator has open as `page_context`: a `route` and, optionally, an `objectType` ' +
       'and `objectId`, each a short identifier and never free text. `400` for a profile this ' +
       'server does not offer. `404` when no model is configured.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations',
+    capability: 'use-assistant',
+    responseSchema: listAssistantConversationsResponseSchema,
+    querystringSchema: listAssistantConversationsQuerySchema,
+    description:
+      'The caller\u2019s own conversations, newest activity first, each with a title made from ' +
+      'the first thing they asked, when it last took a message, its mode, whether it is hidden ' +
+      'and whether it is reported. Never another person\u2019s: a person\u2019s conversations ' +
+      'are theirs alone, whatever other capability they hold. `archived=true` lists the hidden ' +
+      'ones and the default lists the rest. A page is one indexed read of at most `limit` ' +
+      'rows, `limit` is at most 200, and `next` carries on from where it ended. `404` when no ' +
+      'model is configured. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/last-conversation',
+    capability: 'use-assistant',
+    responseSchema: lastAssistantConversationResponseSchema,
+    description:
+      'The caller\u2019s most recently active conversation that is not hidden, with its latest ' +
+      'messages, or `{ "conversation": null }` when they have none, so the console can reopen ' +
+      'it after a reload or a sign-in. `continuable` is false when the sign-in the conversation ' +
+      'acts under has ended: it can be read and a new message to it is refused with `409`. ' +
+      '`404` when no model is configured. Not offered to an agent.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/archived',
+    capability: 'use-assistant',
+    responseSchema: setConversationArchivedResponseSchema,
+    bodySchema: setConversationArchivedRequestSchema,
+    description:
+      'Hides the caller\u2019s conversation from their list (`archived: true`) or brings it ' +
+      'back. Nothing is removed, retention counts as before, and the conversation can still ' +
+      'be opened by its id. Setting what is already set changes nothing. `404` for a ' +
+      'conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id',
+    capability: 'use-assistant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Deletes the caller\u2019s own conversation: its messages, its trace and its approval ' +
+      'cards go at once. A tombstone stays in the conversation\u2019s place (its id, owner, ' +
+      'times, who deleted it, how many messages and turns it held and a keyed digest of its ' +
+      'messages, never the text), and an `assistant.conversation_deleted` row is written in the ' +
+      'same transaction; no audit row is touched. `409` while the conversation is reported ' +
+      '(`about:blank#conversation-reported`) or an answer is running in it ' +
+      '(`about:blank#conversation-busy`). It works while the tenant has the assistant switched ' +
+      'off. `404` for a conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/export',
+    capability: 'use-assistant',
+    responseSchema: assistantConversationExportSchema,
+    description:
+      'The caller\u2019s own conversation as a JSON download: its fields and its messages, ' +
+      'oldest first and at most 500, the text with secrets hidden (and email addresses where ' +
+      'the tenant masks them) and, for an answer, the names of the tools it called but not ' +
+      'their inputs or results. No one else can export a conversation: there is no route for ' +
+      'an auditor or an operator. Audited as `assistant.conversation_exported`, in the ' +
+      'transaction of the read. `404` for a conversation that is not the caller\u2019s. Not ' +
+      'offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/export/markdown',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/markdown',
+    description:
+      'The same export as a Markdown document: the title, then each message under who said it, ' +
+      'with the tools an answer called. The same rules, the same audit row and the same `404`. ' +
+      'Not offered to an agent.',
   },
   {
     method: 'GET',

@@ -47,6 +47,26 @@ const chat: AssistantChatPort = {
     reached.push('setMode');
     return Promise.resolve({ kind: 'not_found' });
   },
+  list: () => {
+    reached.push('list');
+    return Promise.resolve({ kind: 'ok', items: [], next: null });
+  },
+  last: () => {
+    reached.push('last');
+    return Promise.resolve(null);
+  },
+  setArchived: () => {
+    reached.push('setArchived');
+    return Promise.resolve({ kind: 'not_found' });
+  },
+  remove: () => {
+    reached.push('remove');
+    return Promise.resolve({ kind: 'not_found' });
+  },
+  export: () => {
+    reached.push('export');
+    return Promise.resolve({ kind: 'not_found' });
+  },
 };
 
 beforeAll(async () => {

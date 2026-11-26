@@ -3,7 +3,10 @@ import {
   readSettings,
   toolsFor,
   deriveApprovalSecret,
+  deriveDigestKey,
   type BudgetAuditEvent,
+  type ConversationAuditEvent,
+  type ConversationPorts,
   RunLapsed,
   type Chat,
   type ChatCaller,
@@ -380,6 +383,77 @@ function accessGranter(parts: AssistantChatParts): ChatDeps['withAccess'] {
   };
 }
 
+// The rows a person's own deleting or exporting of a conversation leaves: who,
+// which conversation, how much it held and, for a delete, the keyed digest of
+// its messages. Written in the transaction of the delete or the read, so the
+// two stand or fall together, and never with any of the text.
+function conversationAuditRow(
+  tx: Parameters<typeof grantAssistantAccess>[0],
+  caller: ChatCaller,
+  event: ConversationAuditEvent,
+): Promise<void> {
+  const common = {
+    tenant: caller.tenantId,
+    conversation: event.conversationId,
+    ...(event.targetTenantId === undefined ? {} : { target_tenant: event.targetTenantId }),
+  };
+  return auditRepository(tx).record({
+    eventType: 'admin_mutation',
+    action: event.action,
+    outcome: 'allowed',
+    actorTenantId: caller.tenantId,
+    actorSubjectId: caller.ownerSubjectId,
+    resourceType: 'assistant_conversation',
+    resourceId: event.conversationId,
+    detail:
+      event.action === 'assistant.conversation_deleted'
+        ? {
+            ...common,
+            messages: event.messageCount,
+            turns: event.turnCount,
+            digest: event.digest,
+          }
+        : {
+            ...common,
+            format: event.format,
+            messages: event.messageCount,
+            truncated: event.truncated,
+          },
+  });
+}
+
+function conversationPorts(parts: AssistantChatParts): ConversationPorts {
+  return {
+    digestKey: deriveDigestKey(parts.kek),
+    withAudit: (caller, fn) =>
+      withTenantRetrying(parts.database.db, caller.tenantId, (tx) =>
+        fn(tx, (event) => conversationAuditRow(tx, caller, event)),
+      ),
+    // The conversation's grant, and the instances rooted at it, end with it.
+    endAccess: async (caller, conversationId, now) => {
+      await withTenantRetrying(parts.database.db, caller.tenantId, (tx) =>
+        tokenGrantRepository(tx).revoke(conversationId, now),
+      );
+    },
+  };
+}
+
+// A message to a conversation is answered only while its grant is live and was
+// made from the sign-in the caller holds now: a conversation of an earlier
+// sign-in can be read and not continued.
+function continuableCheck(parts: AssistantChatParts): NonNullable<ChatDeps['continuable']> {
+  return (caller, conversationId) =>
+    withTenantRetrying(parts.database.db, caller.tenantId, async (tx) => {
+      const grant = await tokenGrantRepository(tx).byId(conversationId);
+      return (
+        grant !== null &&
+        grant.revokedAt === null &&
+        caller.grantId !== undefined &&
+        grant.exchangedFromGrantId === caller.grantId
+      );
+    });
+}
+
 /** The assistant's chat, wired to this process: its database, its admin API and its models. */
 export function assistantChatFor(parts: AssistantChatParts): Chat {
   const mint = assistantTokenMint(parts);
@@ -390,6 +464,8 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     instanceIdFor: (caller, conversationId, key) =>
       runInstanceId(caller.tenantId, conversationId, key),
     withAccess: accessGranter(parts),
+    conversations: conversationPorts(parts),
+    continuable: continuableCheck(parts),
     approvals: approvalPortsFor(parts),
     approvalSecret: deriveApprovalSecret(parts.kek),
     knownSecrets: parts.knownSecrets ?? [],

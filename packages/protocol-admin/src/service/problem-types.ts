@@ -30,6 +30,23 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'client would be left with none. `detail` names the client. Delete the client instead, ' +
       'which deletes its account.',
   },
+  'conversation-reported': {
+    status: 409,
+    summary:
+      'The conversation was reported and is kept for review, so its owner cannot delete it. ' +
+      'The owner can archive it.',
+  },
+  'conversation-busy': {
+    status: 409,
+    summary:
+      'An answer is still running in the conversation. Stop it, then delete the conversation.',
+  },
+  'conversation-ended': {
+    status: 409,
+    summary:
+      'The sign-in the conversation acts under has ended, so a message to it is refused. The ' +
+      'conversation can still be read and exported; start a new conversation to carry on.',
+  },
   'agent-instance': {
     status: 409,
     summary:

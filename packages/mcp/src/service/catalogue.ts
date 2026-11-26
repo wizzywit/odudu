@@ -282,8 +282,14 @@ const WITHHELD: readonly Entry[] = [
     'access-changing',
   ],
   [
-    "A conversation with the console assistant, which is its owner's alone: not offered to an agent, which reads nothing of the assistant that may be running it.",
-    [R('GET', '/assistant/conversations/:id')],
+    "The caller's own conversations with the console assistant, their list, the latest and an export, which are their owner's alone: not offered to an agent, which reads nothing of the assistant that may be running it.",
+    [
+      R('GET', '/assistant/conversations'),
+      R('GET', '/assistant/last-conversation'),
+      R('GET', '/assistant/conversations/:id'),
+      R('GET', '/assistant/conversations/:id/export'),
+      R('GET', '/assistant/conversations/:id/export/markdown'),
+    ],
     'sensitive',
   ],
   [
@@ -300,9 +306,15 @@ const WITHHELD: readonly Entry[] = [
       R('POST', '/assistant/conversations/:id/approvals/:approvalId'),
       R('POST', '/assistant/conversations/:id/resume'),
       R('PUT', '/assistant/conversations/:id/mode'),
+      R('PUT', '/assistant/conversations/:id/archived'),
       R('POST', '/assistant/conversations/:id/report'),
     ],
     'not-useful',
+  ],
+  [
+    "Destructive: deletes the signed-in administrator's own console assistant conversation, with its messages and trace, and leaves a tombstone; not offered to an agent, which deletes nothing of what the assistant that may be running it holds.",
+    [R('DELETE', '/assistant/conversations/:id')],
+    'destructive',
   ],
   [
     "What the console assistant's conversations say of the people who used it, and of what it did for them: who asked, when, which tools it called, the tokens, and, where the tenant allows it, the text. Not offered to an agent, which reads nothing of the assistant that may be running it nor of the people who use it.",

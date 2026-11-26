@@ -155,14 +155,13 @@ describe('the assistant status route in the running server', () => {
     expect((await get(on(), w, '/status', await adminToken(w))).statusCode).toBe(403);
   });
 
-  it('serves no listing of conversations, so that path cannot be told from one that never existed', async () => {
+  it('lists only the caller’s own conversations, and serves the list nowhere without a model', async () => {
     const w = await s().world(['use-assistant', 'manage-assistant'], 'openid');
     const token = await adminToken(w);
-    for (const app of [s().app, on()]) {
-      for (const tail of ['/conversations']) {
-        expect((await get(app, w, tail, token)).statusCode, tail).toBe(404);
-      }
-    }
+    expect((await get(s().app, w, '/conversations', token)).statusCode).toBe(404);
+    const own = await get(on(), w, '/conversations', token);
+    expect(own.statusCode, own.body).toBe(200);
+    expect(own.json()).toEqual({ items: [] });
   });
 });
 
@@ -380,7 +379,7 @@ describe('the assistant settings route', () => {
     const b = await s().world(['manage-assistant'], 'openid');
     const aToken = await adminToken(a);
     const unserved = await get(s().app, a, '/settings', aToken);
-    const never = await get(s().app, a, '/conversations', aToken);
+    const never = await get(s().app, a, '/nonesuch', aToken);
     expect(unserved.statusCode).toBe(404);
     const withoutInstance = (body: string): unknown =>
       Object.fromEntries(
