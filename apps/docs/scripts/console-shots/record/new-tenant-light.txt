@@ -39,10 +39,22 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · system
+Ask the assistant
+or press 
+⌘
+Command
++
+K
 Menu
 System
 ›
