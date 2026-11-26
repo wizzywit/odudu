@@ -95,7 +95,7 @@ module.exports = {
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages|widgets)/[^/]+/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)apps/admin-console/src/widgets/assistant-panel/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {
@@ -452,10 +452,12 @@ module.exports = {
         'The AI SDK and the model provider packages are imported by @odudu/assistant alone, so ' +
         'a second place cannot choose a model or hold a key. The one exception is the chat ' +
         'client the console panel reads the stream with (`ai` and `@ai-sdk/react`): it holds ' +
-        'no key and chooses no model, and it is confined to the panel widget.',
+        "no key and chooses no model, and it is confined to the panel widget's adapter and " +
+        'repository folders.',
       from: {
         path: '(^|/)(?:packages|apps|tools|sdks)/',
-        pathNot: '(^|/)(?:packages/assistant/|apps/admin-console/src/widgets/assistant-panel/)',
+        pathNot:
+          '(^|/)(?:packages/assistant/|apps/admin-console/src/widgets/assistant-panel/(?:adapter|repository)/)',
       },
       to: { path: '^(ai|@ai-sdk/[^/]+)(/|$)|(^|/)node_modules/(ai|@ai-sdk/[^/]+)(/|$)' },
     },

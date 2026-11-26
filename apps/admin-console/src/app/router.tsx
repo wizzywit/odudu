@@ -14,7 +14,6 @@ import { NavigationGuard } from '#/app/NavigationGuard';
 import type { AssistantPanelSlot } from '#/entities/assistant';
 import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { ConsoleHome } from '#/pages/console-home';
-import { AssistantPanel } from '#/widgets/assistant-panel';
 import { SessionGate } from '#/widgets/session-gate';
 import { pendingPage, PendingFrame, TenantShell } from '#/widgets/shell';
 import { PRODUCT_NAME } from '#/shared/lib/services/product';
@@ -61,8 +60,15 @@ const home = createRoute({ getParentRoute: () => root, path: '/', component: Con
 
 // The assistant's panel is a widget of its own, drawn inside the shell; the shell
 // takes it as a function so that neither widget imports the other.
+// It is its own chunk, with the chat client it reads the stream with, fetched
+// when the panel is first opened: nobody who never opens it pays for it.
+const LazyAssistantPanel = lazyFeatureRoute<AssistantPanelSlot>(
+  () => import('#/widgets/assistant-panel').then((widget) => widget.AssistantPanel),
+  'Loading the assistant',
+);
+
 function renderAssistantPanel(slot: AssistantPanelSlot) {
-  return <AssistantPanel key={slot.tenant} {...slot} />;
+  return <LazyAssistantPanel key={slot.tenant} {...slot} />;
 }
 
 const tenant = createRoute({

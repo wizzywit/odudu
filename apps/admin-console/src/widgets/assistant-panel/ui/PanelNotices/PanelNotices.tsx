@@ -41,7 +41,9 @@ function Notice({
     case 'stopped':
       return <Note>{words.stoppedNote}</Note>;
     case 'waiting':
-      return <Note>{words.waitingNote}</Note>;
+      return <Note>{state.act ? words.actConversationNote : words.waitingNote}</Note>;
+    case 'closed':
+      return <Note>{words.closedNote}</Note>;
     default:
       return null;
   }
@@ -62,7 +64,7 @@ export function PanelNotices({
   statusText: string;
   running: boolean;
   note: string | null;
-  meter: Meter;
+  meter: Meter | null;
   words: PanelWords;
 }) {
   return (
@@ -77,7 +79,7 @@ export function PanelNotices({
         {statusText === '' ? null : <span className={styles.dot} aria-hidden="true" />}
         {statusText}
       </p>
-      {meter.level === 'warning' ? (
+      {meter?.level === 'warning' ? (
         <Note tone="warning">
           {meter.text}. {words.warningNote}
         </Note>

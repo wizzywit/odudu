@@ -495,7 +495,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'assistant-panel',
-    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask, a line saying the usage is within the allowance, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
+    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
     caption: 'The panel opens beside the page, with a notice the first time it is used.',
     signedIn: true,
     viewport: PANEL_VIEW,

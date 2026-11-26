@@ -7,12 +7,14 @@ import { Composer } from '#/widgets/assistant-panel/ui/Composer';
 
 function composer(
   running = false,
+  blocked = false,
   onSend = vi.fn<(text: string) => void>(),
   onStop = vi.fn<() => void>(),
 ) {
   return (
     <Composer
       running={running}
+      blocked={blocked}
       contextLabel="client c1"
       words={PANEL_WORDING}
       maxLength={50}
@@ -27,7 +29,7 @@ const FIELD = { name: 'Message to the assistant' };
 it('sends on Enter and clears the field but keeps the focus in it', async () => {
   const user = userEvent.setup();
   const onSend = vi.fn<(text: string) => void>();
-  render(composer(false, onSend));
+  render(composer(false, false, onSend));
   await user.type(screen.getByRole('textbox', FIELD), 'hello{Enter}');
   expect(onSend).toHaveBeenCalledWith('hello');
   expect(screen.getByRole('textbox', FIELD)).toHaveValue('');
@@ -37,7 +39,7 @@ it('sends on Enter and clears the field but keeps the focus in it', async () => 
 it('starts a new line on Shift and Enter and sends nothing', async () => {
   const user = userEvent.setup();
   const onSend = vi.fn<(text: string) => void>();
-  render(composer(false, onSend));
+  render(composer(false, false, onSend));
   await user.type(screen.getByRole('textbox', FIELD), 'a{Shift>}{Enter}{/Shift}b');
   expect(onSend).not.toHaveBeenCalled();
   expect(screen.getByRole('textbox', FIELD)).toHaveValue('a\nb');
@@ -46,7 +48,7 @@ it('starts a new line on Shift and Enter and sends nothing', async () => {
 it('sends nothing for an empty message, and Send waits for words', async () => {
   const user = userEvent.setup();
   const onSend = vi.fn<(text: string) => void>();
-  render(composer(false, onSend));
+  render(composer(false, false, onSend));
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   await user.type(screen.getByRole('textbox', FIELD), '   {Enter}');
   expect(onSend).not.toHaveBeenCalled();
@@ -56,13 +58,19 @@ it('shows Stop instead of Send while an answer runs, sends nothing, and gives th
   const user = userEvent.setup();
   const onSend = vi.fn<(text: string) => void>();
   const onStop = vi.fn<() => void>();
-  render(composer(true, onSend, onStop));
+  render(composer(true, false, onSend, onStop));
   expect(screen.queryByRole('button', { name: 'Send' })).toBeNull();
   await user.type(screen.getByRole('textbox', FIELD), 'next{Enter}');
   expect(onSend).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Stop' }));
   expect(onStop).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('textbox', FIELD)).toHaveFocus();
+});
+
+it('cannot be typed in or sent from while the conversation waits for a decision', () => {
+  render(composer(false, true));
+  expect(screen.getByRole('textbox', FIELD)).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
 });
 
 it('holds a message to the most the server takes', () => {

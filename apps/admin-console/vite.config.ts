@@ -21,7 +21,12 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [
-            { name: 'zod', test: /[\\/]node_modules[\\/]zod[\\/]|[\\/]src[\\/]zodConfig\.ts$/u },
+            {
+              name: 'zod',
+              // Not zod's mini build, which only the chat client of the assistant
+              // panel uses, and which is wanted when the panel is opened.
+              test: /[\\/]node_modules[\\/]zod[\\/](?!.*mini)|[\\/]src[\\/]zodConfig\.ts$/u,
+            },
           ],
         },
       },

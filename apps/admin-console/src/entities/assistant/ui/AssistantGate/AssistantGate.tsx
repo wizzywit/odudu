@@ -6,8 +6,10 @@ import type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';
 export interface AssistantSlots {
   // The button that opens the panel, or null.
   control: ReactNode;
-  // The open panel, or null.
+  // The panel, once it has been opened, or null. It stays mounted when it is
+  // closed, so that closing it does not end an answer in progress.
   panel: ReactNode;
+  open: boolean;
 }
 
 // Hands the shell the assistant's button and panel, and hands it nothing
@@ -42,7 +44,8 @@ export function AssistantGate({
         onPress={entry.toggle}
       />
     ) : null,
-    panel: entry.open
+    open: entry.open,
+    panel: entry.opened
       ? renderPanel({
           tenant,
           view: entry.view,
@@ -51,6 +54,7 @@ export function AssistantGate({
           title: words.panelTitle,
           closeLabel: words.closeButton,
           headingRef: entry.headingRef,
+          open: entry.open,
           conversationId: entry.conversationId,
           onConversation: entry.rememberConversation,
           onClose: entry.close,

@@ -4,6 +4,8 @@ import {
   readStreamPart,
   budgetNote,
   meterOf,
+  nextMeter,
+  NO_METER,
   readBudgetWarning,
   readTurnEnd,
 } from '#/widgets/assistant-panel/services/budget';
@@ -62,40 +64,62 @@ describe('the allowance, named', () => {
 });
 
 describe('the meter', () => {
-  it('says within the allowance until the server says otherwise', () => {
-    expect(meterOf(null, null)).toEqual({
-      level: 'within',
-      text: 'Within your allowance',
-      percent: null,
-    });
+  const WARNED = { level: 'admin_day', percent: 83.4, slot: 'standard' } as const;
+
+  it('says nothing until the server has said something', () => {
+    expect(meterOf(NO_METER)).toBeNull();
   });
 
-  it('warns with the server’s own percent and the level it is of', () => {
-    expect(meterOf({ level: 'admin_day', percent: 83.4, slot: 'standard' }, null)).toEqual({
+  it('warns with the server’s own percent and the level it is of, rounded down', () => {
+    expect(meterOf({ ...NO_METER, warning: WARNED })).toEqual({
       level: 'warning',
       text: '83% of your share of today’s allowance used',
       percent: 83,
     });
-  });
-
-  it('never rounds a warning up to a limit that was not reached', () => {
-    expect(meterOf({ level: 'turn', percent: 99.6, slot: 'deep' }, null)).toMatchObject({
-      percent: 99,
-    });
-  });
-
-  it('names the level that stopped the turn, over any earlier warning', () => {
     expect(
-      meterOf({ level: 'turn', percent: 90, slot: 'standard' }, { stopReason: 'budget_tenant' }),
-    ).toEqual({
+      meterOf({ ...NO_METER, warning: { level: 'turn', percent: 99.6, slot: 'deep' } })?.percent,
+    ).toBe(99);
+  });
+
+  it('names the level that refused, over a warning', () => {
+    expect(meterOf({ warning: WARNED, refused: 'tenant_month', fresh: false })).toEqual({
       level: 'refused',
       text: 'Allowance used: this tenant’s monthly allowance',
       percent: null,
     });
   });
 
+  it('keeps a warning and a refusal through the next send', () => {
+    const refused = nextMeter(NO_METER, { kind: 'turn', turn: { stopReason: 'budget_turn' } });
+    expect(nextMeter(refused, { kind: 'start' }).refused).toBe('turn');
+    const warned = nextMeter(NO_METER, { kind: 'warning', warning: WARNED });
+    expect(nextMeter(warned, { kind: 'start' }).warning).toEqual(WARNED);
+  });
+
+  it('clears a refusal when a turn ends well, and a warning when that turn brought none', () => {
+    const refused = nextMeter(nextMeter(NO_METER, { kind: 'warning', warning: WARNED }), {
+      kind: 'turn',
+      turn: { stopReason: 'budget_admin' },
+    });
+    const next = nextMeter(nextMeter(refused, { kind: 'start' }), {
+      kind: 'turn',
+      turn: { stopReason: 'done' },
+    });
+    expect(next).toEqual(NO_METER);
+  });
+
+  it('keeps a warning a turn brought, when that turn ends well', () => {
+    const turn = nextMeter(nextMeter(NO_METER, { kind: 'start' }), {
+      kind: 'warning',
+      warning: WARNED,
+    });
+    expect(nextMeter(turn, { kind: 'turn', turn: { stopReason: 'done' } }).warning).toEqual(WARNED);
+  });
+
   it('is not moved by a turn that ended for another reason', () => {
-    expect(meterOf(null, { stopReason: 'done' }).level).toBe('within');
-    expect(meterOf(null, { stopReason: 'step_cap' }).level).toBe('within');
+    const warned = nextMeter(NO_METER, { kind: 'warning', warning: WARNED });
+    for (const stopReason of ['step_cap', 'aborted', 'error', 'awaiting_approval'] as const) {
+      expect(nextMeter(warned, { kind: 'turn', turn: { stopReason } })).toEqual(warned);
+    }
   });
 });

@@ -40,12 +40,15 @@ export const PANEL_WORDING = {
   stepLimitNote:
     'This answer used the most steps one answer may take, so the assistant stopped. Ask again, with a narrower question, to carry on.',
   waitingNote:
-    'A change is waiting for your decision. The card that shows it in full arrives with the next update, so nothing is approved from here yet.',
+    'A change is waiting for your decision. Deciding it needs the approval card, which arrives next, so nothing is approved from here yet.',
+  actNote: 'Act needs the approval card, which arrives next.',
+  actConversationNote:
+    'This conversation is in Act mode. Act needs the approval card, which arrives next, so it waits here and takes no new message.',
+  closedNote: 'The connection closed before the answer finished.',
   waitingAnnounce: 'Approval needed',
   failedTitle: 'The assistant could not finish',
   traceLabel: 'Reference',
   meterLabel: 'Allowance',
-  meterWithin: 'Within your allowance',
   meterRefused: 'Allowance used',
   warningNote: 'At the limit the assistant stops. It does not switch to another model.',
   budgetStopTitle: 'Stopped: allowance used',

@@ -8,6 +8,7 @@ import styles from '#/widgets/assistant-panel/ui/Composer/Composer.module.css';
 // as an answer is being written, and is always one Tab from the field.
 export function Composer({
   running,
+  blocked,
   contextLabel,
   words,
   maxLength,
@@ -15,6 +16,8 @@ export function Composer({
   onStop,
 }: {
   running: boolean;
+  // Nothing can be sent: the conversation waits for a decision.
+  blocked: boolean;
   // Where the administrator is, which goes with the first message.
   contextLabel: string;
   words: PanelWords;
@@ -24,7 +27,7 @@ export function Composer({
   onStop: () => void;
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const composer = useComposer({ inputRef, running, onSend, onStop });
+  const composer = useComposer({ inputRef, running: running || blocked, onSend, onStop });
   const hintId = 'assistant-composer-hint';
   return (
     <form
@@ -46,6 +49,7 @@ export function Composer({
         placeholder={words.composerPlaceholder}
         rows={2}
         maxLength={maxLength}
+        disabled={blocked}
         value={composer.text}
         onChange={(event) => {
           composer.setText(event.target.value);

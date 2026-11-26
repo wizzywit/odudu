@@ -19,6 +19,8 @@ export function statusLine(state: PanelState): string {
       return state.step;
     case 'waiting':
       return PANEL_WORDING.statusWaiting;
+    case 'closed':
+      return PANEL_WORDING.statusStopped;
     case 'stopped':
       return PANEL_WORDING.statusStopped;
     case 'step-limit':
@@ -26,7 +28,8 @@ export function statusLine(state: PanelState): string {
     case 'budget':
       return `Stopped: ${budgetName(state.level)} is used`;
     case 'failed':
-      return PANEL_WORDING.statusFailed;
+      // The alert that carries the cause is what is announced.
+      return '';
     case 'finished':
       return PANEL_WORDING.statusFinished;
   }

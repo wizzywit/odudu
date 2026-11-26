@@ -16,6 +16,10 @@ export interface PanelInput {
   // The server has accepted the turn: a request with nothing of the answer yet is then thinking.
   connected: boolean;
   messageCount: number;
+  // A turn was sent and has not yet said how it ended.
+  expectsEnd: boolean;
+  // The conversation is in Act mode.
+  act: boolean;
   // The parts of the last message, which the live state reads.
   last: readonly PanelPart[];
   // How the latest turn ended, once it has.
@@ -25,7 +29,7 @@ export interface PanelInput {
 
 function liveState(last: readonly PanelPart[]): PanelState {
   const tools = last.flatMap((part) => (part.kind === 'tool' ? [part] : []));
-  if (tools.some((tool) => tool.state === 'waiting')) return { kind: 'waiting' };
+  if (tools.some((tool) => tool.state === 'waiting')) return { kind: 'waiting', act: false };
   const end = last[last.length - 1];
   if (end?.kind === 'tool' && end.state === 'running') {
     return { kind: 'tool', step: stepText(end.name, end.state) };
@@ -42,7 +46,7 @@ function endedState(turn: TurnEnd, failure: Failure | null): PanelState {
     case 'step_cap':
       return { kind: 'step-limit' };
     case 'awaiting_approval':
-      return { kind: 'waiting' };
+      return { kind: 'waiting', act: false };
     case 'aborted':
       return { kind: 'stopped' };
     default:
@@ -54,7 +58,8 @@ function endedState(turn: TurnEnd, failure: Failure | null): PanelState {
 // and its controls all read. A turn that ended on a named allowance is that
 // even when the stream also carried an error, which says the same thing.
 export function panelState(input: PanelInput): PanelState {
-  if (input.history === 'loading') return { kind: 'loading' };
+  const live = input.chat === 'submitted' || input.chat === 'streaming';
+  if (input.history === 'loading' && !live) return { kind: 'loading' };
   const settled = input.chat === 'ready' || input.chat === 'error';
   if (settled && input.turn !== null) return endedState(input.turn, input.failure);
   if (input.failure !== null || input.chat === 'error') {
@@ -69,7 +74,9 @@ export function panelState(input: PanelInput): PanelState {
   if (input.chat === 'submitted') return { kind: input.connected ? 'thinking' : 'connecting' };
   if (input.chat === 'streaming') return liveState(input.last);
   if (input.last.some((part) => part.kind === 'tool' && part.state === 'waiting')) {
-    return { kind: 'waiting' };
+    return { kind: 'waiting', act: false };
   }
+  if (input.act) return { kind: 'waiting', act: true };
+  if (input.expectsEnd) return { kind: 'closed' };
   return input.messageCount === 0 ? { kind: 'empty' } : { kind: 'finished' };
 }

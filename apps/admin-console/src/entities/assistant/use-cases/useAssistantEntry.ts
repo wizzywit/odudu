@@ -11,6 +11,8 @@ export interface AssistantEntry {
   // is drawn, and no shortcut listens, while this is false.
   shown: boolean;
   open: boolean;
+  // The panel has been opened at least once, so it is mounted.
+  opened: boolean;
   panelId: string;
   headingRef: RefObject<HTMLHeadingElement | null>;
   view: AssistantView;
@@ -37,6 +39,7 @@ export function useAssistantEntry(
 ): AssistantEntry {
   const view = useAssistantStatus(tenant, available);
   const [opened, setOpened] = useState(false);
+  const [everOpened, setEverOpened] = useState(false);
   const [remembered, setRemembered] = useState<{ tenant: string; id: string } | null>(null);
   const panelId = useId();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -63,6 +66,7 @@ export function useAssistantEntry(
       return;
     }
     opener.current = from;
+    setEverOpened(true);
     setOpened(true);
   };
   const press = useEffectEvent((event: KeyboardEvent): void => {
@@ -82,6 +86,7 @@ export function useAssistantEntry(
   return {
     shown,
     open,
+    opened: shown && everOpened,
     panelId,
     headingRef,
     view,

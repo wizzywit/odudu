@@ -92,12 +92,6 @@
   color: var(--ink-muted);
 }
 
-.problem {
-  margin: 0;
-  font-size: var(--type-12);
-  color: var(--signal-danger-ink);
-}
-
 .meterRow {
   display: flex;
   flex-wrap: wrap;

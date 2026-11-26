@@ -9,6 +9,7 @@ import { pageContextOf, pageLabel } from '#/widgets/assistant-panel/services/pag
 import { COMPOSER_MAX } from '#/widgets/assistant-panel/services/composer';
 import { contentSize } from '#/widgets/assistant-panel/services/scroll';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
+import type { AssistantMode } from '#/widgets/assistant-panel/types/chat';
 import type { FirstRunNotice } from '#/widgets/assistant-panel/types/firstRun';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import {
@@ -19,6 +20,8 @@ import { usePinnedScroll } from '#/widgets/assistant-panel/use-cases/usePinnedSc
 
 export interface AssistantPanelState {
   chat: AssistantChat;
+  // The conversation's mode: Ask, or Act for one that is already in it.
+  mode: AssistantMode;
   // Where the administrator is, in the words the chip beside the composer shows.
   where: string;
   // The notice to show above the conversation, or null once it has been read.
@@ -48,7 +51,6 @@ export function useAssistantPanel(options: {
   const pageContext = pageContextOf(pathname, tenant);
   const chat = useAssistantChat(options.conversationId, FREE_CHAT, pageContext, {
     tenant,
-    view,
     onConversation: options.onConversation,
   });
   const read = useFirstRunNotice();
@@ -56,6 +58,7 @@ export function useAssistantPanel(options: {
   const docked = useDocked();
   return {
     chat,
+    mode: chat.mode,
     where: pageLabel(pageContext),
     notice: noticeToShow(read.unread, view.provider),
     dismissNotice: read.dismiss,

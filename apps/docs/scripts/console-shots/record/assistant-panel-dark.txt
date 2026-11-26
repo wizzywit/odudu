@@ -111,7 +111,7 @@ Mode
 Ask
 Act
 Ask reads and explains. It changes nothing.
-Within your allowance
+Act needs the approval card, which arrives next.
 Before you start
 Your messages, and the tenant data the assistant reads to answer them, are sent to Anthropic.
 You can read it again later. People who can read this tenant’s audit trail can read it too, unless an administrator has turned that off in Settings.

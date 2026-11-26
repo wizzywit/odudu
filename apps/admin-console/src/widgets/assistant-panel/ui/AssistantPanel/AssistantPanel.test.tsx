@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { json, problem } from '#/testing/fakeTransport';
@@ -53,13 +53,11 @@ it('lies over the page as a dialog where there is no column for it, and Escape c
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
-it('closes from its button and on Escape, once for one Escape, when it has a column of its own', async () => {
+it('closes from its button when it has a column of its own', async () => {
   const user = userEvent.setup();
   const { onClose } = await renderPanel({});
   await user.click(screen.getByRole('button', { name: 'Close' }));
   expect(onClose).toHaveBeenCalledTimes(1);
-  await user.keyboard('{Escape}');
-  expect(onClose).toHaveBeenCalledTimes(2);
 });
 
 it('says where it is, offers a message field and shows no Stop while nothing runs', async () => {
@@ -116,23 +114,16 @@ it('offers no model picker with one model, and names the models where there are 
   expect(screen.getByText('model-d')).toBeInTheDocument();
 });
 
-it('offers Ask and Act, and starts in the mode the tenant chose', async () => {
-  await renderPanel({}, { view: { ...VIEW, defaultMode: 'act' } });
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeChecked();
-  expect(screen.getByRole('radio', { name: 'Ask' })).not.toBeChecked();
-});
-
 it('offers no mode switch where the server offers one mode', async () => {
   await renderPanel({}, { view: { ...VIEW, modes: ['ask'] } });
   expect(screen.queryByRole('radio')).toBeNull();
 });
 
-it('starts the conversation on the page the person is on, in the mode they chose, then sends', async () => {
+it('starts the conversation on the page the person is on, in Ask, then sends', async () => {
   const user = userEvent.setup();
   const { sent, onConversation } = await renderPanel({
     [`POST ${MESSAGES}`]: wholeStream(...TEXT_TURN),
   });
-  await user.click(screen.getByRole('radio', { name: 'Act' }));
   await ask(user);
 
   expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
@@ -142,7 +133,7 @@ it('starts the conversation on the page the person is on, in the mode they chose
   ]);
   expect(sent[0]?.body).toEqual({
     profile: 'free-chat',
-    mode: 'act',
+    mode: 'ask',
     page_context: { route: '/clients/c1', objectType: 'client', objectId: 'c1' },
   });
   expect(sent[1]?.body).toMatchObject({
@@ -328,7 +319,7 @@ it('warns at the share the server names, and says what happens at the limit', as
       event({ type: 'finish' }),
     ),
   });
-  expect(screen.getByText('Within your allowance')).toBeInTheDocument();
+  expect(screen.queryByText(/allowance/u)).toBeNull();
   await ask(user);
   expect(
     await screen.findByText('83% of this tenant’s monthly allowance used', { selector: 'p' }),
@@ -355,7 +346,7 @@ it('fails in plain words, with the request’s reference, and no stack', async (
   expect(alert).toHaveTextContent('The assistant is busy right now. Try again in a moment.');
   expect(alert).toHaveTextContent('req-77');
   expect(alert.textContent).not.toMatch(/at \w+ \(|\.ts:\d+|stack/u);
-  expect(status()).toHaveTextContent('Failed');
+  expect(status()).toHaveTextContent('');
 });
 
 it('fails with a generic cause when the stream breaks, and invents no reference', async () => {
@@ -405,42 +396,12 @@ it('stops the answer here and on the server, and puts the focus back in the comp
   expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
 });
 
-it('switches the mode on the server once the conversation exists, and says when it cannot', async () => {
-  const user = userEvent.setup();
-  const { sent } = await renderPanel(
-    {
-      [`PUT ${CONVERSATIONS}/c1/mode`]: json({ mode: 'act' }),
-    },
-    { conversationId: 'c1' },
-  );
-  await user.click(screen.getByRole('radio', { name: 'Act' }));
-  await waitFor(() => {
-    expect(sent.some((request) => request.method === 'PUT')).toBe(true);
-  });
-  expect(sent.find((request) => request.method === 'PUT')?.body).toEqual({ mode: 'act' });
-  expect(await screen.findByRole('radio', { name: 'Act' })).toBeChecked();
-});
-
-it('keeps the mode where it was, and says so, when the server refuses the switch', async () => {
-  const user = userEvent.setup();
-  await renderPanel(
-    {
-      [`GET ${CONVERSATIONS}/c1`]: json(CONVERSATION),
-      [`PUT ${CONVERSATIONS}/c1/mode`]: problem(409),
-    },
-    { conversationId: 'c1' },
-  );
-  await user.click(screen.getByRole('radio', { name: 'Act' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('The mode could not be changed');
-  expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
-});
-
 it('opens on a conversation the person had, reading it from the server', async () => {
   await renderPanel(
     {
       [`GET ${CONVERSATIONS}/c1`]: json({
         ...CONVERSATION,
-        mode: 'act',
+        mode: 'ask',
         messages: [
           { id: 'c1-1', role: 'user', parts: [{ type: 'text', text: 'Earlier question' }] },
           { id: 'c1-2', role: 'assistant', parts: [{ type: 'text', text: 'Earlier answer' }] },
@@ -451,14 +412,14 @@ it('opens on a conversation the person had, reading it from the server', async (
   );
   expect(await screen.findByText('Earlier answer')).toBeInTheDocument();
   expect(screen.getByText('Earlier question')).toBeInTheDocument();
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeChecked();
+  expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
   expect(status()).toHaveTextContent('Finished');
 });
 
 it('says the conversation cannot be read when the server will not give it', async () => {
   await renderPanel({ [`GET ${CONVERSATIONS}/c1`]: problem(404) }, { conversationId: 'c1' });
   expect(await screen.findByRole('alert')).toHaveTextContent('could not finish');
-  expect(status()).toHaveTextContent('Failed');
+  expect(status()).toHaveTextContent('');
 });
 
 it('is reached in an order a keyboard can follow: close, mode, models, field, send', async () => {
@@ -474,6 +435,191 @@ it('is reached in an order a keyboard can follow: close, mode, models, field, se
   expect(order).toContain('Message to the assistant');
   expect(order.indexOf('Close')).toBeLessThan(order.indexOf('Message to the assistant'));
   expect(order).toContain('Models');
+});
+
+it('closes on Escape, once, when it has a column of its own', async () => {
+  const user = userEvent.setup();
+  const { onClose } = await renderPanel({});
+  await user.keyboard('{Escape}');
+  expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+// The shell hands the new conversation's id back as `conversationId`, and the
+// stored conversation answers a read: neither may disturb the live turn.
+it('does not read, show or seed the conversation it has just started, mid-stream', async () => {
+  const user = userEvent.setup();
+  const stream = openStream();
+  const { sent } = await renderPanel({
+    [`POST ${MESSAGES}`]: stream.answer,
+    [`GET ${CONVERSATIONS}/c1`]: json({
+      ...CONVERSATION,
+      messages: [
+        { id: 'c1-1', role: 'user', parts: [{ type: 'text', text: 'How many clients?' }] },
+      ],
+    }),
+  });
+  await ask(user);
+  stream.push(event({ type: 'start', messageId: 'a1' }));
+  stream.push(
+    event({ type: 'tool-input-available', toolCallId: 'k1', toolName: 'list_clients', input: {} }),
+  );
+  await waitFor(() => {
+    expect(status()).toHaveTextContent('Listing clients');
+  });
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(status()).not.toHaveTextContent('Loading the conversation');
+  expect(screen.queryByText('Loading the conversation', { selector: 'span' })).toBeNull();
+  expect(sent.some((request) => request.method === 'GET')).toBe(false);
+  expect(screen.getByRole('list', { name: 'Steps' })).toBeInTheDocument();
+  stream.push(event({ type: 'data-turn_end', data: { stopReason: 'done' }, transient: true }));
+  stream.push(event({ type: 'finish' }));
+  stream.push('data: [DONE]\n\n');
+  stream.close();
+  await waitFor(() => {
+    expect(status()).toHaveTextContent('Finished');
+  });
+  expect(screen.getByRole('list', { name: 'Steps' })).toBeInTheDocument();
+});
+
+it('says the connection closed, not that the answer finished, when the stream ends with no turn end', async () => {
+  const user = userEvent.setup();
+  const stream = openStream();
+  await renderPanel({ [`POST ${MESSAGES}`]: stream.answer });
+  await ask(user);
+  stream.push(event({ type: 'start', messageId: 'a1' }));
+  stream.push(event({ type: 'text-start', id: 't1' }));
+  stream.push(event({ type: 'text-delta', id: 't1', delta: 'Half an' }));
+  stream.close();
+  await waitFor(() => {
+    expect(status()).toHaveTextContent('Stopped');
+  });
+  expect(status()).not.toHaveTextContent('Finished');
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'The connection closed before the answer finished',
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('keeps an answer running when the panel is closed, and shows it again when it is opened', async () => {
+  const user = userEvent.setup();
+  const stream = openStream();
+  const { sent, host } = await renderPanel({ [`POST ${MESSAGES}`]: stream.answer });
+  await ask(user);
+  stream.push(event({ type: 'start', messageId: 'a1' }));
+  stream.push(event({ type: 'text-start', id: 't1' }));
+  stream.push(event({ type: 'text-delta', id: 't1', delta: 'Still ' }));
+  await screen.findByText('Still');
+  act(() => {
+    host.setOpen(false);
+  });
+  expect(screen.queryByRole('complementary')).toBeNull();
+  stream.push(event({ type: 'text-delta', id: 't1', delta: 'going.' }));
+  stream.push(event({ type: 'text-end', id: 't1' }));
+  stream.push(event({ type: 'data-turn_end', data: { stopReason: 'done' }, transient: true }));
+  stream.push(event({ type: 'finish' }));
+  stream.push('data: [DONE]\n\n');
+  stream.close();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  act(() => {
+    host.setOpen(true);
+  });
+  expect(await screen.findByText('Still going.')).toBeInTheDocument();
+  expect(status()).toHaveTextContent('Finished');
+  expect(sent.some((request) => request.path.endsWith('/stop'))).toBe(false);
+});
+
+it('does not end a running answer when the dialog over the page is dismissed by Escape', async () => {
+  const user = userEvent.setup();
+  const stream = openStream();
+  const { sent, onClose } = await renderPanel(
+    { [`POST ${MESSAGES}`]: stream.answer },
+    { docked: false },
+  );
+  await ask(user);
+  stream.push(event({ type: 'start', messageId: 'a1' }));
+  stream.push(event({ type: 'text-start', id: 't1' }));
+  stream.push(event({ type: 'text-delta', id: 't1', delta: 'Working' }));
+  await screen.findByText('Working');
+  await user.keyboard('{Escape}');
+  expect(onClose).toHaveBeenCalledTimes(1);
+  expect(sent.some((request) => request.path.endsWith('/stop'))).toBe(false);
+  stream.close();
+});
+
+it('says nothing about the allowance until the server says something', async () => {
+  await renderPanel({});
+  expect(screen.queryByText(/allowance/u)).toBeNull();
+});
+
+it('keeps a refusal in the meter through the next send, until a turn ends well', async () => {
+  const user = userEvent.setup();
+  let turns = 0;
+  await renderPanel({
+    [`POST ${MESSAGES}`]: () => {
+      turns += 1;
+      return turns === 1
+        ? new Response(
+            `${event({ type: 'start', messageId: 'a1' })}${event({ type: 'data-turn_end', data: { stopReason: 'budget_admin' }, transient: true })}data: [DONE]\n\n`,
+            { headers: { 'content-type': 'text/event-stream' } },
+          )
+        : new Response(`${[...TEXT_TURN].join('')}data: [DONE]\n\n`, {
+            headers: { 'content-type': 'text/event-stream' },
+          });
+    },
+  });
+  await ask(user);
+  expect(
+    await screen.findByText('Allowance used: your share of today’s allowance'),
+  ).toBeInTheDocument();
+  await ask(user, 'Again');
+  await waitFor(() => {
+    expect(status()).toHaveTextContent('Finished');
+  });
+  expect(screen.queryByText(/Allowance used/u)).toBeNull();
+});
+
+it('offers Act disabled with the sentence that says why', async () => {
+  await renderPanel({});
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByText('Act needs the approval card, which arrives next.')).toBeInTheDocument();
+});
+
+it('starts in Ask even where the tenant starts in Act', async () => {
+  await renderPanel({}, { view: { ...VIEW, defaultMode: 'act' } });
+  expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
+});
+
+it('shows a conversation already in Act as waiting, with a composer that cannot send', async () => {
+  await renderPanel(
+    { [`GET ${CONVERSATIONS}/c1`]: json({ ...CONVERSATION, mode: 'act' }) },
+    { conversationId: 'c1' },
+  );
+  await waitFor(() => {
+    expect(status()).toHaveTextContent('Waiting for you');
+  });
+  expect(screen.getByRole('note')).toHaveTextContent('Act needs the approval card');
+  expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+});
+
+it('words a turn refused because a change waits apart from one refused because a turn runs', async () => {
+  const user = userEvent.setup();
+  const refuse = (detail: string) => () =>
+    new Response(JSON.stringify({ type: 'about:blank', title: 'Conflict', status: 409, detail }), {
+      status: 409,
+      headers: { 'content-type': 'application/problem+json' },
+    });
+  const waiting = await renderPanel({
+    [`POST ${MESSAGES}`]: refuse('a change still waits for your decision'),
+  });
+  await ask(user);
+  expect(await screen.findByRole('alert')).toHaveTextContent('waiting for your decision');
+  waiting.unmount();
+  await renderPanel({
+    [`POST ${MESSAGES}`]: refuse('a turn is already running in this conversation'),
+  });
+  await ask(user);
+  expect(await screen.findByRole('alert')).toHaveTextContent('still running');
 });
 
 it.each([

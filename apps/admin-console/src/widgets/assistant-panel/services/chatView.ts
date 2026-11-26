@@ -3,10 +3,10 @@ import { failureOf } from '#/widgets/assistant-panel/services/chatFailure';
 import { panelState } from '#/widgets/assistant-panel/services/panelState';
 import { drawMessage, readParts } from '#/widgets/assistant-panel/services/parts';
 import type {
-  AssistantBudgetWarning,
   ChatStatus,
   HistoryState,
   Meter,
+  MeterState,
   PanelMessage,
   PanelState,
   TurnEnd,
@@ -20,13 +20,15 @@ export interface ChatViewInput {
   // The server has accepted the turn, which a request with no answer yet is waiting on.
   connected: boolean;
   turn: TurnEnd | null;
-  warning: AssistantBudgetWarning | null;
+  meter: MeterState;
+  expectsEnd: boolean;
+  act: boolean;
 }
 
 export interface ChatView {
   messages: PanelMessage[];
   state: PanelState;
-  meter: Meter;
+  meter: Meter | null;
   running: boolean;
   // The sentence under the log when an allowance stopped the turn.
   note: string | null;
@@ -54,6 +56,8 @@ export function chatView(input: ChatViewInput): ChatView {
     history: input.history,
     chat: input.chat,
     connected: input.connected,
+    expectsEnd: input.expectsEnd,
+    act: input.act,
     messageCount: messages.length,
     last: messages[messages.length - 1]?.parts ?? [],
     turn: input.turn,
@@ -63,7 +67,7 @@ export function chatView(input: ChatViewInput): ChatView {
   return {
     messages,
     state,
-    meter: meterOf(input.warning, input.turn),
+    meter: meterOf(input.meter),
     running: input.chat === 'submitted' || input.chat === 'streaming',
     note: state.kind === 'budget' ? budgetNote(state.level, fromServer) : null,
   };

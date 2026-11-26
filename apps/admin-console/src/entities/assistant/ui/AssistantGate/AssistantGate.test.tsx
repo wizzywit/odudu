@@ -31,7 +31,13 @@ function gate(available: boolean) {
       tenant="acme"
       available={available}
       paused={false}
-      renderPanel={(slot) => <aside aria-label={slot.label}>{`panel for ${slot.tenant}`}</aside>}
+      renderPanel={(slot) =>
+        slot.open ? (
+          <aside aria-label={slot.label}>{`panel for ${slot.tenant}`}</aside>
+        ) : (
+          <i data-testid="kept" />
+        )
+      }
     >
       {({ control, panel }) => (
         <div>
@@ -67,6 +73,8 @@ it('hands the panel what it needs when the control is pressed, and takes it away
   );
   await user.click(screen.getByRole('button', { name: 'Ask the assistant' }));
   expect(screen.queryByRole('complementary')).toBeNull();
+  // Closed, the panel is still there, drawing nothing, so an answer in progress goes on.
+  expect(screen.getByTestId('kept')).toBeInTheDocument();
 });
 
 it('passes axe in both themes with the control handed over', async () => {

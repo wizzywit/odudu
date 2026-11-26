@@ -26,9 +26,10 @@ it('draws an answer’s steps and text in order, each step with what became of i
   render(<MessageView message={ANSWER} busy={false} words={PANEL_WORDING} />);
   const article = screen.getByRole('article', { name: 'Assistant' });
   const [first, second] = within(article).getAllByRole('list', { name: 'Steps' });
-  expect(within(first as HTMLElement).getByText('Listed clients')).toBeInTheDocument();
-  expect(within(first as HTMLElement).getByText('Done')).toBeInTheDocument();
-  expect(within(second as HTMLElement).getByText('Waiting for you')).toBeInTheDocument();
+  if (first === undefined || second === undefined) throw new Error('two lists of steps');
+  expect(within(first).getByText('Listed clients')).toBeInTheDocument();
+  expect(within(first).getByText('Done')).toBeInTheDocument();
+  expect(within(second).getByText('Waiting for you')).toBeInTheDocument();
   expect(within(article).getByText('three').tagName).toBe('STRONG');
 });
 

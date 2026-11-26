@@ -7,7 +7,6 @@ import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import { PanelHeader } from '#/widgets/assistant-panel/ui/PanelHeader';
 
-const WITHIN: Meter = { level: 'within', text: 'Within your allowance', percent: null };
 const MODELS = [
   { slot: 'standard', model: 's-1' },
   { slot: 'deep', model: 'd-1' },
@@ -16,11 +15,8 @@ const MODELS = [
 function header(
   options: {
     modes?: AssistantMode[];
-    switching?: boolean;
-    modeFailed?: boolean;
-    meter?: Meter;
+    meter?: Meter | null;
     models?: { slot: string; model: string }[] | null;
-    onMode?: (mode: AssistantMode) => void;
     onClose?: () => void;
   } = {},
 ) {
@@ -32,33 +28,19 @@ function header(
       onClose={options.onClose ?? vi.fn<() => void>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
-      switching={options.switching ?? false}
-      modeFailed={options.modeFailed ?? false}
-      onMode={options.onMode ?? vi.fn<(mode: AssistantMode) => void>()}
-      meter={options.meter ?? WITHIN}
+      meter={options.meter ?? null}
       models={options.models ?? null}
       words={PANEL_WORDING}
     />
   );
 }
 
-it('offers both modes and says what the chosen one does', () => {
+it('offers both modes, says what the chosen one does, and says why Act is not yet to be chosen', () => {
   render(header());
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
-  expect(screen.getByText('Ask reads and explains. It changes nothing.')).toBeInTheDocument();
-});
-
-it('reports the mode a person picks', async () => {
-  const user = userEvent.setup();
-  const onMode = vi.fn<(mode: AssistantMode) => void>();
-  render(header({ onMode }));
-  await user.click(screen.getByRole('radio', { name: 'Act' }));
-  expect(onMode).toHaveBeenCalledWith('act');
-});
-
-it('dims the switch while a turn runs or the switch is saved', () => {
-  render(header({ switching: true }));
   expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByText('Ask reads and explains. It changes nothing.')).toBeInTheDocument();
+  expect(screen.getByText('Act needs the approval card, which arrives next.')).toBeInTheDocument();
 });
 
 it('offers no switch where one mode is offered', () => {
@@ -66,9 +48,9 @@ it('offers no switch where one mode is offered', () => {
   expect(screen.queryByRole('radio')).toBeNull();
 });
 
-it('says when the mode could not be changed', () => {
-  render(header({ modeFailed: true }));
-  expect(screen.getByRole('alert')).toHaveTextContent('The mode could not be changed');
+it('says nothing about the allowance while it has nothing to say', () => {
+  render(header());
+  expect(screen.queryByText(/allowance/u)).toBeNull();
 });
 
 it('names the models only when it is given them', () => {
@@ -89,7 +71,6 @@ it('closes from its button', async () => {
 });
 
 it.each([
-  ['within', WITHIN],
   [
     'warning',
     { level: 'warning', text: '83% of your share of today’s allowance used', percent: 83 },

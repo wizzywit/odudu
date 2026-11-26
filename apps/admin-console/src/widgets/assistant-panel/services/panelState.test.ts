@@ -11,6 +11,8 @@ const BASE: PanelInput = {
   history: 'none',
   chat: 'ready',
   connected: false,
+  expectsEnd: false,
+  act: false,
   messageCount: 0,
   last: [],
   turn: null,
@@ -54,10 +56,12 @@ describe('the panel state', () => {
   it('waits for the person when a change needs a decision, streaming or not', () => {
     expect(state({ chat: 'streaming', messageCount: 2, last: [WAITING] })).toEqual({
       kind: 'waiting',
+      act: false,
     });
-    expect(state({ messageCount: 2, last: [WAITING] })).toEqual({ kind: 'waiting' });
+    expect(state({ messageCount: 2, last: [WAITING] })).toEqual({ kind: 'waiting', act: false });
     expect(state({ messageCount: 2, turn: { stopReason: 'awaiting_approval' } })).toEqual({
       kind: 'waiting',
+      act: false,
     });
   });
 
@@ -72,6 +76,29 @@ describe('the panel state', () => {
     expect(ended('budget_admin')).toEqual({ kind: 'budget', level: 'admin_day' });
     expect(ended('budget_tenant')).toEqual({ kind: 'budget', level: 'tenant_month' });
     expect(ended('error')).toMatchObject({ kind: 'failed' });
+  });
+
+  it('is not loading while a turn is live, however the stored read stands', () => {
+    expect(state({ history: 'loading', chat: 'streaming', messageCount: 2, last: [TEXT] })).toEqual(
+      {
+        kind: 'thinking',
+      },
+    );
+    expect(state({ history: 'loading', chat: 'submitted', messageCount: 1 })).toEqual({
+      kind: 'connecting',
+    });
+  });
+
+  it('is closed, not finished, when a turn was sent and the stream ended without saying how', () => {
+    expect(state({ expectsEnd: true, messageCount: 2, last: [TEXT] })).toEqual({ kind: 'closed' });
+  });
+
+  it('waits, in Act, for the card that does not exist yet', () => {
+    expect(state({ act: true, messageCount: 2, last: [TEXT] })).toEqual({
+      kind: 'waiting',
+      act: true,
+    });
+    expect(state({ act: true })).toEqual({ kind: 'waiting', act: true });
   });
 
   it('is finished for a conversation that was loaded and has said nothing since', () => {
@@ -99,11 +126,12 @@ describe('the status line', () => {
     [{ kind: 'connecting' }, 'Connecting'],
     [{ kind: 'thinking' }, 'Thinking'],
     [{ kind: 'tool', step: 'Listing subjects' }, 'Listing subjects'],
-    [{ kind: 'waiting' }, 'Waiting for you'],
+    [{ kind: 'waiting', act: false }, 'Waiting for you'],
+    [{ kind: 'closed' }, 'Stopped'],
     [{ kind: 'stopped' }, 'Stopped'],
     [{ kind: 'step-limit' }, 'Stopped at the step limit'],
     [{ kind: 'budget', level: 'conversation' }, 'Stopped: this conversation’s allowance is used'],
-    [{ kind: 'failed', failure: { cause: 'x', trace: null } }, 'Failed'],
+    [{ kind: 'failed', failure: { cause: 'x', trace: null } }, ''],
     [{ kind: 'finished' }, 'Finished'],
   ] as const)('says %j as "%s"', (given, line) => {
     expect(statusLine(given)).toBe(line);

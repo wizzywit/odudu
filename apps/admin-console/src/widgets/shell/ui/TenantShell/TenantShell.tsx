@@ -49,7 +49,7 @@ function SignedInShell({
       paused={shell.dialogOpen}
       renderPanel={renderAssistantPanel}
     >
-      {({ control, panel }) => (
+      {({ control, panel, open }) => (
         <AppShell
           brand={shell.brand}
           collapsed={shell.collapsed}
@@ -57,6 +57,7 @@ function SignedInShell({
           shortcutsPaused={shell.dialogOpen}
           assistant={control}
           assistantPanel={panel}
+          assistantOpen={open}
           contextBar={
             shell.systemAuthority ? (
               <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />

@@ -5,7 +5,6 @@ import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { Meter, PanelState } from '#/widgets/assistant-panel/types/chat';
 import { PanelNotices } from '#/widgets/assistant-panel/ui/PanelNotices';
 
-const WITHIN: Meter = { level: 'within', text: 'Within your allowance', percent: null };
 const FAILED: PanelState = {
   kind: 'failed',
   failure: { cause: 'The assistant is busy right now.', trace: 'req-1' },
@@ -15,7 +14,7 @@ function notices(
   state: PanelState,
   statusText: string,
   note: string | null = null,
-  meter: Meter = WITHIN,
+  meter: Meter | null = null,
 ) {
   return (
     <PanelNotices
@@ -32,8 +31,10 @@ function notices(
 const STATES: [string, PanelState, string, string | null][] = [
   ['empty', { kind: 'empty' }, '', null],
   ['thinking', { kind: 'thinking' }, 'Thinking', null],
-  ['waiting', { kind: 'waiting' }, 'Waiting for you', null],
+  ['waiting', { kind: 'waiting', act: false }, 'Waiting for you', null],
   ['stopped', { kind: 'stopped' }, 'Stopped', null],
+  ['act', { kind: 'waiting', act: true }, 'Waiting for you', null],
+  ['closed', { kind: 'closed' }, 'Stopped', null],
   ['step limit', { kind: 'step-limit' }, 'Stopped at the step limit', null],
   [
     'budget',
@@ -41,7 +42,7 @@ const STATES: [string, PanelState, string, string | null][] = [
     'Stopped: this answer’s allowance is used',
     'This answer reached the most one answer may use.',
   ],
-  ['failed', FAILED, 'Failed', null],
+  ['failed', FAILED, '', null],
 ];
 
 it('keeps one polite status line in the page, even when it is empty', () => {
@@ -52,7 +53,7 @@ it('keeps one polite status line in the page, even when it is empty', () => {
 });
 
 it('says a failure in plain words with the reference to copy, as an alert', () => {
-  render(notices(FAILED, 'Failed'));
+  render(notices(FAILED, ''));
   const alert = screen.getByRole('alert');
   expect(alert).toHaveTextContent('The assistant is busy right now.');
   expect(alert).toHaveTextContent('req-1');

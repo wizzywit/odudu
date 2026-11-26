@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NO_METER } from '#/widgets/assistant-panel/services/budget';
 import { chatView, type ChatViewInput } from '#/widgets/assistant-panel/services/chatView';
 import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
 
@@ -9,7 +10,9 @@ const BASE: ChatViewInput = {
   error: undefined,
   connected: false,
   turn: null,
-  warning: null,
+  meter: NO_METER,
+  expectsEnd: false,
+  act: false,
 };
 
 function view(input: Partial<ChatViewInput>) {
@@ -80,10 +83,11 @@ describe('the conversation as the panel draws it', () => {
       chat: 'error',
       error: new Error('This conversation has reached the most it may use in a month.'),
       turn: { stopReason: 'budget_conversation' },
+      meter: { ...NO_METER, refused: 'conversation' },
     });
     expect(result.state).toEqual({ kind: 'budget', level: 'conversation' });
     expect(result.note).toBe('This conversation has reached the most it may use in a month.');
-    expect(result.meter.level).toBe('refused');
+    expect(result.meter?.level).toBe('refused');
   });
 
   it('gives no note for a turn that did not stop on an allowance', () => {
@@ -91,12 +95,11 @@ describe('the conversation as the panel draws it', () => {
   });
 
   it('carries the warning into the meter', () => {
-    expect(view({ warning: { level: 'turn', percent: 81, slot: 'standard' } }).meter).toMatchObject(
-      {
-        level: 'warning',
-        percent: 81,
-      },
-    );
+    expect(
+      view({
+        meter: { ...NO_METER, warning: { level: 'turn', percent: 81, slot: 'standard' } },
+      }).meter,
+    ).toMatchObject({ level: 'warning', percent: 81 });
   });
 
   it('reads the live step from the last message while a turn streams', () => {

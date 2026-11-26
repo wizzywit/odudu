@@ -1,8 +1,8 @@
 import { createReadCache } from '#/shared/lib/repository/readCache';
 import { render } from '@testing-library/react';
-import { createRef } from 'react';
+import { createRef, useEffect, useState } from 'react';
 import { vi } from 'vitest';
-import type { AssistantPanelSlot, AssistantView } from '#/entities/assistant';
+import type { AssistantView } from '#/entities/assistant';
 import { AssistantPanel } from '#/widgets/assistant-panel';
 import { routedElement } from '#/testing/mountAtRoute';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
@@ -111,23 +111,43 @@ export function panelElement(
   });
   const onClose = vi.fn<() => void>();
   const onConversation = vi.fn<(id: string) => void>();
-  const slot: AssistantPanelSlot = {
-    tenant: 'acme',
-    view,
-    id: 'assistant-panel',
-    label: 'Assistant panel',
-    title: 'Assistant',
-    closeLabel: 'Close',
-    headingRef: createRef<HTMLHeadingElement>(),
-    conversationId,
-    onConversation,
-    onClose,
-  };
-  const { element, router } = routedElement(url, '$', () => <AssistantPanel {...slot} />, {
+  // What the shell does: it keeps the id the panel reports and hands it back,
+  // and it keeps the panel mounted while it is closed.
+  const host: { setOpen: (open: boolean) => void } = { setOpen: () => undefined };
+  const headingRef = createRef<HTMLHeadingElement>();
+  function Host() {
+    const [id, setId] = useState<string | null>(conversationId);
+    const [open, setOpen] = useState(true);
+    useEffect(() => {
+      host.setOpen = setOpen;
+    }, [setOpen]);
+    return (
+      <AssistantPanel
+        tenant="acme"
+        view={view}
+        id="assistant-panel"
+        label="Assistant panel"
+        title="Assistant"
+        closeLabel="Close"
+        headingRef={headingRef}
+        open={open}
+        conversationId={id}
+        onConversation={(next) => {
+          onConversation(next);
+          setId(next);
+        }}
+        onClose={() => {
+          onClose();
+          setOpen(false);
+        }}
+      />
+    );
+  }
+  const { element, router } = routedElement(url, '$', Host, {
     basepath: '/console',
     providers: { transport: fake.transport, queryClient: createReadCache() },
   });
-  return { ...fake, element, router, onClose, onConversation, slot };
+  return { ...fake, element, router, onClose, onConversation, host };
 }
 
 export async function renderPanel(...args: Parameters<typeof panelElement>) {

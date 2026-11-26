@@ -24,11 +24,11 @@ function FocusHeading({
   return children;
 }
 
-// The assistant beside the page: a column of its own where the shell has the
+// The assistant beside the page (and kept mounted while it is closed): a column of its own where the shell has the
 // room, and a dialog laid over the page where it has not, with the page behind
 // it out of reach and Escape to close it.
 export function AssistantPanel(props: AssistantPanelSlot) {
-  const { id, label, title, closeLabel, headingRef, onClose, view } = props;
+  const { id, label, title, closeLabel, headingRef, onClose, view, open } = props;
   const panel = useAssistantPanel({
     tenant: props.tenant,
     view,
@@ -43,11 +43,8 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         headingRef={headingRef}
         closeLabel={closeLabel}
         onClose={onClose}
-        mode={chat.mode}
+        mode={panel.mode}
         modes={view.modes ?? []}
-        switching={chat.running || chat.modeBusy}
-        modeFailed={chat.modeFailed}
-        onMode={chat.setMode}
         meter={chat.meter}
         models={panel.models}
         words={panel.words}
@@ -59,7 +56,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         messages={chat.messages}
         running={chat.running}
         loading={chat.status.kind === 'loading'}
-        mode={chat.mode}
+        mode={panel.mode}
         words={panel.words}
         logRef={panel.logRef}
         onScroll={panel.onScroll}
@@ -74,6 +71,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
       />
       <Composer
         running={chat.running}
+        blocked={chat.blocked}
         contextLabel={panel.where}
         words={panel.words}
         maxLength={panel.maxLength}
@@ -82,6 +80,9 @@ export function AssistantPanel(props: AssistantPanelSlot) {
       />
     </FocusHeading>
   );
+  // Closed, the panel draws nothing but stays mounted, so an answer in progress
+  // goes on and is there again when it is opened.
+  if (!open) return null;
   if (!panel.docked) {
     return (
       <ModalOverlay

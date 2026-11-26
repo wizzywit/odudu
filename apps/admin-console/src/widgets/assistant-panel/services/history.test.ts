@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { historyOf, modeOf, storedOf } from '#/widgets/assistant-panel/services/history';
+import {
+  historyOf,
+  mayShowStored,
+  modeOf,
+  readIdOf,
+  storedOf,
+} from '#/widgets/assistant-panel/services/history';
 
 it('says where the stored conversation is, and nothing for one that has not started', () => {
   expect(historyOf({ status: 'loading' }, false)).toBe('none');
@@ -15,9 +21,22 @@ it('hands over what was read only once it has been', () => {
   expect(storedOf({ status: 'loading' }, true)).toBeUndefined();
 });
 
-it('takes the person’s mode over the conversation’s, and that over the tenant’s', () => {
-  expect(modeOf('act', { mode: 'ask' }, 'ask')).toBe('act');
-  expect(modeOf(null, { mode: 'act' }, 'ask')).toBe('act');
-  expect(modeOf(null, undefined, 'act')).toBe('act');
-  expect(modeOf(null, undefined, undefined)).toBe('ask');
+it('is in the mode a stored conversation is in, and Ask for any other', () => {
+  expect(modeOf({ mode: 'act' })).toBe('act');
+  expect(modeOf({ mode: 'ask' })).toBe('ask');
+  expect(modeOf(undefined)).toBe('ask');
+});
+
+it('shows a stored conversation only over a panel with nothing live and nothing drawn', () => {
+  expect(mayShowStored('ready', 0)).toBe(true);
+  expect(mayShowStored('ready', 2)).toBe(false);
+  expect(mayShowStored('streaming', 0)).toBe(false);
+  expect(mayShowStored('submitted', 0)).toBe(false);
+});
+
+it('does not read the conversation this panel made itself', () => {
+  expect(readIdOf('c1', null)).toBe('c1');
+  expect(readIdOf('c1', 'c1')).toBeNull();
+  expect(readIdOf(null, null)).toBeNull();
+  expect(readIdOf('c2', 'c1')).toBe('c2');
 });

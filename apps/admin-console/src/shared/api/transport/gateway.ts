@@ -286,6 +286,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     async stream(method, path, options) {
       const url = resolve(path);
       const headers = baseHeaders(method, path);
+      headers.set('accept', 'text/event-stream');
       const init: RequestInit = {
         method,
         headers,

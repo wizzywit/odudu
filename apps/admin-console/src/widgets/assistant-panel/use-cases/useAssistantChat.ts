@@ -1,19 +1,24 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import type { AssistantView } from '#/entities/assistant';
 import { useLatest } from '#/shared/lib/repository/useLatest';
 import { useChatSession } from '#/widgets/assistant-panel/repository/useChatSession';
 import { useConversationCalls } from '#/widgets/assistant-panel/repository/useConversationCalls';
 import { useConversationRead } from '#/widgets/assistant-panel/repository/useConversationRead';
-import { readStreamPart } from '#/widgets/assistant-panel/services/budget';
+import { NO_METER, nextMeter, readStreamPart } from '#/widgets/assistant-panel/services/budget';
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
 import { messageToSend } from '#/widgets/assistant-panel/services/composer';
-import { historyOf, modeOf, storedOf } from '#/widgets/assistant-panel/services/history';
+import {
+  historyOf,
+  mayShowStored,
+  modeOf,
+  readIdOf,
+  storedOf,
+} from '#/widgets/assistant-panel/services/history';
 import { statusLine } from '#/widgets/assistant-panel/services/statusLine';
 import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
 import {
-  type AssistantBudgetWarning,
   type AssistantMode,
   type Meter,
+  type MeterState,
   type PageContext,
   type PanelMessage,
   type PanelState,
@@ -28,18 +33,18 @@ export interface AssistantChat {
   status: PanelState;
   statusText: string;
   running: boolean;
+  // Nothing can be sent: the conversation waits for a decision it cannot be given here yet.
+  blocked: boolean;
+  mode: AssistantMode;
   // The sentence under the log when an allowance stopped the turn.
   note: string | null;
-  meter: Meter;
-  mode: AssistantMode;
-  modeFailed: boolean;
-  modeBusy: boolean;
+  // Null until the server has said something about the allowance.
+  meter: Meter | null;
   send: (text: string) => void;
   // Ends the answer in progress, here and on the server.
   stop: () => void;
   // Carries a turn on after a change was decided.
   resume: () => void;
-  setMode: (mode: AssistantMode) => void;
   // Reads the conversation again after it failed to load.
   retry: () => void;
 }
@@ -47,39 +52,40 @@ export interface AssistantChat {
 // One conversation, from the person's first message to its last. A conversation
 // that has not started is started by the first message, on the page the person
 // is then looking at, and the shell is told its id so the panel can come back to it.
+// The id the shell hands back is the one this panel made, so it is not read.
 export function useAssistantChat(
   conversationId: string | null,
   profile: ProfileId,
   pageContext: PageContext,
   env: {
     tenant: string;
-    view: AssistantView;
     onConversation: (id: string) => void;
   },
 ): AssistantChat {
-  const { tenant, view } = env;
+  const { tenant } = env;
   const calls = useConversationCalls(tenant);
-  const { read: stored, asked } = useConversationRead(tenant, conversationId);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const { read: stored, asked } = useConversationRead(tenant, readIdOf(conversationId, createdId));
   const known = useRef<string | null>(conversationId);
-  const [modeChoice, setModeChoice] = useState<AssistantMode | null>(null);
-  const [modeFailed, setModeFailed] = useState(false);
   const [turn, setTurn] = useState<TurnEnd | null>(null);
-  const [warning, setWarning] = useState<AssistantBudgetWarning | null>(null);
+  const [meter, setMeter] = useState<MeterState>(NO_METER);
   const [connected, setConnected] = useState(false);
+  const [expectsEnd, setExpectsEnd] = useState(false);
   const loaded = storedOf(stored, asked);
-  const mode = modeOf(modeChoice, loaded, view.defaultMode);
-  const latest = useLatest({ profile, pageContext, mode, onConversation: env.onConversation });
+  const mode = modeOf(loaded);
+  const latest = useLatest({ profile, pageContext, onConversation: env.onConversation });
 
   const startConversation = async (): Promise<string> => {
     if (known.current !== null) return known.current;
     const now = latest();
     const created = await calls.create({
       profile: now.profile,
-      mode: now.mode,
+      mode: 'ask',
       page_context: now.pageContext,
     });
     if (!created.ok) throw new ChatCallError(created, 'start');
     known.current = created.data.id;
+    setCreatedId(created.data.id);
     now.onConversation(created.data.id);
     return created.data.id;
   };
@@ -91,14 +97,22 @@ export function useAssistantChat(
     },
     onData: (part) => {
       const read = readStreamPart(part);
-      if (read.turn !== undefined) setTurn(read.turn);
-      if (read.warning !== undefined) setWarning(read.warning);
+      if (read.turn !== undefined) {
+        const ended = read.turn;
+        setTurn(ended);
+        setExpectsEnd(false);
+        setMeter((previous) => nextMeter(previous, { kind: 'turn', turn: ended }));
+      }
+      if (read.warning !== undefined) {
+        const warning = read.warning;
+        setMeter((previous) => nextMeter(previous, { kind: 'warning', warning }));
+      }
     },
   });
 
   const seeded = useRef(false);
   const seed = useEffectEvent((conversation: AssistantConversation) => {
-    if (seeded.current) return;
+    if (seeded.current || !mayShowStored(session.status, session.messages.length)) return;
     seeded.current = true;
     session.showConversation(conversation);
   });
@@ -113,22 +127,14 @@ export function useAssistantChat(
     error: session.error,
     connected,
     turn,
-    warning,
+    meter,
+    expectsEnd,
+    act: mode === 'act',
   });
-
-  const changeMode = async (next: AssistantMode): Promise<void> => {
-    setModeFailed(false);
-    if (known.current === null) {
-      setModeChoice(next);
-      return;
-    }
-    const changed = await calls.setMode(known.current, next);
-    if (changed.ok) setModeChoice(changed.data.mode);
-    else setModeFailed(true);
-  };
 
   const stop = (): void => {
     setTurn({ stopReason: 'aborted' });
+    setExpectsEnd(false);
     session.abort().catch(() => undefined);
     if (known.current !== null) calls.stop(known.current).catch(() => undefined);
   };
@@ -142,32 +148,31 @@ export function useAssistantChat(
     [],
   );
 
+  const begin = (): void => {
+    setTurn(null);
+    setConnected(false);
+    setExpectsEnd(true);
+    setMeter((previous) => nextMeter(previous, { kind: 'start' }));
+  };
+
   return {
     messages: drawn.messages,
     status: drawn.state,
     statusText: statusLine(drawn.state),
     running: drawn.running,
+    blocked: drawn.state.kind === 'waiting',
+    mode,
     note: drawn.note,
     meter: drawn.meter,
-    mode,
-    modeFailed,
-    modeBusy: calls.settingMode,
     send: (text) => {
-      setTurn(null);
-      setConnected(false);
+      begin();
       session.clearError();
       session.send(messageToSend(text)).catch(() => undefined);
     },
     stop,
     resume: () => {
-      setTurn(null);
-      setConnected(false);
+      begin();
       session.resume().catch(() => undefined);
-    },
-    setMode: (next) => {
-      changeMode(next).catch(() => {
-        setModeFailed(true);
-      });
     },
     retry: () => {
       if (stored.status === 'failed') stored.retry();

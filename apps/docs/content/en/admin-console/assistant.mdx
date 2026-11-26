@@ -14,13 +14,13 @@ The button is **Ask the assistant**, in the menu and, on a narrow screen, in the
 
 <ConsoleShot
   name="assistant-panel"
-  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask, a line saying the usage is within the allowance, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
+  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
   caption="The panel opens beside the page, with a notice the first time it is used."
 />
 
 ## 1. Open it
 
-Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Opened again, it comes back to the conversation you had.
+Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Putting it away does not end an answer that is being written: the answer goes on, and is there when you open the panel again. Opened again, it comes back to the conversation you had, as long as you stay in this console page; a reload starts a new one.
 
 Where the console is wide enough, the panel has a column of its own beside the page and stays there as you move between pages. Where it is not, the panel lies over the page as a dialog: the page behind it is out of reach, Tab stays inside it, and on a phone it fills the screen.
 
@@ -38,17 +38,15 @@ Type in the message field and press Enter. Shift and Enter start a new line. Nex
 
 The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists and code. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
 
-## 3. Choose Ask or Act
+## 3. Ask and Act
 
-**Ask** is the default: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, and each one waits for your approval. You choose with the **Mode** switch at the top of the panel; the tenant's setting decides which one a conversation starts in. The switch is yours, in the console: the assistant cannot change it. It is dimmed while an answer is being written.
-
-In Act mode a change the assistant proposes stops the answer with the line **Waiting for you**. The panel says a change is waiting for your decision. The card that shows the change in full, with its before and after, comes with a later release of the panel; until then nothing is approved from here.
+**Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, each waiting for your approval, and needs the approval card, which arrives next. Until then the **Mode** switch shows Act dimmed with a sentence that says so, and every conversation starts in Ask, whatever the tenant's setting says. A conversation that was already in Act, such as one made through the API, shows **Waiting for you** and takes no new message here.
 
 ## 4. Watch it work
 
-Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped**, **Finished** or **Failed**. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer with what became of it.
+Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped** or **Finished**. A failure is shown in a notice of its own, not on that line. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer with what became of it.
 
-**Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Closing the panel while an answer is being written stops it the same way.
+**Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Stop is the only thing that ends an answer: putting the panel away does not, and leaving the console does.
 
 ## 5. Read why it stopped
 
@@ -57,13 +55,14 @@ An answer ends in one of a few ways, and the panel names which.
 - **Finished.** The answer is complete.
 - **Stopped at the step limit.** One answer may take only so many model and tool calls, which [Settings](./settings.mdx) names. Ask again, with a narrower question, to carry on.
 - **Stopped: allowance used.** The assistant has four limits: the tenant's month for the model, your share of one day, one conversation's month and one answer. The panel names the one that was reached, in the server's words, which say what resets it and who can change it. The assistant never falls back to a cheaper model. A conversation or an answer that reached its own limit has no setting; start a new conversation or ask a narrower question.
+- **Stopped**, with a note that the connection closed before the answer finished. The stream ended without saying how the answer ended, as when a proxy cut it. What was written is kept, and nothing is claimed as finished.
 - **Failed.** The panel says in plain words what could not be done, and gives the request's own reference to copy when it has one, for whoever looks into it. It never shows an error's stack.
 
-At the top of the panel a line says **Within your allowance**. When a limit passes 80 percent it says how much of which limit is used and what happens at the limit, and when one is reached it names it. The server sends the share at which it warned and not a running count, so the line says no more than that.
+The panel says nothing about your allowance until the server does. When a limit passes 80 percent during an answer, a line at the top says how much of which limit is used and what happens at the limit, and when one is reached it names it. Both stay until an answer ends well. The server sends the share at which it warned and not a running count, so the panel shows no more than that.
 
 ## Things that cannot be undone
 
-**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so closing the panel does not delete it: it stays readable to you and to those the first-run notice names.
+**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names.
 
 ## Do the same through the API
 

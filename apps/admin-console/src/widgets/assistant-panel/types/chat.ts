@@ -40,15 +40,26 @@ export type PanelState =
   | { kind: 'connecting' }
   | { kind: 'thinking' }
   | { kind: 'tool'; step: string }
-  | { kind: 'waiting' }
+  // `act`: the conversation is in Act mode, which waits for a card that does not exist yet.
+  | { kind: 'waiting'; act: boolean }
   | { kind: 'stopped' }
   | { kind: 'step-limit' }
   | { kind: 'budget'; level: AssistantBudgetLevel }
   | { kind: 'failed'; failure: Failure }
-  | { kind: 'finished' };
+  | { kind: 'finished' }
+  // The stream closed with no word of how the turn ended.
+  | { kind: 'closed' };
+
+// What the server has said about the allowance, kept until it says otherwise.
+export interface MeterState {
+  warning: AssistantBudgetWarning | null;
+  refused: AssistantBudgetLevel | null;
+  // A warning came in the turn now running.
+  fresh: boolean;
+}
 
 export interface Meter {
-  level: 'within' | 'warning' | 'refused';
+  level: 'warning' | 'refused';
   text: string;
   percent: number | null;
 }

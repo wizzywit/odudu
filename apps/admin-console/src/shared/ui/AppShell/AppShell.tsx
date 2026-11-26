@@ -92,6 +92,7 @@ export function AppShell({
   shortcutsPaused = false,
   assistant,
   assistantPanel,
+  assistantOpen = true,
   children,
 }: {
   rail: ReactNode;
@@ -106,6 +107,8 @@ export function AppShell({
   // the page or laid over it where there is no room to dock.
   assistant?: ReactNode;
   assistantPanel?: ReactNode;
+  // The panel is mounted but closed: it takes no column and draws nothing.
+  assistantOpen?: boolean;
   children: ReactNode;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -148,7 +151,7 @@ export function AppShell({
       <div
         className={styles.frame}
         data-collapsed={railShown ? undefined : true}
-        data-assistant={assistantPanel ? true : undefined}
+        data-assistant={assistantPanel && assistantOpen ? true : undefined}
       >
         <a href="#main" className={styles.skip}>
           Skip to content
@@ -197,7 +200,11 @@ export function AppShell({
             {children}
           </main>
         </div>
-        {assistantPanel ? <div className={styles.dock}>{assistantPanel}</div> : null}
+        {assistantPanel ? (
+          <div className={styles.dock} hidden={!assistantOpen}>
+            {assistantPanel}
+          </div>
+        ) : null}
       </div>
     </div>
   );

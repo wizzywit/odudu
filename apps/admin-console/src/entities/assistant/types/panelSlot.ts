@@ -12,6 +12,8 @@ export interface AssistantPanelSlot {
   title: string;
   closeLabel: string;
   headingRef: RefObject<HTMLHeadingElement | null>;
+  // The panel stays mounted once opened, so a closed one keeps its answer running.
+  open: boolean;
   conversationId: string | null;
   onConversation: (id: string) => void;
   onClose: () => void;

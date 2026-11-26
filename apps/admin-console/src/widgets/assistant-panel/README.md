@@ -15,7 +15,7 @@ The conversation with the assistant, docked beside the page or laid over it.
 ## Rules owned
 
 - **One chat client, here.** `ai` and `@ai-sdk/react` are imported by this
-  widget alone, for the client half of the stream: no key, no model choice.
+  widget's `adapter/` and `repository/` folders alone, for the client half of the stream: no key, no model choice.
   `.dependency-cruiser.cjs` (`ai-sdk-only-in-assistant`) says so.
 - **A turn's end is read from its last part.** The chat client stops reading
   at an error part, so `adapter/deferError.ts` holds that part back until the
@@ -30,7 +30,11 @@ The conversation with the assistant, docked beside the page or laid over it.
   (`services/pageContext.ts`), never as text a person typed.
 - **The meter says what the server said.** The server sends the share of a
   level at which it warned and the level that refused, and no usage figures, so
-  the meter shows only that; it does not estimate.
+  the meter shows only that, and nothing before it has said anything. A
+  warning and a refusal are kept across turns until one ends well.
+- **Kept mounted.** The panel is a lazy chunk, loaded when first opened, and
+  stays mounted when closed, so putting it away never ends an answer; only Stop
+  does (and leaving the tenant shell).
 - **Docked or over the page** follows the shell's own width (`DOCK_MIN_WIDTH`,
   the number the shell's stylesheet asks about). Over the page it is a dialog:
   the page behind is out of reach, Tab stays inside, Escape closes.

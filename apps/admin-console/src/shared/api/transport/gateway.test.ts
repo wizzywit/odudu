@@ -733,6 +733,7 @@ describe('gateway.stream, a response read as it arrives', () => {
     expect(headersOf(calls[0]).get('x-odudu-console')).toBe('1');
     expect(headersOf(calls[0]).get('x-odudu-console-subject')).toBe('s1');
     expect(headersOf(calls[0]).get('content-type')).toBe('application/json');
+    expect(headersOf(calls[0]).get('accept')).toBe('text/event-stream');
   });
 
   it('hands over the response without reading its body', async () => {

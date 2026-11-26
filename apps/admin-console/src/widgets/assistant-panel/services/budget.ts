@@ -5,6 +5,7 @@ import type {
   AssistantBudgetWarning,
   AssistantStopReason,
   Meter,
+  MeterState,
   TurnEnd,
 } from '#/widgets/assistant-panel/types/chat';
 
@@ -74,22 +75,43 @@ export function budgetNote(level: AssistantBudgetLevel, fromServer: string | nul
   return fromServer === null || fromServer.trim() === '' ? NOTES[level] : fromServer;
 }
 
-// The server sends no usage figures yet, only the share of a level at which it
-// warned and the level that refused, so the meter says no more than that.
-export function meterOf(warning: AssistantBudgetWarning | null, turn: TurnEnd | null): Meter {
-  const stopped = turn === null ? undefined : budgetLevelOf(turn.stopReason);
-  if (stopped !== undefined) {
+export const NO_METER: MeterState = { warning: null, refused: null, fresh: false };
+
+export type MeterEvent =
+  | { kind: 'start' }
+  | { kind: 'warning'; warning: AssistantBudgetWarning }
+  | { kind: 'turn'; turn: TurnEnd };
+
+// What the server has said about the allowance, kept across turns: a warning
+// stays until a turn ends well without one, and a refusal until a turn ends
+// well, so sending again never wipes what is still true.
+export function nextMeter(previous: MeterState, event: MeterEvent): MeterState {
+  if (event.kind === 'start') return { ...previous, fresh: false };
+  if (event.kind === 'warning') return { ...previous, warning: event.warning, fresh: true };
+  const level = budgetLevelOf(event.turn.stopReason);
+  if (level !== undefined) return { ...previous, refused: level };
+  if (event.turn.stopReason === 'done') {
+    return { warning: previous.fresh ? previous.warning : null, refused: null, fresh: false };
+  }
+  return previous;
+}
+
+// The server sends the share of a level at which it warned and the level that
+// refused, and no usage figures: so this says that much, and nothing at all
+// when it has said neither.
+export function meterOf(state: MeterState): Meter | null {
+  if (state.refused !== null) {
     return {
       level: 'refused',
-      text: `${PANEL_WORDING.meterRefused}: ${budgetName(stopped)}`,
+      text: `${PANEL_WORDING.meterRefused}: ${budgetName(state.refused)}`,
       percent: null,
     };
   }
-  if (warning === null) return { level: 'within', text: PANEL_WORDING.meterWithin, percent: null };
-  const percent = Math.floor(warning.percent);
+  if (state.warning === null) return null;
+  const percent = Math.floor(state.warning.percent);
   return {
     level: 'warning',
-    text: `${String(percent)}% of ${budgetName(warning.level)} used`,
+    text: `${String(percent)}% of ${budgetName(state.warning.level)} used`,
     percent,
   };
 }
