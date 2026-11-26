@@ -82,6 +82,7 @@ import { and, eq } from 'drizzle-orm';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { type inspectImage } from '@odudu/domain-theme';
 import { adminRoutesForTesting } from '#/index';
+import { type AssistantActivityStore } from '#/usecase/assistant-activity';
 import { type VerifyThrottle } from '#/service/domain-throttle';
 import { type AssistantChatPort } from '#/view/routes/assistant';
 
@@ -303,6 +304,8 @@ export interface AdminFixtureOptions {
   readonly assistantSettings?: AssistantSettingsStore;
   /** The chat port behind the assistant's conversation routes; absent, they answer 404. */
   readonly assistantChat?: AssistantChatPort;
+  /** The store behind the assistant's activity routes; absent, they answer 404. */
+  readonly assistantActivity?: AssistantActivityStore;
 }
 
 function noRecord(): Error {
@@ -425,6 +428,9 @@ export async function startAdminFixture(options: AdminFixtureOptions = {}): Prom
           ? {}
           : { assistantStatus: options.assistantStatus }),
         ...(options.assistantChat === undefined ? {} : { assistantChat: options.assistantChat }),
+        ...(options.assistantActivity === undefined
+          ? {}
+          : { assistantActivity: options.assistantActivity }),
         ...(options.assistantSettings === undefined
           ? {}
           : { assistantSettings: options.assistantSettings }),

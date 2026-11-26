@@ -31,6 +31,7 @@ export interface AssistantActivityStore {
     filters: Filters,
     cursor: string | undefined,
     limit: number,
+    text: boolean,
   ): Promise<ActivityPage | undefined>;
   replay(
     tx: TenantScopedDatabase,
@@ -43,7 +44,7 @@ export interface AssistantActivityStore {
     tenantId: string,
     id: string,
     text: boolean,
-  ): Promise<AssistantPromptfooCase | null>;
+  ): Promise<{ readonly value: AssistantPromptfooCase; readonly person: string } | null>;
   report(
     tx: TenantScopedDatabase,
     input: {
@@ -58,7 +59,7 @@ export interface AssistantActivityStore {
 export interface ReportAuditEvent {
   readonly action: 'assistant.report' | 'assistant.text_read';
   readonly resourceType: 'assistant_conversation';
-  readonly resourceId: string;
+  readonly resourceId: string | null;
   readonly actorSubjectId: string;
   readonly actorTenantId: string;
   readonly actorClientId: string;
@@ -113,6 +114,7 @@ function digestOf(filters: Filters): string {
 }
 
 export interface ListActivityInput {
+  readonly reader: Reader;
   readonly tenantId: string;
   readonly filters: Filters;
   readonly limit: number;
@@ -144,8 +146,30 @@ export async function listAssistantActivity(
     if (decoded.kind === 'invalid') return { kind: 'invalid_cursor' };
     position = decoded.after;
   }
-  const page = await deps.store.list(tx, input.filters, position, input.limit);
+  const text = await auditorsMaySee(deps, tx, input.tenantId);
+  const page = await deps.store.list(tx, input.filters, position, input.limit, text);
   if (page === undefined) return { kind: 'invalid_cursor' };
+  // A title is text: a list that returns one of someone else's is a read of text.
+  const others = page.items.filter(
+    (item) => item.title !== null && !isReader(input.reader, input.tenantId, item.person),
+  );
+  if (text && others.length > 0) {
+    await deps.audit(tx, {
+      action: 'assistant.text_read',
+      resourceType: 'assistant_conversation',
+      resourceId: null,
+      actorSubjectId: input.reader.subjectId,
+      actorTenantId: input.reader.tenantId,
+      actorClientId: input.reader.clientId,
+      outcome: 'allowed',
+      detail: {
+        tenant: input.tenantId,
+        part: 'list',
+        conversations: others.map((item) => item.id),
+        owners: [...new Set(others.map((item) => item.person))],
+      },
+    });
+  }
   const names = await userRepository(tx).usernamesOf([
     ...new Set(page.items.map((item) => item.person)),
   ]);
@@ -167,6 +191,10 @@ export async function listAssistantActivity(
 export type ReadOutcome<T> =
   { readonly kind: 'not_found' } | { readonly kind: 'ok'; readonly value: T };
 
+function isReader(reader: Reader, tenantId: string, person: string): boolean {
+  return reader.tenantId === tenantId && reader.subjectId === person;
+}
+
 // A read that returned text is recorded, in the reader's transaction, unless
 // the reader is the person it belongs to. The record names who read which
 // conversation, whose it is and which part, never the text.
@@ -178,7 +206,7 @@ async function recordTextRead(
   tenantId: string,
   part: 'replay' | 'export',
 ): Promise<void> {
-  if (reader.tenantId === tenantId && reader.subjectId === conversation.person) return;
+  if (isReader(reader, tenantId, conversation.person)) return;
   await deps.audit(tx, {
     action: 'assistant.text_read',
     resourceType: 'assistant_conversation',
@@ -226,13 +254,9 @@ export async function exportAssistantConversation(
   const exported = await deps.store.export(tx, tenantId, id, text);
   if (exported === null) return { kind: 'not_found' };
   if (text) {
-    // The export names its conversation; the owner is whoever the replay's header says.
-    const header = await deps.store.replay(tx, tenantId, id, false);
-    if (header !== null) {
-      await recordTextRead(deps, tx, reader, header.conversation, tenantId, 'export');
-    }
+    await recordTextRead(deps, tx, reader, { id, person: exported.person }, tenantId, 'export');
   }
-  return { kind: 'ok', value: exported };
+  return { kind: 'ok', value: exported.value };
 }
 
 export interface ReportInput {

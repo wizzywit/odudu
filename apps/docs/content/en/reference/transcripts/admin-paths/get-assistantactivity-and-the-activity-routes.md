@@ -23,7 +23,7 @@ GET /admin/tenants/{tenant}/assistant/activity?person=&conversation=&tool=&outco
 The tenant's conversations, newest activity first, each with `person` and `person_username`, `profile`, `mode`, `turns`, `steps`, `tokens`
 by slot (`fast`, `standard`, `deep`), `stop_reason` (how the latest turn ended), `tools` (the names it called, at most 20), `approvals`,
 `reported_at` and `report_old` (reported more than 180 days ago). It is metadata, and a holder of the capability always gets it: the list
-holds no text and is not narrowed by the tenant's **Let auditors read conversation text** setting. `person` and `conversation` narrow by
+holds no conversation text and is not narrowed by the tenant's **Let auditors read conversation text** setting, except for `title`, which is text: a placeholder while the setting is off, and, while it is on, a list that returns a title of someone else's conversation is recorded once as `assistant.text_read` with part `list`. `person` and `conversation` narrow by
 owner and id. `tool`, `outcome` and `kind` (`approval`, `budget_refusal` or `tool_error`) look inside each conversation, at no more than
 1,000 conversations a request, so a page they do not fill is returned short, even empty, with `next`, and the `Link` header names the
 next page. `limit` is at most 200, and an unknown parameter or a value outside its range is refused `400`.

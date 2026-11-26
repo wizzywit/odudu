@@ -8,6 +8,8 @@ import {
   type AssistantPromptfooCase,
 } from '@odudu/contracts/admin';
 
+import { isToolName } from '#/service/activity-view';
+
 type Replay = AssistantActivityReplay;
 
 export const CASE_CONTAINS = [
@@ -15,10 +17,12 @@ export const CASE_CONTAINS = [
   'each tool the assistant called and the input it gave, as the trace holds it',
   'the answer text of each turn, as the trace holds it',
   'why each turn stopped',
+  'the person’s latest 100 messages and the conversation’s latest 25 turns, and how many turns that left out (`turns_omitted`); the prompt is the first of those messages',
 ] as const;
 
 export const CASE_CONTAINS_HIDDEN = [
   'the tools the assistant called, by name, and why each turn stopped',
+  'the conversation’s latest 25 turns and how many it left out (`turns_omitted`)',
   'a placeholder where the person’s messages, the tool inputs and the answers were: this tenant has not let auditors read the text',
 ] as const;
 
@@ -27,6 +31,7 @@ export const CASE_EXCLUDES = [
   'what the tools returned',
   'the model’s reasoning',
   'the provider key and the headers of any request',
+  'secrets learned from what a tool returned: the person’s messages are masked when exported, with the tenant’s current email setting, and the trace was masked when it was recorded',
 ] as const;
 
 function stringOf(value: unknown): string | null {
@@ -53,7 +58,9 @@ export function promptfooCaseOf(replay: Replay, asked: readonly string[]): Assis
       .filter((event) => event.kind === 'tool_call')
       .flatMap((event) => {
         const tool = stringOf(event.payload.tool);
-        return tool === null ? [] : [{ tool, input: event.payload.input ?? null }];
+        return tool === null || !isToolName(tool)
+          ? []
+          : [{ tool, input: event.payload.input ?? null }];
       }),
   );
   return {
@@ -70,6 +77,7 @@ export function promptfooCaseOf(replay: Replay, asked: readonly string[]): Assis
       version: PROMPTFOO_CASE_VERSION,
       conversation: conversation.id,
       turns: replay.turns.length,
+      turns_omitted: replay.turns_omitted,
       contains: shown ? [...CASE_CONTAINS] : [...CASE_CONTAINS_HIDDEN],
       excludes: [...CASE_EXCLUDES],
       observed: {

@@ -2,6 +2,7 @@
 // here reads the database or the clock.
 import {
   ACTIVITY_TOOLS_MAX,
+  ASSISTANT_TOOL_NAME_PATTERN,
   REPORTED_OLD_DAYS,
   assistantApprovalCardSchema,
   assistantStopReasonSchema,
@@ -20,7 +21,7 @@ import type {
   TurnRow,
 } from '#/service/activity-rows';
 import { cutText } from '#/service/cut';
-import { withholdEvent } from '#/service/withhold-text';
+import { TEXT_WITHHELD, withholdEvent } from '#/service/withhold-text';
 
 type Replay = AssistantActivityReplay;
 type ReplayTurn = Replay['turns'][number];
@@ -38,12 +39,19 @@ export function stopReasonOf(value: string | null): AssistantStopReason | null {
 
 const DAY_MS = 86_400_000;
 
+// A tool name is the model's to write until it matches the catalogue's spelling.
+export function isToolName(name: string): boolean {
+  return ASSISTANT_TOOL_NAME_PATTERN.test(name);
+}
+
 export interface SummaryParts {
   readonly turns: TurnAggregate | undefined;
   readonly slots: SlotTokens | undefined;
   readonly tools: readonly string[] | undefined;
   readonly approvals: number | undefined;
   readonly now: Date;
+  /** Whether the tenant lets auditors read text, which a title is. */
+  readonly text: boolean;
 }
 
 export function summaryOf(
@@ -57,14 +65,14 @@ export function summaryOf(
     person_username: null,
     profile: row.profile,
     mode: row.mode === 'act' ? 'act' : 'ask',
-    title: row.title,
+    title: parts.text || row.title === null ? row.title : TEXT_WITHHELD,
     started_at: row.createdAt.toISOString(),
     last_active_at: row.lastActiveAt.toISOString(),
     turns: parts.turns?.turns ?? 0,
     steps: parts.slots?.steps ?? 0,
     tokens: { fast: tokens.fast ?? 0, standard: tokens.standard ?? 0, deep: tokens.deep ?? 0 },
     stop_reason: stopReasonOf(parts.turns?.lastStop ?? null),
-    tools: (parts.tools ?? []).slice(0, ACTIVITY_TOOLS_MAX),
+    tools: (parts.tools ?? []).filter(isToolName).slice(0, ACTIVITY_TOOLS_MAX),
     approvals: parts.approvals ?? 0,
     reported_at: row.reportedAt?.toISOString() ?? null,
     report_old:
@@ -145,7 +153,8 @@ export function whyStoppedOf(
     case 'step_cap':
       return `The turn reached its limit of ${String(steps.length)} model calls and stopped.`;
     case 'awaiting_approval': {
-      const tool = textOf(recordOf(lastEvent(events, 'policy')?.payload).tool);
+      const named = textOf(recordOf(lastEvent(events, 'policy')?.payload).tool);
+      const tool = named !== null && isToolName(named) ? named : null;
       return `A change${tool === null ? '' : ` (${tool})`} waited for the person’s decision.`;
     }
     case 'budget_turn':
@@ -230,14 +239,14 @@ export function replayConversationOf(row: ActivityConversationRow): Replay['conv
   };
 }
 
-export function replayApprovalOf(row: ApprovalRow): ReplayApproval {
+export function replayApprovalOf(row: ApprovalRow, text: boolean): ReplayApproval {
   const card = cardWords.safeParse(row.card);
   return {
     id: row.id,
     tool_call_id: row.toolCallId,
     tool: row.tool,
     title: card.success ? card.data.title : null,
-    target: card.success ? targetText(card.data.target) : null,
+    target: card.success && text ? targetText(card.data.target) : null,
     state: row.state as ReplayApproval['state'],
     decided_at: row.decidedAt?.toISOString() ?? null,
   };

@@ -671,7 +671,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   ),
   'Privacy and records': page(ASSISTANT, "privacy: 'Privacy and records'"),
   'Mask email addresses': page(ASSISTANT, "label: 'Mask email addresses'"),
-  'Let auditors read conversation text': page(ASSISTANT, "label: 'Let auditors read conversation text'"),
+  'Let auditors read conversation text': page(
+    ASSISTANT,
+    "label: 'Let auditors read conversation text'",
+  ),
   'Keep traces for': page(ASSISTANT, "label: 'Keep traces for'"),
   Limits: page(ASSISTANT, "limits: 'Limits'"),
   'Fast model, each month': page(ASSISTANT, "label: 'Fast model, each month'"),

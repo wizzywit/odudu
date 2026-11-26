@@ -1361,7 +1361,8 @@ describeFields(assistantActivityConversationSchema, {
   person_username: 'That person’s username, or null when they have none or are gone.',
   profile: 'The kind of conversation it was started as.',
   mode: 'The mode it is in now: `ask` reads only, `act` may also propose changes.',
-  title: 'A short title once it has one, otherwise null.',
+  title:
+    'A short title once it has one, otherwise null. A title is text: where the tenant has not let auditors read text it is replaced by a placeholder, and where it has, a list that returns one is recorded as `assistant.text_read`.',
   started_at: 'When it was started.',
   last_active_at: 'When it last took a message. Retention counts idleness from here.',
   turns: 'How many turns the trace holds for it.',
@@ -1370,8 +1371,7 @@ describeFields(assistantActivityConversationSchema, {
   stop_reason:
     'Why the latest turn ended, or null for a conversation with no turn, a turn still running or one whose reason is not recorded.',
   tools: 'The distinct tools it called, in name order, at most 20.',
-  report_old:
-    'True for a conversation reported more than 180 days ago, which nothing removes.',
+  report_old: 'True for a conversation reported more than 180 days ago, which nothing removes.',
   approvals: 'How many changes the assistant proposed in it for approval.',
   reported_at:
     'When a person reported it, or null. A reported conversation is kept past retention.',
@@ -1477,6 +1477,7 @@ describeFields(assistantPromptfooMetadataSchema, {
   version: 'The version of this shape, 1.',
   conversation: 'The id of the conversation the case was made from.',
   turns: 'How many turns the case covers: the conversation’s latest 25.',
+  turns_omitted: 'How many earlier turns the conversation has that the case leaves out.',
   contains: 'What the case holds, in words.',
   excludes: 'What the case leaves out, in words.',
   observed: 'What the assistant did in those turns.',

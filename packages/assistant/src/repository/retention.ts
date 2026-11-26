@@ -14,9 +14,9 @@ const notReported = (alias: string, column: string): SQL => sql`not exists (
      and c.id = ${sql.raw(alias)}.${sql.raw(column)}
      and c.reported_at is not null)`;
 
-// The oldest turns first, through assistant_turns_started. The reported
-// conversations' own turns are skipped, and there are at most as many of those
-// as the cap on reported conversations allows.
+// The oldest turns first, through assistant_turns_started. The turns of a
+// reported conversation are skipped, and each round reads them again: the cost
+// is those turns, however many a reported conversation has.
 export function pruneTurnsStatement(before: Date, batch: number): SQL {
   return sql`
     delete from assistant_turns
@@ -51,7 +51,8 @@ export function pruneConversationsStatement(before: Date, batch: number): SQL {
           and c.reported_at is null
           and c.last_active_at < ${before.toISOString()}::timestamptz
         order by c.last_active_at
-        limit ${batch})`;
+        limit ${batch})
+       and reported_at is null`;
 }
 
 export function retentionRepository(tx: AssistantTx) {

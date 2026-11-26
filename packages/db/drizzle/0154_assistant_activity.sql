@@ -25,6 +25,11 @@ CREATE INDEX IF NOT EXISTS assistant_events_tool_calls
   ON assistant_events (tenant_id, turn_id, (payload ->> 'tool'))
   WHERE kind = 'tool_call';
 
+-- The turns that had a tool fail, for the list's kind filter; rare, so small.
+CREATE INDEX IF NOT EXISTS assistant_events_tool_errors
+  ON assistant_events (tenant_id, turn_id)
+  WHERE kind = 'tool_error';
+
 -- Retention takes cards by age.
 CREATE INDEX IF NOT EXISTS assistant_approvals_created
   ON assistant_approvals (tenant_id, created_at);

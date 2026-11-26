@@ -80,7 +80,7 @@ export const ASSISTANT_SECTION: SettingsSection = {
       label: 'Let auditors read conversation text',
       control: 'toggle',
       group: ASSISTANT_WORDS.groups.privacy,
-      description: `People who can read assistant activity always see who used the assistant, when, which tools it called, the tokens it used and how each answer ended. This also lets them read what was asked and answered, and what the tools were given and returned; each such read is recorded and the person it belongs to can see it. ${defaultOnOff('assistant_auditor_visible')}`,
+      description: `People who can read assistant activity always see who used the assistant, when, which tools it called, the tokens it used and how each answer ended. This also lets them read what was asked and answered, and what the tools were given and returned; each such read is recorded in the audit trail (action assistant.text_read). ${defaultOnOff('assistant_auditor_visible')}`,
     },
     {
       name: 'assistant_trace_retention_days',

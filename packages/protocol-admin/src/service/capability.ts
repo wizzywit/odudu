@@ -2264,8 +2264,10 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'The tenant\u2019s assistant conversations, newest activity first, each with its person, ' +
       'mode, turns, steps, tokens by model slot, why the latest turn stopped, the tools it ' +
       'called, the changes it proposed and whether it is reported (`report_old` for one reported ' +
-      'more than 180 days ago). This is metadata, and a holder of the capability always gets it; ' +
-      'it holds no text. `person` and `conversation` narrow by owner and id; `tool`, `outcome` ' +
+      'more than 180 days ago). This is metadata, and a holder of the capability always gets it. ' +
+      'A conversation\u2019s title is text: it is a placeholder unless the tenant\u2019s **Let auditors read ' +
+      'conversation text** setting is on, and a list that then returns a title of someone else\u2019s ' +
+      'conversation is audited once as `assistant.text_read` with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` ' +
       '(the latest turn\u2019s stop reason) and `kind` (`approval`, `budget_refusal` or ' +
       '`tool_error`) look inside each conversation, and look at no more than 1,000 conversations ' +
       'a request, so a page they do not fill is returned short, even empty, with `next` to carry ' +

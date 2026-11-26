@@ -397,6 +397,11 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     roadmap: string[] | string,
   ])[] = [
     [
+      'Telling a person that someone read',
+      ['P5c'],
+      'work inside P5c, whose console assistant row already places the assistant screens',
+    ],
+    [
       'Twelve administrative capabilities',
       ['P7'],
       'carried by the gap-audit capability check above',

@@ -295,6 +295,7 @@ export function activityRepository(tx: AssistantTx) {
           from assistant_events e
           join assistant_turns t on t.tenant_id = e.tenant_id and t.id = e.turn_id
          where e.tenant_id = ${TENANT} and e.kind = 'tool_call'
+           and e.payload ->> 'tool' ~ '^[a-z][a-z0-9_]{0,63}$'
            and t.conversation_id = any(${idList(ids)})
          group by t.conversation_id`);
       return new Map(rows.map((row) => [row.conversation_id, row.tools]));

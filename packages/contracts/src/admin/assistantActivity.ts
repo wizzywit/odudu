@@ -191,6 +191,7 @@ export const assistantPromptfooMetadataSchema = z.strictObject({
   version: z.literal(PROMPTFOO_CASE_VERSION),
   conversation: idSchema,
   turns: z.number().int().nonnegative(),
+  turns_omitted: z.number().int().nonnegative(),
   contains: z.array(z.string()),
   excludes: z.array(z.string()),
   observed: assistantPromptfooObservedSchema,

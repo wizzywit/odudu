@@ -73,7 +73,7 @@ function parts(deps: AssistantActivityRouteDeps) {
 }
 
 export function listAssistantActivityHandler(deps: AssistantActivityRouteDeps): AdminRouteHandler {
-  return async (request, reply, _principal, tenantId) => {
+  return async (request, reply, principal, tenantId) => {
     const wired = parts(deps);
     if (wired === undefined) return notServed(request, reply);
     const parsed = listAssistantActivityQuerySchema.safeParse(request.query);
@@ -81,7 +81,13 @@ export function listAssistantActivityHandler(deps: AssistantActivityRouteDeps): 
     const { cursor, limit: rawLimit, ...filters } = parsed.data;
     const limit = coerceLimit(rawLimit === undefined ? undefined : String(rawLimit));
     const outcome = await adminTx(deps.database, request, tenantId, (tx) =>
-      listAssistantActivity(wired, tx, { tenantId, filters, limit, cursor }),
+      listAssistantActivity(wired, tx, {
+        reader: readerOf(principal),
+        tenantId,
+        filters,
+        limit,
+        cursor,
+      }),
     );
     if (outcome.kind === 'invalid_cursor') return sendProblem(reply, request, cursorProblem());
     const body: ListAssistantActivityResponse = { items: outcome.items };

@@ -41,6 +41,7 @@ async function summaries(
   repository: Repository,
   rows: readonly ActivityConversationRow[],
   now: Date,
+  text: boolean,
 ): Promise<AssistantActivityConversation[]> {
   const ids = rows.map((row) => row.id);
   const turns = await repository.turnAggregates(ids);
@@ -54,6 +55,7 @@ async function summaries(
       tools: tools.get(row.id),
       approvals: approvals.get(row.id),
       now,
+      text,
     }),
   );
 }
@@ -68,6 +70,7 @@ export async function listActivity(
   query: Omit<ListAssistantActivityQuery, 'cursor' | 'limit'>,
   cursor: string | undefined,
   limit: number,
+  text: boolean,
 ): Promise<ActivityList | undefined> {
   let after: ActivityPosition | undefined;
   if (cursor !== undefined) {
@@ -77,7 +80,7 @@ export async function listActivity(
   const repository = activityRepository(tx);
   const page = await repository.page(query, after, limit);
   return {
-    items: await summaries(repository, page.items, new Date()),
+    items: await summaries(repository, page.items, new Date(), text),
     next: page.next === null ? null : encodePosition(page.next),
   };
 }
@@ -130,7 +133,7 @@ export async function replayConversation(
       ),
     ),
     turns_omitted: Math.max(0, latest.total - turns.length),
-    approvals: approvals.map(replayApprovalOf),
+    approvals: approvals.map((row) => replayApprovalOf(row, text)),
     text_visible: text,
   };
 }
@@ -140,14 +143,17 @@ export async function exportPromptfoo(
   tenantId: string,
   id: string,
   text: boolean,
-): Promise<AssistantPromptfooCase | null> {
+): Promise<{ readonly value: AssistantPromptfooCase; readonly person: string } | null> {
   const replay = await replayConversation(tx, tenantId, id, text);
   return replay === null
     ? null
-    : promptfooCaseOf(
-        replay,
-        replay.asked.map((m) => m.text),
-      );
+    : {
+        value: promptfooCaseOf(
+          replay,
+          replay.asked.map((m) => m.text),
+        ),
+        person: replay.conversation.person,
+      };
 }
 
 export type ReportOutcome =

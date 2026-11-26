@@ -326,7 +326,7 @@ a phase note.
 - **Telling a person that someone read their assistant conversation's text, and un-reporting a conversation** (2026-11-26): every read of text by
   another person is audited as `assistant.text_read` with the owner named, so the reads can be listed for the owner, but the console notice and
   the mail, and an owner-scoped list of reads, belong to the conversation-list increment of **P5c**. The report cap (100) has no release: a
-  route that un-reports belongs to the activity screen of **P5c**.
+  route that un-reports belongs to the activity screen of **P5c**. Until then a holder of `read-assistant-activity` can report others' conversations without reading their text and so fill a tenant's 100 places, after which owners are refused with `409` for their own: reporting is audited as `assistant.report`, which is how it is found.
 - **Twelve administrative capabilities a gap audit against mature identity
   providers found the server lacking** (2026-09-29): more required actions,
   several sign-in flows, per-step authenticator settings and a
