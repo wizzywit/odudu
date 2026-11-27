@@ -59,7 +59,7 @@ API's OpenAPI document and nine examples, none published yet (the owner's
 checklist is in `RELEASING.md`). What it found and placed is in
 [`docs/phases/p4i.md`](phases/p4i.md); the licence rule is ADR 0053.
 
-**What is next, in this order: P4h, P5c, P5b**, then the
+**What is next, in this order: P4h, P5c, P5d, P5b**, then the
 phases the roadmap page lists as "Later", P6 to P14. The letters do not read
 in execution order. P4h is
 console localization ([ADR 0043](adr/0043-localization-is-a-catalogue-a-negotiation-and-a-set-of-owners.md)).
@@ -175,6 +175,11 @@ P5c, **a console assistant**, is [specified](superpowers/specs/2026-11-24-p5c-co
 - **Operator view.** The console's Agents area and the admin routes already list and end the assistant's runs, whatever starts them.
 
 The assistant's own token budgets, provider layer and screens are its spec's; nothing here places them.
+
+Act's write surface, widened on 2026-11-27 from 12 writes to every console write but a human-only
+set, is [ADR 0061](adr/0061-the-assistants-write-surface-tiers-human-only-operations-and-the-coverage-guard.md)
+and [its plan](superpowers/plans/2026-11-27-p5c-act-surface.md); its first increment waits for cross-tenant Act to merge. What
+the plan cannot do yet (a secret reveal channel, tenant create and import, admin-reach changes, sessions without the caller) is P5d's.
 
 ## What P5b inherits
 
