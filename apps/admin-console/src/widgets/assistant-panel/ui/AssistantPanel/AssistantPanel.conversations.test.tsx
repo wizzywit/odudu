@@ -24,18 +24,23 @@ const ASSISTANT = `${ACME_ADMIN}/assistant`;
 const LAST = `${ASSISTANT}/last-conversation`;
 const GET_LAST = `GET ${LAST}`;
 
+// Midday, so "Today" and "Yesterday" hold at any hour the suite runs.
+const NOW = new Date(2026, 10, 20, 12, 0, 0).getTime();
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
   window.localStorage.clear();
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   resetConsole();
   vi.unstubAllGlobals();
   window.localStorage.clear();
   saved.mockReset();
 });
 
-const NOW = Date.now();
 const ago = (minutes: number): string => new Date(NOW - minutes * 60_000).toISOString();
 
 function summary(id: string, title: string | null, extra: Record<string, unknown> = {}) {
