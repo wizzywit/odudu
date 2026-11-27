@@ -11,6 +11,7 @@ import {
   clientRepository,
   isSystemTenantId,
   readAgentSettings,
+  type AgentSettings,
 } from '@odudu/domain-tenant';
 import {
   callMcpTool,
@@ -145,12 +146,29 @@ const LOCK_WAIT_MS = '3000';
 const ENDED =
   'The grant behind this token is gone or was revoked: ask the person to sign in again.';
 
+// The smaller of two limits: the stricter of two tenants' settings applies.
+export function stricterWriteLimits(
+  own: Pick<AgentSettings, 'agentWritesPerGrant' | 'agentCreatesPerGrant' | 'agentWindowWrites'>,
+  other: typeof own | null,
+): typeof own {
+  if (other === null) return own;
+  return {
+    agentWritesPerGrant: Math.min(own.agentWritesPerGrant, other.agentWritesPerGrant),
+    agentCreatesPerGrant: Math.min(own.agentCreatesPerGrant, other.agentCreatesPerGrant),
+    agentWindowWrites: Math.min(own.agentWindowWrites, other.agentWindowWrites),
+  };
+}
+
+// `alsoLimitedBy` names a second tenant whose limits apply as well, for a
+// system administrator's change in another tenant: the counters stay the
+// grant's own tenant's, and each limit is the smaller of the two tenants'.
 export function grantWriteBudget(
   database: DatabaseHandle,
   token: Pick<ValidatedMcpToken, 'tenant' | 'grantId'>,
   request?: RequestContext,
   logger?: Pick<PinoLogger, 'info'>,
   clock: () => Date = () => new Date(),
+  alsoLimitedBy?: string,
 ): WriteBudget {
   // The time each held reservation was spent at, so a release lands in the
   // daily window that was charged even when midnight UTC has passed since.
@@ -173,14 +191,20 @@ export function grantWriteBudget(
     };
   };
   return {
-    reserve: (kind) =>
-      withTenant(
+    reserve: async (kind) => {
+      const other =
+        alsoLimitedBy === undefined
+          ? null
+          : await withTenant(database.db, alsoLimitedBy, (tx) =>
+              readAgentSettings(tx, alsoLimitedBy),
+            );
+      return withTenant(
         database.db,
         token.tenant.id,
         async (tx) => {
           await tx.execute(sql`select set_config('lock_timeout', ${LOCK_WAIT_MS}, true)`);
           const keys = await keysOf(tx);
-          const settings = await readAgentSettings(tx, token.tenant.id);
+          const settings = stricterWriteLimits(await readAgentSettings(tx, token.tenant.id), other);
           const now = clock();
           const outcome = await agentBudgetRepository(tx).spend({
             ...keys,
@@ -210,7 +234,8 @@ export function grantWriteBudget(
           return false;
         },
         request,
-      ),
+      );
+    },
     release: (kind) =>
       withTenant(
         database.db,

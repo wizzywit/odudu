@@ -186,3 +186,16 @@ export async function targetOffersAct(deps: ChatDeps, caller: ChatCaller): Promi
   if (!crossTenant(caller)) return true;
   return (await targetSide(deps, actsInTenantOf(caller))).modes.includes('act');
 }
+
+/**
+ * Whether a change may still be made in Act: the caller's own tenant and, in
+ * another tenant, that tenant offer it now. Asked again when an approved
+ * change is about to be spent, since either tenant may have dropped Act since
+ * the person approved.
+ */
+export async function actStillOffered(deps: ChatDeps, caller: ChatCaller): Promise<boolean> {
+  const own = await deps.transact(caller.tenantId, async (tx) =>
+    (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId),
+  );
+  return own.modes.includes('act') && (await targetOffersAct(deps, caller));
+}

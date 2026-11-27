@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { conversationRepository } from '#/repository/conversations';
 import { limitsFromSettings, type Entitlements } from '#/service/entitlements';
+import { actStillOffered } from '#/usecase/approvals';
 import { writeSettings } from '#/usecase/settings';
 import type { TurnStart } from '#/service/turn-summary';
 import type { ApprovalPorts } from '#/usecase/chat-deps';
@@ -338,6 +339,24 @@ describe('Act in another tenant', () => {
     });
     expect(await chat.setMode(callerOf(w, 'y'), id, 'act')).toEqual({ kind: 'not_found' });
     expect(await chat.setMode(callerOf(w), id, 'act')).toEqual({ kind: 'not_found' });
+  });
+
+  it('is asked again when an approved change is spent, and stops once either tenant dropped Act', async () => {
+    const w = await world();
+    let modes: Record<string, readonly ('ask' | 'act')[]> = {};
+    const both = ['ask', 'act'] as const;
+    modes = { [w.home]: both, [w.x]: both };
+    const deps = {
+      transact: (tenantId: string, fn: Parameters<ChatDeps['transact']>[1]) =>
+        withTenant(app.db, tenantId, fn),
+      entitlements: entitled((tenant) => modes[tenant] ?? both),
+    } as unknown as ChatDeps;
+    expect(await actStillOffered(deps, callerOf(w, 'x'))).toBe(true);
+    modes = { [w.home]: both, [w.x]: ['ask'] };
+    expect(await actStillOffered(deps, callerOf(w, 'x'))).toBe(false);
+    expect(await actStillOffered(deps, callerOf(w))).toBe(true);
+    modes = { [w.home]: ['ask'], [w.x]: both };
+    expect(await actStillOffered(deps, callerOf(w, 'x'))).toBe(false);
   });
 
   it('runs a turn in Act, and falls back to Ask once the target stops offering it', async () => {

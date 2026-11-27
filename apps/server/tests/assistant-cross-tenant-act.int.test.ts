@@ -214,9 +214,9 @@ async function resume(chat: Chat, caller: ChatCaller, id: string): Promise<strin
 
 // An operator, a target with a role to change, and an Act conversation in the
 // target that has proposed changing it.
-async function proposed(description = 'New text') {
-  const operator = await consoleSystemWorld(s().appDb, BASE, OPERATOR);
-  const target = await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES);
+async function proposed(description = 'New text', again?: { operator: World; target: World }) {
+  const operator = again?.operator ?? (await consoleSystemWorld(s().appDb, BASE, OPERATOR));
+  const target = again?.target ?? (await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES));
   const decoy = await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES);
   const role = await seedRole(target, 'Old text');
   const decoyRole = await seedRole(decoy, 'Old text');
@@ -273,7 +273,7 @@ describe('an approved change in another tenant', () => {
     const decisions = await rows<{ detail: Record<string, unknown> }>(
       sql`select detail from audit_events
            where tenant_id = ${operator.tenantId} and action = 'assistant.approval'
-             and detail->>'conversation' = ${id}`,
+             and detail->>'conversation' = ${id} and detail->>'state' = 'approved'`,
     );
     expect(decisions).toHaveLength(1);
     expect(decisions[0]?.detail).toMatchObject({
@@ -308,6 +308,22 @@ describe('an approved change in another tenant', () => {
     // The turns are the administrator's own record and are not copied there.
     expect(inTarget.map((row) => row.action)).not.toContain('assistant.turn');
     expect(inTarget.length).toBeGreaterThan(1);
+    // The administrator's own trail holds what came of it, naming both tenants.
+    const outcomes = await rows<{ outcome: string; detail: Record<string, unknown> }>(
+      sql`select outcome, detail from audit_events
+           where tenant_id = ${operator.tenantId} and action = 'assistant.approval'
+             and detail->>'conversation' = ${id} and detail->>'state' = 'executed'`,
+    );
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({
+      outcome: 'allowed',
+      detail: {
+        tenant: operator.tenantId,
+        target_tenant: target.tenantId,
+        tool: 'update_role_description',
+        approval: card?.approval_id,
+      },
+    });
     expect(new Set(inTarget.map((row) => row.actor_tenant_id))).toEqual(
       new Set([operator.tenantId]),
     );
@@ -421,5 +437,106 @@ describe('the write grant of another tenant', () => {
       'target_assistant_disabled',
     );
     expect(await writeGrants(operator.tenantId, operator.subjectId)).toEqual([]);
+  });
+});
+
+async function settle(world: Awaited<ReturnType<typeof proposed>>) {
+  const { chat, caller, id, card } = world;
+  await chat.answerApproval(caller, id, card?.approval_id ?? '', true);
+  return resume(chat, caller, id);
+}
+
+describe('the limits of the tenant a change lands in', () => {
+  it('refuse a second approved change once the target’s window is spent, though the home tenant allows it', async () => {
+    const operator = await consoleSystemWorld(s().appDb, BASE, OPERATOR);
+    const target = await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES);
+    await s().owner.db.execute(
+      sql`update tenants set agent_window_writes = 1 where id = ${target.tenantId}`,
+    );
+    const first = await proposed('First', { operator, target });
+    await settle(first);
+    expect(await roleDescription(target, first.role.id)).toBe('First');
+
+    const second = await proposed('Second', { operator, target });
+    await settle(second);
+    expect(await roleDescription(target, second.role.id)).toBe('Old text');
+    const outcomes = await rows<{ outcome: string; state: string }>(
+      sql`select outcome, detail->>'state' as state from audit_events
+           where tenant_id = ${operator.tenantId} and action = 'assistant.approval'
+             and detail->>'approval' = ${second.card?.approval_id ?? ''}
+             and detail->>'state' in ('executed', 'failed')`,
+    );
+    expect(outcomes).toEqual([{ outcome: 'failed', state: 'failed' }]);
+    expect(await writeGrants(operator.tenantId, operator.subjectId)).toEqual([
+      { target_tenant_id: target.tenantId, revoked: true },
+      { target_tenant_id: target.tenantId, revoked: true },
+    ]);
+  });
+});
+
+describe('the target’s record of an approval', () => {
+  async function blockTargetApprovalRows(tenantId: string): Promise<void> {
+    await s().owner.db.execute(
+      sql.raw(`
+        create or replace function xt_block_approval() returns trigger language plpgsql as $$
+        begin
+          if new.action = 'assistant.approval' and new.tenant_id = '${tenantId}' then
+            raise exception 'blocked for the test';
+          end if;
+          return new;
+        end $$;
+        drop trigger if exists xt_block_approval on audit_events;
+        create trigger xt_block_approval before insert on audit_events
+          for each row execute function xt_block_approval();`),
+    );
+  }
+
+  it('stops the change when it cannot be written, and the change is not made', async () => {
+    const world = await proposed();
+    await blockTargetApprovalRows(world.target.tenantId);
+    try {
+      await settle(world);
+    } finally {
+      await s().owner.db.execute(sql`drop trigger if exists xt_block_approval on audit_events`);
+    }
+    expect(await roleDescription(world.target, world.role.id)).toBe('Old text');
+    expect(await writeGrants(world.operator.tenantId, world.operator.subjectId)).toEqual([
+      { target_tenant_id: world.target.tenantId, revoked: true },
+    ]);
+    const inTarget = await rows<{ n: number }>(
+      sql`select count(*)::int as n from audit_events
+           where tenant_id = ${world.target.tenantId} and action = 'agent.tool_call'
+             and detail->>'tool' = 'update_role_description'`,
+    );
+    expect(inTarget[0]?.n).toBe(0);
+  });
+});
+
+describe('a caller that may not act in the named tenant', () => {
+  it('is refused and leaves no row in either tenant, for a tenant administrator and a mismatched name', async () => {
+    const local = await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES);
+    const other = await consoleWorld(s().appDb, BASE, TENANT_CAPABILITIES);
+    const chat = chatFor(scripted([answer('x')]));
+    const page = { route: '/roles' };
+    expect(
+      await chat.create(callerOf(local, other), { mode: 'act', page_context: page }),
+    ).toMatchObject({ kind: 'access_refused', reason: 'target_not_allowed' });
+
+    const operator = await consoleSystemWorld(s().appDb, BASE, OPERATOR);
+    const named = callerOf(operator, other, {
+      target: { id: other.tenantId, name: 'not-its-name' },
+    });
+    expect(await chat.create(named, { mode: 'act', page_context: page })).toMatchObject({
+      kind: 'access_refused',
+      reason: 'target_unavailable',
+    });
+    for (const w of [local, other]) {
+      expect(await approvals(w)).toEqual([]);
+      const found = await rows<{ n: number }>(
+        sql`select count(*)::int as n from audit_events
+             where tenant_id = ${w.tenantId} and action = 'assistant.approval'`,
+      );
+      expect(found[0]?.n).toBe(0);
+    }
   });
 });

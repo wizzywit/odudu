@@ -149,11 +149,18 @@ administrator's tenant, decided only by the administrator's own console sign-in 
 
 The approval's digest gains the target tenant when there is one, so an approval cannot be
 spent for a call at another tenant; an own-tenant digest is unchanged. `assistant.approval`
-carries `target_tenant`, and an approved decision is also written to the target's trail (the
-administrator as actor, the system tenant as actor tenant, the approval, the tool and the
-state, never the conversation or any text), because it authorises a change there. Where the
-write of that row fails the decision stands and the failure is logged, as for a tool call's own
-row.
+carries `target_tenant`. When the approved change is spent, an `assistant.approval` row is
+also written to the target's trail (the administrator as actor, the system tenant as actor
+tenant, the approval, the tool, never the conversation or any text), because it authorises a
+change there; the change does not run if that row cannot be written. What came of it
+(`executed` or `failed`) is a further `assistant.approval` row in the administrator's own
+trail, naming the tool and the target, since the tool call itself is in the target's.
+
+The write counts of the change (`agent_writes_per_grant`, `agent_creates_per_grant`,
+`agent_window_writes`) are the smaller of the two tenants' settings, so a target that limits
+agent writes limits a system administrator's approved writes too; the counters stay rows of
+the administrator's tenant. Act is asked of both tenants again when the approved change is
+spent, so a tenant that dropped Act after the approval stops it with nothing spent.
 
 Act is offered in another tenant only where both tenants offer it: `setConversationMode` and
 `createConversation` read the target's limits in a transaction of its own, and a refusal for

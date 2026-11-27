@@ -28,7 +28,7 @@ import {
   turnEndChunk,
 } from '#/service/stream-parts';
 import type { TurnRegistry } from '#/service/turn-registry';
-import { cardView, settleLastMessage, withdrawPending } from '#/usecase/approvals';
+import { actStillOffered, cardView, settleLastMessage, withdrawPending } from '#/usecase/approvals';
 import { createTurnBudget } from '#/usecase/budget-hooks';
 import {
   DEFAULT_TURN_DEADLINE_MS,
@@ -303,8 +303,9 @@ function turnApprovals(
         }),
       };
     },
-    write: (tool, input, context) =>
-      ports.write(
+    write: async (tool, input, context) => {
+      if (!(await actStillOffered(deps, caller))) return { kind: 'not_approved' };
+      return ports.write(
         caller,
         {
           conversationId: id,
@@ -329,7 +330,8 @@ function turnApprovals(
           const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
           return card?.tool === tool ? card.approvalId : undefined;
         },
-      ),
+      );
+    },
   };
 }
 
