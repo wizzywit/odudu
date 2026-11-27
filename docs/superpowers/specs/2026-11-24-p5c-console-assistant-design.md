@@ -253,6 +253,12 @@ built-in client or the conversation's own grant is X.
 - `POST ~/theme/assets` (a raw image body) and the two verified-claim fields of a subject's
   profile (only the mail flow sets them). No.
 
+The audit trail is read, not withheld (owner, 2026-11-27): `list_audit` and `count_audit` are
+offered to a person who holds `view-audit`, and the server removes the assistant's own record
+(its client, grant and instances, and every `assistant.*` event) from both the list and the
+count, so section 5.8's rule that it cannot read its own audit holds without hiding the
+trail; the audit export stays refused. The Audit profile's "Explain this event" uses them.
+
 A human-only or not-yet write is never a bare refusal (owner, 2026-11-27; ADR 0061's
 amendment). Each such entry has a guidance record, kept in the registry that holds the entry:
 console area and route, the exact control names in order, three to seven steps, the
@@ -526,10 +532,10 @@ applies.
 11. The write surface of section 5.3a and the reads' accounting, in the plan
     `2026-11-27-p5c-act-surface.md`: W0 to W6 (door, tiers, the tools), W0b and W0c (the
     guidance for what a person does themselves), R1a and R1b (reads, assistant exclusions,
-    injection coverage) and F1 (prefilled drafts of the human-only creates). 77 hours. The
+    injection coverage), R1c (the audit reads without the assistant's own record) and F1 (prefilled drafts of the human-only creates). 82 hours. The
     activity follow-up I18b (un-report) adds 4 and two guidance goldens in the eval increment 1.
 
-Estimate 205 to 245 hours.
+Estimate 210 to 250 hours.
 
 ## 8. Exit criteria
 
