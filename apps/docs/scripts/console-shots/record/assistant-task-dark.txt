@@ -1,0 +1,187 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Collapse menu
+or press 
+[
+odudu · demo
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+Identity
+›
+Subjects
+›
+ada
+‹
+Subjects
+ada
+enabled
+No email
+Why can’t they sign in?
+Profile
+Credentials
+Groups
+Roles
+Required actions
+Sessions
+Consents
+Grants
+Activity
+Account
+How the subject signs in and is written to. A new email is mailed a link, and replaces the current one once the person follows it.
+Username
+ada
+Usernames in this tenant are fixed: its username_editable setting is off, so a rename would be refused. Turn it on under the tenant's
+Settings
+.
+Email
+Leave it empty for none.
+Name
+Full name
+Given name
+Family name
+Middle name
+Nickname
+Preferred username
+Details
+Phone number
+Country
+▾
+Number
+Extension
+Gender
+Not given
+▾
+Not given
+Female
+Male
+In their own words
+Profile page
+Website
+Picture
+Birthdate
+What is known of the birthdate
+Full date
+▾
+Full date
+Year only
+Day and month
+Date
+mm
+/
+dd
+/
+yyyy
+Time zone
+▾
+Locale
+▾
+Address
+Formatted address
+Street
+Locality
+Region
+Postal code
+Country
+▾
+Verification
+Whether the email and the phone number are proved to be the subject's. A relying party reads these as email_verified and phone_number_verified.
+Email verified
+Off
+Phone number verified
+Off
+A verified phone number must be in E.164 form, such as +14155550100.
+Profile last updated
+Never
+Status
+enabled
+ada can sign in.
+Disable ada
+Delete
+Deleting removes the subject with everything that names it: credentials, sessions, grants, roles and group memberships. It cannot be undone; disabling can.
+Delete ada
+Assistant
+Close
+Conversations
+New conversation
+Mode
+Acting in demo
+Ask
+Act
+Ask reads and explains. It changes nothing.
+Before you start
+Your messages, and the tenant data the assistant reads to answer them, are sent to Anthropic.
+You can read it again later. People who can read your own tenant’s audit trail can read it too, unless an administrator there has turned that off in Settings.
+Your own tenant pays for this conversation. Administrators of demo see that you used the assistant there and which tools it ran, not what you wrote or what it answered.
+Got it
+Ask about this tenant
+The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.
+In Ask mode it never changes anything.
+This page
+subject 0199aa00-0000-7000-8000-000000000001
+Task
+Why can’t this person sign in?
+Why can’t this person sign in?
+Enter sends. Shift and Enter start a new line.
+Send
+Back
+Your conversations
+New conversation
+New
+Loading your conversations
+A conversation is removed after it has been idle for the number of days your administrators have set.

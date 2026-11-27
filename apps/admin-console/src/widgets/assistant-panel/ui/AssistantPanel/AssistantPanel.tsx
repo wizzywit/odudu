@@ -52,6 +52,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
     view,
     open,
     conversationId: props.conversationId,
+    task: props.task,
     onConversation: props.onConversation,
   });
   const { chat, conversations } = panel;
@@ -90,7 +91,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             mode={panel.mode}
             modes={panel.modeChoices}
             onModeChange={panel.chooseMode}
-            modeDisabled={chat.running || chat.readOnly !== null}
+            modeDisabled={chat.running || chat.readOnly !== null || panel.modeFixed}
             modeProblem={chat.modeProblem}
             acting={panel.acting}
             actNote={panel.actNote}
@@ -136,6 +137,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
                 running={chat.running}
                 blocked={false}
                 contextLabel={panel.where}
+                task={panel.task}
                 draft={panel.draft}
                 onDraft={panel.setDraft}
                 words={panel.words}

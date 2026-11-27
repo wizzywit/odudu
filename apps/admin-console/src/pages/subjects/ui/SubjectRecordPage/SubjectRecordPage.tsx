@@ -10,6 +10,7 @@ import { RequiredActionsTab } from '#/pages/subjects/ui/SubjectRecordPage/Requir
 import { RolesTab } from '#/pages/subjects/ui/SubjectRecordPage/RolesTab';
 import { ProfileTab } from '#/pages/subjects/ui/SubjectRecordPage/ProfileTab';
 import { SubjectsGate } from '#/pages/subjects/ui/SubjectsGate';
+import { AssistantTaskButton } from '#/features/assistant-actions';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
 import { ViewOnlyNote } from '#/shared/ui/ViewOnlyNote';
@@ -99,6 +100,10 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
         : {
             status: <EnabledTag enabled={subject.enabled} />,
             description: subject.email ?? (subject.type === 'user' ? 'No email' : subject.type),
+            // Only a person signs in, so only a person has this to ask.
+            ...(subject.type === 'user'
+              ? { actions: <AssistantTaskButton tenant={tenant} task="why-cant-sign-in" /> }
+              : {}),
           })}
       noun="subject"
       {...(page.changeNeeds.length > 0 || page.beyond.length > 0 || typeof page.reach === 'object'

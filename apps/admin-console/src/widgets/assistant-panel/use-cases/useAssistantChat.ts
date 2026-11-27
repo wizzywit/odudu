@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { FREE_CHAT_PROFILE } from '#/features/assistant-actions';
 import { useLatest } from '#/shared/lib/repository/useLatest';
 import { useChatSession } from '#/widgets/assistant-panel/repository/useChatSession';
 import { useConversationCalls } from '#/widgets/assistant-panel/repository/useConversationCalls';
@@ -10,6 +11,7 @@ import { useApprovals, type Approvals } from '#/widgets/assistant-panel/use-case
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
 import { messageToSend } from '#/widgets/assistant-panel/services/composer';
 import {
+  findsLatest,
   refusedEndOf,
   unsentTextOf,
   readOnlyOf,
@@ -77,6 +79,8 @@ export interface AssistantChat {
   // A new conversation can be started: there is one, and nothing is running.
   canStartNew: boolean;
   startNew: () => void;
+  // The kind of conversation shown, or about to start: its task, or free chat.
+  profile: ProfileId;
   // What the person wrote in the message the server refused and took back, to
   // put in the message field again; null when none was.
   unsent: string | null;
@@ -95,12 +99,13 @@ export interface AssistantChat {
 // A panel opened with none remembered reopens the latest one the server holds.
 export function useAssistantChat(
   conversationId: string | null,
-  profile: ProfileId,
   pageContext: PageContext,
   env: {
     tenant: string;
     actingIn: string | null;
     onConversation: (id: string | null) => void;
+    // The task the panel was started for; absent for free chat.
+    profile?: ProfileId | undefined;
   },
 ): AssistantChat {
   const { tenant } = env;
@@ -117,13 +122,20 @@ export function useAssistantChat(
   // one); until then the server's own answer for the conversation stands.
   const [archivedHere, setArchived] = useState<boolean | undefined>(undefined);
   const [resumed, setResumed] = useState<AssistantResumedConversation | undefined>(undefined);
-  const [resuming, setResuming] = useState(conversationId === null);
+  const [resuming, setResuming] = useState(findsLatest(conversationId, env.profile));
   // The mode the person chose here; until they do, the conversation's own.
   const [chosenMode, setChosenMode] = useState<AssistantMode | null>(null);
   const [modeProblem, setModeProblem] = useState<string | null>(null);
+  // The task a conversation about to start is for; a stored one has its own.
+  const [taskProfile, setTaskProfile] = useState<ProfileId>(env.profile ?? FREE_CHAT_PROFILE);
   const loaded = storedOf(stored, asked) ?? resumed;
   const mode = shownMode(chosenMode, modeOf(loaded));
-  const latest = useLatest({ profile, pageContext, mode, onConversation: env.onConversation });
+  const latest = useLatest({
+    profile: taskProfile,
+    pageContext,
+    mode,
+    onConversation: env.onConversation,
+  });
 
   const startConversation = async (): Promise<string> => {
     const now = latest();
@@ -257,6 +269,7 @@ export function useAssistantChat(
     setChosenMode(null);
     setModeProblem(null);
     setTimes(NO_TIMES);
+    setTaskProfile(FREE_CHAT_PROFILE);
     session.reset();
   };
 
@@ -333,6 +346,7 @@ export function useAssistantChat(
     unsent: unsentTextOf(session.messages, refusedEnd !== null),
     canStartNew: drawn.messages.length > 0 && !drawn.running,
     startNew,
+    profile: loaded?.profile ?? taskProfile,
     open,
     markArchived: (id, hidden) => {
       if (id !== known.current) return;

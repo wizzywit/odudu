@@ -119,6 +119,10 @@
     "width": 1440,
     "height": 900
   },
+  "assistant-task": {
+    "width": 1440,
+    "height": 900
+  },
   "assistant-panel-phone": {
     "width": 390,
     "height": 844

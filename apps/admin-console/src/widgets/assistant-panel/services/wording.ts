@@ -16,6 +16,7 @@ export const PANEL_WORDING = {
   modelsSummary: 'Models',
   modelsNote: 'The model each slot is set to run.',
   contextLabel: 'This page',
+  taskLabel: 'Task',
   emptyTitle: 'Ask about this tenant',
   emptyText:
     'The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.',

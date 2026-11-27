@@ -92,3 +92,9 @@ export function unsentTextOf(
     .join('\n');
   return text === '' ? null : text;
 }
+
+// A panel opened with no conversation to come back to asks for the latest one,
+// unless it was opened for a task, which is a conversation of its own.
+export function findsLatest(conversationId: string | null, task: string | undefined): boolean {
+  return conversationId === null && task === undefined;
+}

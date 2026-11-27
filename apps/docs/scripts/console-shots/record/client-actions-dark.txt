@@ -72,6 +72,7 @@ Clients
 my-app
 enabled
 my-app
+Review with the assistant
 General
 Redirects & origins
 Tokens

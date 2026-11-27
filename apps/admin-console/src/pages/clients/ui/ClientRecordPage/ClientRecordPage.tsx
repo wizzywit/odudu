@@ -20,6 +20,7 @@ import { SessionsTab } from '#/pages/clients/ui/SessionsTab';
 import { ServiceAccountTab } from '#/pages/clients/ui/ServiceAccountTab';
 import { TokensTab } from '#/pages/clients/ui/TokensTab';
 import { Note } from '#/shared/ui/Note';
+import { AssistantTaskButton } from '#/features/assistant-actions';
 import { RecordActivity } from '#/features/record-activity';
 import { RecordPage } from '#/shared/ui/RecordPage';
 import { EnabledTag } from '#/shared/ui/StatusTag';
@@ -138,6 +139,7 @@ function Record({ tenant, id }: { tenant: string; id: string }) {
         : {
             status: <EnabledTag enabled={client.enabled} />,
             description: client.description ?? client.client_id,
+            actions: <AssistantTaskButton tenant={tenant} task="review-client" />,
           })}
       noun="client"
       viewOnly={

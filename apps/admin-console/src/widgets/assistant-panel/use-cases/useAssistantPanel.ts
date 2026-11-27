@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router';
 import { useState, type RefObject } from 'react';
-import type { AssistantView } from '#/entities/assistant';
+import type { AssistantView, TaskRequest } from '#/entities/assistant';
+import { isReadTask, taskTitleOf } from '#/features/assistant-actions';
 import { useDocked } from '#/widgets/assistant-panel/repository/useDocked';
 import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirstRunNotice';
 import { noticeScopeOf, noticeToShow } from '#/widgets/assistant-panel/services/firstRun';
@@ -39,6 +40,10 @@ export interface AssistantPanelState {
   chooseMode: (value: string) => void;
   // Where the administrator is, in the words the chip beside the composer shows.
   where: string;
+  // The task the conversation is for, in words, or null for free chat.
+  task: string | null;
+  // Every task reads and explains: the mode switch is of no use in one.
+  modeFixed: boolean;
   // The notice to show above the conversation, or null once it has been read.
   notice: FirstRunNotice | null;
   dismissNotice: () => void;
@@ -53,8 +58,6 @@ export interface AssistantPanelState {
   onScroll: () => void;
 }
 
-const FREE_CHAT = 'free-chat';
-
 // Everything the panel needs to draw: the conversation, where the person is,
 // the notice they have still to read, and whether the panel has a column of
 // its own or lies over the page.
@@ -64,15 +67,18 @@ export function useAssistantPanel(options: {
   view: AssistantView;
   open: boolean;
   conversationId: string | null;
+  // The task a page asked for: a conversation for it, its question ready in the field.
+  task: TaskRequest | null;
   onConversation: (id: string | null) => void;
 }): AssistantPanelState {
   const { tenant, view, actingIn } = options;
   const { pathname } = useLocation();
   const pageContext = pageContextOf(pathname, tenant);
-  const chat = useAssistantChat(options.conversationId, FREE_CHAT, pageContext, {
+  const chat = useAssistantChat(options.conversationId, pageContext, {
     tenant,
     actingIn,
     onConversation: options.onConversation,
+    profile: options.task?.profile,
   });
   const conversations = useConversations({
     tenant,
@@ -83,7 +89,7 @@ export function useAssistantPanel(options: {
   const read = useFirstRunNotice(noticeScopeOf(actingIn));
   const scroll = usePinnedScroll(contentSize(chat.messages, chat.approvals.entries), options.open);
   const docked = useDocked();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(options.task?.draft ?? '');
   // A message the server took back is written into the field again, once, so
   // nothing typed is lost whether or not the field is showing at the time.
   const [taken, setTaken] = useState<string | null>(null);
@@ -103,6 +109,8 @@ export function useAssistantPanel(options: {
       if (next !== null) chat.setMode(next);
     },
     where: pageLabel(pageContext),
+    task: taskTitleOf(chat.profile),
+    modeFixed: isReadTask(chat.profile),
     notice: noticeToShow(read.unread, view.provider, actingIn),
     dismissNotice: read.dismiss,
     models: modelsOf(view),

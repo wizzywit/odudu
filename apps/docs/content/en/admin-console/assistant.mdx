@@ -1,6 +1,6 @@
 ---
 title: The assistant in the console
-description: Ask the assistant about a tenant, approve or refuse the changes it proposes, and reopen, archive, export or delete your conversations.
+description: Ask the assistant about a tenant or from a record's button, approve or refuse the changes it proposes, and reopen, archive, export or delete your conversations.
 sidebar_position: 18
 ---
 
@@ -37,6 +37,18 @@ The first time you use it in a browser, a notice says where your messages go and
 Type in the message field and press Enter. Shift and Enter start a new line. Next to the field a chip says where you are, such as `client my-app` on a client's page: that is sent with your first message, as the address of the page and, on a page of one record, its kind and id, and never as text you typed. The assistant can read what you can read there: clients, subjects, roles, settings and the audit trail.
 
 The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists, code and tables. A table that is wider than the panel scrolls sideways inside the answer, with the arrow keys once you have tabbed to it, and the page does not move. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
+
+### Start from a screen
+
+Two screens carry a button of their own, drawn only where the assistant is. A person's record has **Why can’t they sign in?**, and a client's record has **Review with the assistant**. Choosing one opens the panel on a new conversation for that task, with its question ready in the message field and the chip naming the task beside the one that names the page. It sends nothing: the question is yours to read, change and send. The task makes the assistant read the few things that answer it. For a person that is the account, any lockout, the actions the next sign-in still asks for, the sessions, and the roles and groups. For a client it is its redirect addresses, grants, PKCE and scopes.
+
+<ConsoleShot
+  name="assistant-task"
+  alt="The record of ada, a person of the demo tenant, seen by a system administrator, with the button Why can’t they sign in? beside the name and the assistant’s panel open beside it: a tag reading Acting in demo, the first-run notice, and a message field that already holds the question Why can’t this person sign in?, with chips naming the page, subject, and the task above it."
+  caption="The button on a person’s record opens the assistant with its question ready to send."
+/>
+
+A task only reads, so **Act** is not offered in its conversation, and a conversation about a task keeps its name, which the panel shows when you open it again. Another click on the button starts another new conversation and ends an answer still being written in the one before it, which stays in **Conversations**. **New conversation** goes back to an open question.
 
 ## 3. Ask and Act
 

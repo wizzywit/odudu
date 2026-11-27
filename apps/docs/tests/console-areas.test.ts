@@ -46,6 +46,7 @@ const DESCRIBED_BY_THE_TOUR = ['console-home'];
 // scope-assignment the assigned-scopes list of a client and of a scope.
 // branding-editor is the editors the Branding area and a client's tab share.
 const DESCRIBED_BY_ITS_PAGES = [
+  'assistant-actions',
   'begin-administrator',
   'branding-editor',
   'grant-administrator',

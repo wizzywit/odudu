@@ -590,6 +590,25 @@ export const SCREENS: readonly Screen[] = [
     open: (page, context) => openAssistantIn(page, context, DEMO),
   },
   {
+    name: 'assistant-task',
+    alt: 'The record of ada, a person of the demo tenant, seen by a system administrator, with the button Why can’t they sign in? beside the name and the assistant’s panel open beside it: a tag reading Acting in demo, the first-run notice, and a message field that already holds the question Why can’t this person sign in?, with chips naming the page, subject, and the task above it.',
+    caption: 'The button on a person’s record opens the assistant with its question ready to send.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: async (page, context) => {
+      await openList(page, context, 'subjects');
+      await page.getByRole('row', { name: new RegExp(PERSON, 'u') }).click();
+      await page.getByRole('button', { name: 'Why can’t they sign in?' }).click();
+      await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+      await page.getByText('Why can’t this person sign in?', { exact: true }).first().waitFor();
+    },
+  },
+  {
     name: 'assistant-panel-phone',
     alt: 'The assistant’s panel on a phone, filling the screen: the same Conversations and New conversation buttons, mode switch, notice, description and message field in one column, with Close at the top right.',
     caption: 'On a phone the panel fills the screen and the page behind it is out of reach.',

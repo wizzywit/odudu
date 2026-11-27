@@ -629,6 +629,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  'Why can’t they sign in?': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Why can’t they sign in?'",
+  ),
+  'Review with the assistant': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Review with the assistant'",
+  ),
   'Ask the assistant': entity('assistant/services/wording.ts', "openButton: 'Ask the assistant'"),
   Close: entity('assistant/services/wording.ts', "closeButton: 'Close'"),
   'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),

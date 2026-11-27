@@ -38,7 +38,7 @@ export const FREE_CHAT: TaskProfile = {
   guidance: '',
 };
 
-export const SIGN_IN_TROUBLE: TaskProfile = {
+export const SIGN_IN_TROUBLE = {
   id: 'why-cant-sign-in',
   mode: 'ask',
   slot: 'standard',
@@ -61,9 +61,9 @@ export const SIGN_IN_TROUBLE: TaskProfile = {
     '(a password change, a second factor, verifying an address), its sessions, and its roles and groups. ' +
     'Name the first thing that explains it, say what the evidence is, and say what an administrator can do ' +
     'about it in the console. If nothing explains it, say so.',
-};
+} as const satisfies TaskProfile;
 
-export const REVIEW_CLIENT: TaskProfile = {
+export const REVIEW_CLIENT = {
   id: 'review-client',
   mode: 'ask',
   slot: 'standard',
@@ -84,7 +84,7 @@ export const REVIEW_CLIENT: TaskProfile = {
     'whether it requires PKCE, whether it is public or confidential, and the scopes it may ask for. ' +
     'Report what is risky or unusual, each with the setting it comes from, and what is fine in a line. ' +
     'Do not propose changes to make: say what to look at.',
-};
+} as const satisfies TaskProfile;
 
 export const PROFILES: readonly TaskProfile[] = [FREE_CHAT, SIGN_IN_TROUBLE, REVIEW_CLIENT];
 

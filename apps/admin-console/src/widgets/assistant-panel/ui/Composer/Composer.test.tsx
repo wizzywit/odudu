@@ -20,6 +20,7 @@ function composer(
   blocked = false,
   onSend = vi.fn<(text: string) => void>(),
   onStop = vi.fn<() => void>(),
+  task: string | null = null,
 ) {
   return (
     <Held>
@@ -28,6 +29,7 @@ function composer(
           running={running}
           blocked={blocked}
           contextLabel="client c1"
+          task={task}
           draft={draft}
           onDraft={onDraft}
           words={PANEL_WORDING}
@@ -99,4 +101,12 @@ it.each([
   ['running', true],
 ])('passes axe in both themes, %s', async (_name, running) => {
   expect(await axeInBothThemes(() => composer(running))).toEqual({ light: [], dark: [] });
+});
+
+it('names the task beside the page, and nothing for free chat', () => {
+  const { rerender } = render(composer());
+  expect(screen.queryByText('Task')).toBeNull();
+  rerender(composer(false, false, undefined, undefined, 'Review this client'));
+  expect(screen.getByText('Task')).toBeVisible();
+  expect(screen.getByText('Review this client')).toBeVisible();
 });
