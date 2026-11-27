@@ -107,4 +107,3 @@ Steps
 Step 1
 standard · anthropic.messages/claude-model-for-screenshots
 — in · — out
-190 ms
