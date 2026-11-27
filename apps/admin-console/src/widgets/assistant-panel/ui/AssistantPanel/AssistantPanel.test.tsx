@@ -665,10 +665,10 @@ it('keeps a refusal in the meter through the next send, until a turn ends well',
   expect(screen.queryByText(/Allowance used/u)).toBeNull();
 });
 
-it('offers Act disabled with the sentence that says why', async () => {
+it('offers Act, and says what it leaves to the person', async () => {
   await renderPanel({});
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
-  expect(screen.getByText('Act needs the approval card, which arrives next.')).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
+  expect(screen.getByText(/each change it proposes waits for your approval/u)).toBeInTheDocument();
 });
 
 it('starts in Ask even where the tenant starts in Act', async () => {
@@ -676,17 +676,17 @@ it('starts in Ask even where the tenant starts in Act', async () => {
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
 });
 
-it('shows a conversation already in Act as waiting, with a composer that cannot send', async () => {
+it('shows a conversation already in Act as Act, and takes a message as in Ask', async () => {
+  const user = userEvent.setup();
   await renderPanel(
     { [`GET ${CONVERSATIONS}/c1`]: json({ ...CONVERSATION, mode: 'act' }) },
     { conversationId: 'c1' },
   );
   await waitFor(() => {
-    expect(status()).toHaveTextContent('Waiting for you');
+    expect(screen.getByRole('radio', { name: 'Act' })).toBeChecked();
   });
-  expect(screen.getByRole('note')).toHaveTextContent('Act needs the approval card');
-  expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await user.type(screen.getByRole('textbox', { name: 'Message to the assistant' }), 'Hi');
+  expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
 });
 
 it('words a message refused because a turn is running as exactly that', async () => {

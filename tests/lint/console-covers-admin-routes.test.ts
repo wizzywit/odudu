@@ -36,10 +36,6 @@ const NEVER: Readonly<Record<string, string>> = {
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
   'GET /admin/tenants/:tenant/domains/:id':
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
-  'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
-    'Called by the approval card, which is added after the panel; until it lands no screen lists a conversation\u2019s waiting changes. Remove this entry when the card ships.',
-  'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
-    'Called by the approval card, which is added after the panel; until it lands no screen decides a change. Remove this entry when the card ships.',
   'GET /admin/tenants/:tenant/assistant/activity':
     'Called by the assistant activity screen, which is a later increment of the console assistant. Remove this entry when the screen ships.',
   'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':

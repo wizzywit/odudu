@@ -19,7 +19,10 @@ function log(options: { messages?: PanelMessage[]; loading?: boolean; running?: 
       running={options.running ?? false}
       loading={options.loading ?? false}
       mode="ask"
+      entries={[]}
+      username="ada"
       words={PANEL_WORDING}
+      onDecide={vi.fn<() => void>()}
       logRef={createRef<HTMLDivElement>()}
       onScroll={vi.fn<() => void>()}
     />

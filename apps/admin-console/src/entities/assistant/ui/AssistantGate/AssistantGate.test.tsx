@@ -31,6 +31,7 @@ function gate(available: boolean, tenant = 'acme') {
       tenant={tenant}
       available={available}
       actingIn={null}
+      username="ada"
       paused={false}
       renderPanel={(slot) =>
         slot.open ? (

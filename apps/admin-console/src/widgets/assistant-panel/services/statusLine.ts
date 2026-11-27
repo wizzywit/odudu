@@ -5,7 +5,10 @@ import type { PanelState } from '#/widgets/assistant-panel/types/chat';
 // The one line the polite live region holds: a short state, never a token of
 // the answer, so a screen reader is told what changed and not made to read
 // the text as it is written.
-export function statusLine(state: PanelState): string {
+export function statusLine(
+  state: PanelState,
+  waiting: string = PANEL_WORDING.statusWaiting,
+): string {
   switch (state.kind) {
     case 'empty':
       return '';
@@ -18,7 +21,7 @@ export function statusLine(state: PanelState): string {
     case 'tool':
       return state.step;
     case 'waiting':
-      return PANEL_WORDING.statusWaiting;
+      return waiting;
     case 'closed':
       return PANEL_WORDING.statusClosed;
     case 'stopped':

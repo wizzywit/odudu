@@ -1,0 +1,131 @@
+.feed {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--border);
+}
+
+.toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  justify-self: start;
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--ink-primary);
+}
+
+.toggle:focus-visible,
+.expander:focus-visible,
+.raw:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.chevron {
+  inline-size: 6px;
+  block-size: 6px;
+  border-inline-end: 2px solid currentcolor;
+  border-block-end: 2px solid currentcolor;
+  transform: rotate(-45deg);
+  transition: transform var(--motion-fast) var(--ease);
+}
+
+.chevron[data-open] {
+  transform: rotate(45deg);
+}
+
+.summary {
+  font-family: var(--font-mono);
+}
+
+.steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps:empty {
+  display: none;
+}
+
+.step {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.text {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.duration {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.expander {
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.expander:hover {
+  color: var(--ink-primary);
+}
+
+.raw {
+  margin: 0;
+  padding: var(--space-2);
+  max-block-size: 14rem;
+  overflow: auto;
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  line-height: 1.5;
+  color: var(--ink-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.outcome {
+  margin: 0;
+  color: var(--ink-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}

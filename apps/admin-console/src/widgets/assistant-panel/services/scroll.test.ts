@@ -31,7 +31,14 @@ it('counts what is in the log, so a change in it is one a view can watch for', (
       typed: '',
       blocks: [],
       parts: [
-        { kind: 'tool' as const, id: 't', name: 'list_roles', state: 'running' as const },
+        {
+          kind: 'tool' as const,
+          id: 't',
+          name: 'list_roles',
+          state: 'running' as const,
+          input: {},
+          error: null,
+        },
         { kind: 'text' as const, text: 'Hello' },
       ],
     },

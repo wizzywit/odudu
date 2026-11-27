@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import {
   drawMessage,
   groupParts,
+  rawCall,
   readParts,
   stepText,
 } from '#/widgets/assistant-panel/services/parts';
@@ -18,7 +19,7 @@ it('keeps text and tool steps, and drops what the log does not draw', () => {
   ]);
   expect(parts).toEqual([
     { kind: 'text', text: 'Here is the list.' },
-    { kind: 'tool', id: 'c1', name: 'list_subjects', state: 'done' },
+    { kind: 'tool', id: 'c1', name: 'list_subjects', state: 'done', input: undefined, error: null },
   ]);
 });
 
@@ -27,7 +28,9 @@ it('reads a dynamic tool by its own name', () => {
     readParts([
       { type: 'dynamic-tool', toolName: 'get_client', toolCallId: 'c2', state: 'input-available' },
     ]),
-  ).toEqual([{ kind: 'tool', id: 'c2', name: 'get_client', state: 'running' }]);
+  ).toEqual([
+    { kind: 'tool', id: 'c2', name: 'get_client', state: 'running', input: undefined, error: null },
+  ]);
 });
 
 it.each([
@@ -60,10 +63,10 @@ it('skips a part with a shape it does not know rather than guessing', () => {
 it('words a step in plain terms and never shows the model any markup', () => {
   expect(stepText('list_subjects', 'running')).toBe('Listing subjects');
   expect(stepText('get_client', 'done')).toBe('Read client');
-  expect(stepText('count_audit', 'running')).toBe('Counting audit');
-  expect(stepText('create_client', 'waiting')).toBe('Create client: waiting for you');
+  expect(stepText('count_audit', 'running')).toBe('Counting audit events');
+  expect(stepText('create_client', 'waiting')).toBe('Running create client, waiting for you');
   expect(stepText('list_roles', 'failed')).toBe('Listing roles failed');
-  expect(stepText('delete_group', 'denied')).toBe('Delete group: refused');
+  expect(stepText('delete_group', 'denied')).toBe('Running delete group, refused');
 });
 
 it('groups the steps that run together, between the text that comes before and after', () => {
@@ -72,6 +75,8 @@ it('groups the steps that run together, between the text that comes before and a
     id,
     name: 'list_roles',
     state: 'done' as const,
+    input: undefined,
+    error: null,
   });
   expect(
     groupParts([
@@ -93,14 +98,62 @@ it('groups the steps that run together, between the text that comes before and a
 it('draws a message as its blocks, with the steps worded and toned, and a person’s words as typed', () => {
   const message = drawMessage('m', 'assistant', [
     { kind: 'text', text: 'One.\n\nTwo' },
-    { kind: 'tool', id: 't', name: 'list_roles', state: 'failed' },
+    {
+      kind: 'tool',
+      id: 't',
+      name: 'list_roles',
+      state: 'failed',
+      input: { limit: 3 },
+      error: 'boom',
+    },
   ]);
   expect(message.blocks).toEqual([
     { kind: 'text', settled: ['One.'], open: 'Two' },
     {
       kind: 'steps',
-      steps: [{ id: 't', text: 'Listing roles failed', label: 'Failed', tone: 'danger' }],
+      steps: [
+        {
+          id: 't',
+          name: 'list_roles',
+          text: 'Listing roles failed',
+          label: 'Failed',
+          tone: 'danger',
+          state: 'failed',
+          duration: null,
+          raw: expect.stringContaining('"limit": 3') as string,
+          outcome: null,
+        },
+      ],
     },
   ]);
   expect(drawMessage('u', 'user', [{ kind: 'text', text: 'a\nb' }]).typed).toBe('a\nb');
+});
+
+it('shows the call as it was sent, cut where it is long, with the error it ended in', () => {
+  expect(rawCall('get_client', { id: 'c1' }, null)).toBe(
+    '{\n  "tool": "get_client",\n  "arguments": {\n    "id": "c1"\n  }\n}',
+  );
+  expect(rawCall('get_client', undefined, 'denied')).toContain('It failed with: denied');
+  const long = rawCall('get_client', { text: 'x'.repeat(5_000) }, null);
+  expect(long).toContain('not shown');
+  expect(long.length).toBeLessThan(2_100);
+});
+
+it('draws the time a step took, and what became of an approved write', () => {
+  const message = drawMessage(
+    'm',
+    'assistant',
+    [
+      { kind: 'tool', id: 'r', name: 'list_roles', state: 'done', input: {}, error: null },
+      { kind: 'tool', id: 'w', name: 'create_group', state: 'done', input: {}, error: null },
+    ],
+    { r: { start: 0, ms: 1_800 } },
+  );
+  const [block] = message.blocks;
+  expect(block).toMatchObject({
+    steps: [
+      { id: 'r', duration: '1.8 s', outcome: null },
+      { id: 'w', duration: null, outcome: 'Approved by you. The change was made.' },
+    ],
+  });
 });

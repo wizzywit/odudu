@@ -4,6 +4,9 @@ import { useChatSession } from '#/widgets/assistant-panel/repository/useChatSess
 import { useConversationCalls } from '#/widgets/assistant-panel/repository/useConversationCalls';
 import { useConversationRead } from '#/widgets/assistant-panel/repository/useConversationRead';
 import { NO_METER, nextMeter, readStreamPart } from '#/widgets/assistant-panel/services/budget';
+import { modeAfter } from '#/widgets/assistant-panel/services/modeSwitch';
+import { NO_TIMES, recordStep, type StepTimes } from '#/widgets/assistant-panel/services/stepTimes';
+import { useApprovals, type Approvals } from '#/widgets/assistant-panel/use-cases/useApprovals';
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
 import { messageToSend } from '#/widgets/assistant-panel/services/composer';
 import {
@@ -55,6 +58,13 @@ export interface AssistantChat {
   // A tool answered that the assistant was switched off while this ran.
   unavailable: boolean;
   mode: AssistantMode;
+  // Switches the conversation's mode: kept for the one about to start, or sent
+  // to the server for one that has.
+  setMode: (mode: AssistantMode) => void;
+  // Why the last switch was refused, or null.
+  modeProblem: string | null;
+  // The changes the conversation waits on, and what the person decides on each.
+  approvals: Approvals;
   // The sentence under the log when an allowance stopped the turn.
   note: string | null;
   // Null until the server has said something about the allowance.
@@ -101,22 +111,26 @@ export function useAssistantChat(
   const [turn, setTurn] = useState<TurnEnd | null>(null);
   const [meter, setMeter] = useState<MeterState>(NO_METER);
   const [connected, setConnected] = useState(false);
+  const [times, setTimes] = useState<StepTimes>(NO_TIMES);
   const [expectsEnd, setExpectsEnd] = useState(false);
   // Set by what the person did here (opened a hidden row, hid or restored this
   // one); until then the server's own answer for the conversation stands.
   const [archivedHere, setArchived] = useState<boolean | undefined>(undefined);
   const [resumed, setResumed] = useState<AssistantResumedConversation | undefined>(undefined);
   const [resuming, setResuming] = useState(conversationId === null);
+  // The mode the person chose here; until they do, the conversation's own.
+  const [chosenMode, setChosenMode] = useState<AssistantMode | null>(null);
+  const [modeProblem, setModeProblem] = useState<string | null>(null);
   const loaded = storedOf(stored, asked) ?? resumed;
-  const mode = modeOf(loaded);
-  const latest = useLatest({ profile, pageContext, onConversation: env.onConversation });
+  const mode = chosenMode ?? modeOf(loaded);
+  const latest = useLatest({ profile, pageContext, mode, onConversation: env.onConversation });
 
   const startConversation = async (): Promise<string> => {
     const now = latest();
     const id =
       known.current ??
       startedId(
-        await calls.create({ profile: now.profile, mode: 'ask', page_context: now.pageContext }),
+        await calls.create({ profile: now.profile, mode: now.mode, page_context: now.pageContext }),
       );
     if (known.current === null) {
       known.current = id;
@@ -130,6 +144,9 @@ export function useAssistantChat(
     startConversation,
     onConnected: () => {
       setConnected(true);
+    },
+    onStep: (step) => {
+      setTimes((previous) => recordStep(previous, step));
     },
     onData: (part) => {
       const read = readStreamPart(part);
@@ -200,6 +217,7 @@ export function useAssistantChat(
   });
 
   const drawn = chatView({
+    times,
     history: historyWhileResuming(historyOf(stored, asked), resuming),
     chat: live.chat,
     messages: live.messages,
@@ -208,7 +226,6 @@ export function useAssistantChat(
     turn,
     meter,
     expectsEnd: live.expectsEnd,
-    act: mode === 'act',
     actingIn: env.actingIn,
   });
 
@@ -237,6 +254,9 @@ export function useAssistantChat(
     setResuming(false);
     setResumed(undefined);
     setArchived(undefined);
+    setChosenMode(null);
+    setModeProblem(null);
+    setTimes(NO_TIMES);
     session.reset();
   };
 
@@ -262,10 +282,42 @@ export function useAssistantChat(
     setMeter((previous) => nextMeter(previous, { kind: 'start' }));
   };
 
+  const resumeTurn = (): void => {
+    begin();
+    session.resume().catch(() => undefined);
+  };
+  const approvals = useApprovals({
+    tenant,
+    conversationId: conversationId ?? createdId,
+    waiting: drawn.state.kind === 'waiting',
+    resume: resumeTurn,
+  });
+
+  const setMode = (next: AssistantMode): void => {
+    setModeProblem(null);
+    if (known.current === null) {
+      setChosenMode(next);
+      return;
+    }
+    calls
+      .setMode(known.current, next)
+      .then((result) => {
+        const outcome = modeAfter(result);
+        setModeProblem(outcome.problem);
+        if (outcome.mode !== null) setChosenMode(outcome.mode);
+      })
+      .catch(() => {
+        setModeProblem(modeAfter({ ok: false, kind: 'defect' }).problem);
+      });
+  };
+
   return {
     messages: drawn.messages,
     status: drawn.state,
-    statusText: statusLine(drawn.state),
+    statusText: statusLine(drawn.state, approvals.waitingText),
+    setMode,
+    modeProblem,
+    approvals,
     running: drawn.running,
     blocked: drawn.state.kind === 'waiting',
     readOnly: readOnlyOf({ archivedHere, server: loaded, refusedEnd }),
@@ -288,10 +340,7 @@ export function useAssistantChat(
       if (!hidden) session.clearError();
     },
     stop,
-    resume: () => {
-      begin();
-      session.resume().catch(() => undefined);
-    },
+    resume: resumeTurn,
     retry: () => {
       if (stored.status === 'failed') stored.retry();
     },

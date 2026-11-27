@@ -95,6 +95,11 @@ export function assistantConversationListKey(tenant: string, which?: 'open' | 'a
     : (['assistant-conversation-list', tenant, which] as const);
 }
 
+// The changes of one conversation that wait for the person's decision.
+export function assistantApprovalsKey(tenant: string, id: string) {
+  return ['assistant-approvals', tenant, id] as const;
+}
+
 export function authorityKey(tenant: string, subject: string | null) {
   return ['authority', tenant, subject] as const;
 }

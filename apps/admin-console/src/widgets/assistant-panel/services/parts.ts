@@ -1,4 +1,7 @@
+import { activityLine, durationText } from '#/widgets/assistant-panel/services/activity-lines';
+import { outcomeOfStep } from '#/widgets/assistant-panel/services/approval';
 import { splitBlocks } from '#/widgets/assistant-panel/services/blocks';
+import { durationOf, NO_TIMES, type StepTimes } from '#/widgets/assistant-panel/services/stepTimes';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type {
   MessageBlock,
@@ -31,7 +34,15 @@ function readTool(part: { type: string }): PanelPart | null {
   if (!('toolCallId' in part) || typeof part.toolCallId !== 'string') return null;
   if (!('state' in part) || typeof part.state !== 'string') return null;
   const state = STATES[part.state];
-  return state === undefined ? null : { kind: 'tool', id: part.toolCallId, name, state };
+  if (state === undefined) return null;
+  return {
+    kind: 'tool',
+    id: part.toolCallId,
+    name,
+    state,
+    input: 'input' in part ? part.input : undefined,
+    error: 'errorText' in part && typeof part.errorText === 'string' ? part.errorText : null,
+  };
 }
 
 // What the log draws of a message's parts, from a stored message or a streamed
@@ -53,41 +64,22 @@ export function readParts(parts: readonly unknown[]): PanelPart[] {
   return read;
 }
 
-const VERBS: Readonly<Record<string, { doing: string; done: string }>> = {
-  list: { doing: 'Listing', done: 'Listed' },
-  get: { doing: 'Reading', done: 'Read' },
-  count: { doing: 'Counting', done: 'Counted' },
-};
-
-function spaced(name: string): string {
-  return name.replace(/_/gu, ' ');
-}
-
-function sentenceCase(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-// One line for a step, from the tool's name: a read is said as a read, and
-// anything else by its name with what became of it. Never the call's own
-// arguments, which a model chose.
+// One line for a step, from the tool's name and what has become of it.
 export function stepText(name: string, state: StepState): string {
-  const [verb = '', ...rest] = name.split('_');
-  const noun = rest.join(' ');
-  const known = VERBS[verb];
-  if (known !== undefined && noun !== '') {
-    if (state === 'running') return `${known.doing} ${noun}`;
-    if (state === 'done') return `${known.done} ${noun}`;
-    if (state === 'failed') return `${known.doing} ${noun} failed`;
-  }
-  const label = sentenceCase(spaced(name));
-  const outcome: Readonly<Record<StepState, string>> = {
-    running: 'running',
-    waiting: 'waiting for you',
-    done: 'done',
-    failed: 'failed',
-    denied: 'refused',
-  };
-  return `${label}: ${outcome[state]}`;
+  return activityLine({ name, state }).text;
+}
+
+// The most of a call's arguments the expander shows; a longer one is cut and says so.
+const RAW_MAX = 2_000;
+
+// The call as it was sent, for the expander: the tool's name and the arguments
+// the model gave, and the error it ended in. The result is not shown, since it
+// is the tenant's data and the assistant's answer says what it found.
+export function rawCall(name: string, input: unknown, error: string | null): string {
+  const call = JSON.stringify({ tool: name, arguments: input ?? {} }, null, 2);
+  const shown =
+    call.length > RAW_MAX ? `${call.slice(0, RAW_MAX)}\n${PANEL_WORDING.stepRawCut}` : call;
+  return error === null ? shown : `${shown}\n\n${PANEL_WORDING.stepRawError}: ${error}`;
 }
 
 type Tool = Extract<PanelPart, { kind: 'tool' }>;
@@ -133,18 +125,27 @@ export function drawMessage(
   id: string,
   role: 'user' | 'assistant',
   parts: readonly PanelPart[],
+  times: StepTimes = NO_TIMES,
 ): PanelMessage {
   const blocks: MessageBlock[] = groupParts(parts).map((group) =>
     group.kind === 'text'
       ? { kind: 'text', ...splitBlocks(group.text) }
       : {
           kind: 'steps',
-          steps: group.steps.map((step) => ({
-            id: step.id,
-            text: stepText(step.name, step.state),
-            label: STEP_LABELS[step.state],
-            tone: STEP_TONES[step.state],
-          })),
+          steps: group.steps.map((step): StepLine => {
+            const ms = durationOf(times, step.id);
+            return {
+              id: step.id,
+              name: step.name,
+              text: stepText(step.name, step.state),
+              label: STEP_LABELS[step.state],
+              tone: STEP_TONES[step.state],
+              state: step.state,
+              duration: ms === null ? null : durationText(ms),
+              raw: rawCall(step.name, step.input, step.error),
+              outcome: outcomeOfStep(step.name, step.state),
+            };
+          }),
         },
   );
   const typed = parts.map((part) => (part.kind === 'text' ? part.text : '')).join('\n');

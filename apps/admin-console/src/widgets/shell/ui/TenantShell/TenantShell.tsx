@@ -47,6 +47,7 @@ function SignedInShell({
       tenant={tenant}
       available={assistant.available}
       actingIn={assistant.actingIn}
+      username={shell.username}
       paused={shell.dialogOpen}
       renderPanel={renderAssistantPanel}
     >

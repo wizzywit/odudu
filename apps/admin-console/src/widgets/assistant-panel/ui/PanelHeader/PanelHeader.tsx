@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import { Label, RadioButton, RadioField, RadioGroup } from 'react-aria-components';
 import { Button } from '#/shared/ui/Button';
+import { Problem } from '#/shared/ui/Message';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import styles from '#/widgets/assistant-panel/ui/PanelHeader/PanelHeader.module.css';
@@ -26,6 +27,9 @@ export function PanelHeader({
   conversationsRef,
   mode,
   modes,
+  onModeChange,
+  modeDisabled,
+  modeProblem,
   acting = null,
   meter,
   models,
@@ -43,6 +47,12 @@ export function PanelHeader({
   conversationsRef: RefObject<HTMLButtonElement | null>;
   mode: AssistantMode;
   modes: readonly AssistantMode[];
+  // The value of the switch's choice, which the use case reads as a mode.
+  onModeChange: (value: string) => void;
+  // The mode cannot be switched now: an answer is running, or the conversation takes no message.
+  modeDisabled: boolean;
+  // Why the last switch did not go through, or null.
+  modeProblem: string | null;
   // What names the tenant the conversation acts in, when it is not the person's
   // own: shown for as long as the panel is open, and Act is never offered there.
   acting?: string | null;
@@ -85,7 +95,8 @@ export function PanelHeader({
         <RadioGroup
           value={mode}
           orientation="horizontal"
-          isDisabled={mode === 'act'}
+          isDisabled={modeDisabled}
+          onChange={onModeChange}
           className={styles.modes ?? ''}
         >
           <div className={styles.modeRow}>
@@ -97,7 +108,7 @@ export function PanelHeader({
               <RadioField
                 key={choice}
                 value={choice}
-                isDisabled={choice === 'act'}
+                isDisabled={choice === 'act' && acting !== null}
                 className={styles.field ?? ''}
               >
                 <RadioButton className={styles.segment ?? ''}>
@@ -110,6 +121,7 @@ export function PanelHeader({
           <p className={styles.modeHint}>
             {acting === null ? words.actNote : words.actOtherTenantNote}
           </p>
+          <Problem>{modeProblem}</Problem>
         </RadioGroup>
       ) : (
         actingTag

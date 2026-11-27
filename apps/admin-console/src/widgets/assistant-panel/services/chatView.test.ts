@@ -12,7 +12,6 @@ const BASE: ChatViewInput = {
   turn: null,
   meter: NO_METER,
   expectsEnd: false,
-  act: false,
   actingIn: null,
 };
 

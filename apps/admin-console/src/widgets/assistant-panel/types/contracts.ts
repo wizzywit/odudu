@@ -4,6 +4,7 @@ export type {
   AssistantMode,
   AssistantResumedConversation,
   CreateConversationRequest,
+  DecideApprovalResponse,
   LastAssistantConversationResponse,
   ListAssistantConversationsResponse,
   SetConversationArchivedResponse,

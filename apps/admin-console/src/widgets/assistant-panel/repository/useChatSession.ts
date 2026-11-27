@@ -5,6 +5,7 @@ import { useLatest } from '#/shared/lib/repository/useLatest';
 import { useTransport } from '#/shared/api/transport/useTransport';
 import { chatTransport } from '#/widgets/assistant-panel/adapter/chat';
 import { chatMessagesOf } from '#/widgets/assistant-panel/adapter/history';
+import type { StepEvent } from '#/widgets/assistant-panel/services/stepTimes';
 import type { ChatStatus } from '#/widgets/assistant-panel/types/chat';
 import type { AssistantConversation } from '#/widgets/assistant-panel/types/contracts';
 
@@ -34,12 +35,15 @@ export function useChatSession(options: {
   onData: (part: { type: string; data?: unknown }) => void;
   // The server has accepted the turn and nothing of the answer has come yet.
   onConnected: () => void;
+  // A tool call of the answer began, ended or stopped for a decision.
+  onStep: (step: StepEvent) => void;
 }): ChatSession {
   const { gateway } = useTransport();
   const id = useId();
   const start = useLatest(options.startConversation);
   const data = useLatest(options.onData);
   const connected = useLatest(options.onConnected);
+  const stepped = useLatest(options.onStep);
   const [transport] = useState(() =>
     chatTransport({
       gateway,
@@ -47,6 +51,9 @@ export function useChatSession(options: {
       conversation: () => start()(),
       onConnected: () => {
         connected()();
+      },
+      onStep: (step) => {
+        stepped()(step);
       },
     }),
   );

@@ -12,15 +12,28 @@ const BASE: PanelInput = {
   chat: 'ready',
   connected: false,
   expectsEnd: false,
-  act: false,
   messageCount: 0,
   last: [],
   turn: null,
   failure: null,
 };
 const TEXT: PanelPart = { kind: 'text', text: 'Hello' };
-const RUNNING: PanelPart = { kind: 'tool', id: 'c', name: 'list_subjects', state: 'running' };
-const WAITING: PanelPart = { kind: 'tool', id: 'c', name: 'create_client', state: 'waiting' };
+const RUNNING: PanelPart = {
+  kind: 'tool',
+  id: 'c',
+  name: 'list_subjects',
+  state: 'running',
+  input: {},
+  error: null,
+};
+const WAITING: PanelPart = {
+  kind: 'tool',
+  id: 'c',
+  name: 'create_client',
+  state: 'waiting',
+  input: {},
+  error: null,
+};
 
 function state(input: Partial<PanelInput>): PanelState {
   return panelState({ ...BASE, ...input });
@@ -56,12 +69,10 @@ describe('the panel state', () => {
   it('waits for the person when a change needs a decision, streaming or not', () => {
     expect(state({ chat: 'streaming', messageCount: 2, last: [WAITING] })).toEqual({
       kind: 'waiting',
-      act: false,
     });
-    expect(state({ messageCount: 2, last: [WAITING] })).toEqual({ kind: 'waiting', act: false });
+    expect(state({ messageCount: 2, last: [WAITING] })).toEqual({ kind: 'waiting' });
     expect(state({ messageCount: 2, turn: { stopReason: 'awaiting_approval' } })).toEqual({
       kind: 'waiting',
-      act: false,
     });
   });
 
@@ -93,14 +104,6 @@ describe('the panel state', () => {
     expect(state({ expectsEnd: true, messageCount: 2, last: [TEXT] })).toEqual({ kind: 'closed' });
   });
 
-  it('waits, in Act, for the card that does not exist yet', () => {
-    expect(state({ act: true, messageCount: 2, last: [TEXT] })).toEqual({
-      kind: 'waiting',
-      act: true,
-    });
-    expect(state({ act: true })).toEqual({ kind: 'waiting', act: true });
-  });
-
   it('is finished for a conversation that was loaded and has said nothing since', () => {
     expect(state({ messageCount: 4, last: [TEXT] })).toEqual({ kind: 'finished' });
   });
@@ -126,7 +129,7 @@ describe('the status line', () => {
     [{ kind: 'connecting' }, 'Connecting'],
     [{ kind: 'thinking' }, 'Thinking'],
     [{ kind: 'tool', step: 'Listing subjects' }, 'Listing subjects'],
-    [{ kind: 'waiting', act: false }, 'Waiting for you'],
+    [{ kind: 'waiting' }, 'Waiting for you'],
     [{ kind: 'closed' }, 'Stopped, connection closed'],
     [{ kind: 'stopped' }, 'Stopped'],
     [{ kind: 'step-limit' }, 'Stopped at the step limit'],

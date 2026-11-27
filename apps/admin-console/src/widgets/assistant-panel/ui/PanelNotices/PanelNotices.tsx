@@ -1,3 +1,4 @@
+import { Button } from '#/shared/ui/Button';
 import { CopyValue } from '#/shared/ui/CopyValue';
 import { Note } from '#/shared/ui/Note';
 import type { Meter, PanelState } from '#/widgets/assistant-panel/types/chat';
@@ -7,10 +8,12 @@ import styles from '#/widgets/assistant-panel/ui/PanelNotices/PanelNotices.modul
 function Notice({
   state,
   note,
+  onJump,
   words,
 }: {
   state: PanelState;
   note: string | null;
+  onJump: (() => void) | null;
   words: PanelWords;
 }) {
   switch (state.kind) {
@@ -41,7 +44,16 @@ function Notice({
     case 'stopped':
       return <Note>{words.stoppedNote}</Note>;
     case 'waiting':
-      return <Note>{state.act ? words.actConversationNote : words.waitingNote}</Note>;
+      return (
+        <div className={styles.waiting}>
+          <Note>{words.waitingNote}</Note>
+          {onJump === null ? null : (
+            <Button size="small" variant="secondary" onPress={onJump}>
+              {words.cardJump}
+            </Button>
+          )}
+        </div>
+      );
     case 'closed':
       return <Note>{words.closedNote}</Note>;
     default:
@@ -59,6 +71,7 @@ export function PanelNotices({
   note,
   meter,
   unavailable = false,
+  onJump = null,
   words,
 }: {
   state: PanelState;
@@ -68,6 +81,8 @@ export function PanelNotices({
   meter: Meter | null;
   // A tool answered that the assistant had been switched off.
   unavailable?: boolean;
+  // Moves to the card of the change that waits, where there is one.
+  onJump?: (() => void) | null;
   words: PanelWords;
 }) {
   return (
@@ -88,7 +103,7 @@ export function PanelNotices({
         </Note>
       ) : null}
       {unavailable ? <Note tone="warning">{words.unavailableNote}</Note> : null}
-      <Notice state={state} note={note} words={words} />
+      <Notice state={state} note={note} onJump={onJump} words={words} />
     </div>
   );
 }

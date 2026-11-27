@@ -31,9 +31,8 @@ function notices(
 const STATES: [string, PanelState, string, string | null][] = [
   ['empty', { kind: 'empty' }, '', null],
   ['thinking', { kind: 'thinking' }, 'Thinking', null],
-  ['waiting', { kind: 'waiting', act: false }, 'Waiting for you', null],
+  ['waiting', { kind: 'waiting' }, 'Waiting for you', null],
   ['stopped', { kind: 'stopped' }, 'Stopped', null],
-  ['act', { kind: 'waiting', act: true }, 'Waiting for you', null],
   ['closed', { kind: 'closed' }, 'Stopped', null],
   ['step limit', { kind: 'step-limit' }, 'Stopped at the step limit', null],
   [

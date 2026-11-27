@@ -2,6 +2,7 @@ import { budgetNote, meterOf } from '#/widgets/assistant-panel/services/budget';
 import { failureOf } from '#/widgets/assistant-panel/services/chatFailure';
 import { panelState } from '#/widgets/assistant-panel/services/panelState';
 import { drawMessage, readParts } from '#/widgets/assistant-panel/services/parts';
+import { NO_TIMES, type StepTimes } from '#/widgets/assistant-panel/services/stepTimes';
 import type {
   ChatStatus,
   HistoryState,
@@ -22,9 +23,10 @@ export interface ChatViewInput {
   turn: TurnEnd | null;
   meter: MeterState;
   expectsEnd: boolean;
-  act: boolean;
   // The tenant the conversation acts in when it is not the person's own.
   actingIn: string | null;
+  // How long the steps took, as this panel watched them.
+  times?: StepTimes;
 }
 
 export interface ChatView {
@@ -39,27 +41,26 @@ export interface ChatView {
 // The messages the log draws. An answer that has no part to draw yet (the
 // stream has begun and nothing has been written) is not drawn: the status line
 // says it is coming.
-function drawn(messages: ChatViewInput['messages']): PanelMessage[] {
+function drawn(messages: ChatViewInput['messages'], times: StepTimes): PanelMessage[] {
   return messages.flatMap((message) => {
     if (message.role !== 'user' && message.role !== 'assistant') return [];
     const parts = readParts(message.parts);
     return message.role === 'assistant' && parts.length === 0
       ? []
-      : [drawMessage(message.id, message.role, parts)];
+      : [drawMessage(message.id, message.role, parts, times)];
   });
 }
 
 // What the panel draws, worked out in one place from what the chat client,
 // the stream's closing parts and the stored conversation say.
 export function chatView(input: ChatViewInput): ChatView {
-  const messages = drawn(input.messages);
+  const messages = drawn(input.messages, input.times ?? NO_TIMES);
   const failure = input.error === undefined ? null : failureOf(input.error, input.actingIn);
   const state = panelState({
     history: input.history,
     chat: input.chat,
     connected: input.connected,
     expectsEnd: input.expectsEnd,
-    act: input.act,
     messageCount: messages.length,
     last: messages[messages.length - 1]?.parts ?? [],
     turn: input.turn,

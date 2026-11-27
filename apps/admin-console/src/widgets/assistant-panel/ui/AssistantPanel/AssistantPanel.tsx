@@ -64,6 +64,11 @@ export function AssistantPanel(props: AssistantPanelSlot) {
     event.preventDefault();
     conversations.hide();
   };
+  // Moving to a card is the person's own act: the card never takes the focus itself.
+  const jump = (): void => {
+    const card = panel.logRef.current?.querySelector<HTMLElement>('[data-approval-card]');
+    card?.focus();
+  };
   const body = (
     <FocusHeading headingRef={headingRef}>
       <div className={styles.stage} onKeyDown={backOnEscape}>
@@ -84,6 +89,9 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             conversationsRef={conversationsRef}
             mode={panel.mode}
             modes={panel.modeChoices}
+            onModeChange={panel.chooseMode}
+            modeDisabled={chat.running || chat.readOnly !== null}
+            modeProblem={chat.modeProblem}
             acting={panel.acting}
             meter={chat.meter}
             models={panel.models}
@@ -101,9 +109,12 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             running={chat.running}
             loading={chat.status.kind === 'loading'}
             mode={panel.mode}
+            entries={chat.approvals.entries}
+            username={props.username}
             words={panel.words}
             logRef={panel.logRef}
             onScroll={panel.onScroll}
+            onDecide={chat.approvals.answer}
           />
           <PanelNotices
             state={chat.status}
@@ -112,6 +123,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             note={chat.note}
             meter={chat.meter}
             unavailable={chat.unavailable}
+            onJump={chat.approvals.waiting ? jump : null}
             words={panel.words}
           />
           {chat.readOnly === null ? (

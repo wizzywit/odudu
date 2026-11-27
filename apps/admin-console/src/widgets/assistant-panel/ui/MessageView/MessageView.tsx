@@ -1,6 +1,7 @@
-import { StatusTag } from '#/shared/ui/StatusTag';
+import type { Entry } from '#/widgets/assistant-panel/types/approvals';
 import type { PanelMessage } from '#/widgets/assistant-panel/types/chat';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
+import { ActivityFeed } from '#/widgets/assistant-panel/ui/ActivityFeed';
 import { MessageText } from '#/widgets/assistant-panel/ui/MessageText';
 import styles from '#/widgets/assistant-panel/ui/MessageView/MessageView.module.css';
 
@@ -11,11 +12,19 @@ import styles from '#/widgets/assistant-panel/ui/MessageView/MessageView.module.
 export function MessageView({
   message,
   busy,
+  entries,
+  username,
   words,
+  onDecide,
 }: {
   message: PanelMessage;
   busy: boolean;
+  // The changes the conversation waits on or has just decided, whose cards are
+  // drawn under the step that proposed them.
+  entries: readonly Entry[];
+  username: string;
   words: PanelWords;
+  onDecide: (entry: Entry, approve: boolean) => void;
 }) {
   const mine = message.role === 'user';
   const who = mine ? words.you : words.assistant;
@@ -41,18 +50,15 @@ export function MessageView({
                 tableLabel={words.tableLabel}
               />
             ) : (
-              <ul
+              <ActivityFeed
                 key={`${String(index)}:steps`}
-                className={styles.steps}
-                aria-label={words.stepsLabel}
-              >
-                {block.steps.map((step) => (
-                  <li key={step.id} className={styles.step}>
-                    <StatusTag tone={step.tone}>{step.label}</StatusTag>
-                    <span className={styles.stepText}>{step.text}</span>
-                  </li>
-                ))}
-              </ul>
+                steps={block.steps}
+                live={busy || block.steps.some((step) => step.state === 'waiting')}
+                entries={entries}
+                username={username}
+                words={words}
+                onDecide={onDecide}
+              />
             ),
           )}
     </article>

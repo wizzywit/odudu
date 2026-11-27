@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import { QuietSkeletons, Skeleton } from '#/shared/ui/Skeleton';
+import type { Entry } from '#/widgets/assistant-panel/types/approvals';
 import type { AssistantMode, PanelMessage } from '#/widgets/assistant-panel/types/chat';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import { MessageView } from '#/widgets/assistant-panel/ui/MessageView';
@@ -25,18 +26,25 @@ export function ChatLog({
   running,
   loading,
   mode,
+  entries,
+  username,
   words,
   logRef,
   onScroll,
+  onDecide,
 }: {
   messages: readonly PanelMessage[];
   // An answer is being written: the last message is the one that is.
   running: boolean;
   loading: boolean;
   mode: AssistantMode;
+  // The changes the conversation waits on, and who decides them.
+  entries: readonly Entry[];
+  username: string;
   words: PanelWords;
   logRef: RefObject<HTMLDivElement | null>;
   onScroll: () => void;
+  onDecide: (entry: Entry, approve: boolean) => void;
 }) {
   const last = messages[messages.length - 1];
   return (
@@ -62,7 +70,10 @@ export function ChatLog({
               <MessageView
                 message={message}
                 busy={running && message.id === last?.id && message.role === 'assistant'}
+                entries={entries}
+                username={username}
                 words={words}
+                onDecide={onDecide}
               />
             </li>
           ))}

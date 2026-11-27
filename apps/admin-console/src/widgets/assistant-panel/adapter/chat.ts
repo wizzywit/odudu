@@ -2,7 +2,9 @@ import { DefaultChatTransport, type UIMessage } from 'ai';
 import { segment } from '#/shared/api/adapter/route';
 import type { Gateway, StreamResult } from '#/shared/api/transport/gateway';
 import { deferStreamError } from '#/widgets/assistant-panel/adapter/deferError';
+import { watchSteps } from '#/widgets/assistant-panel/adapter/watchSteps';
 import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
+import type { StepEvent } from '#/widgets/assistant-panel/services/stepTimes';
 
 // A message, answered as a stream of the assistant's reply.
 export function sendMessageStream(
@@ -49,8 +51,10 @@ export function chatTransport(options: {
   conversation: () => Promise<string>;
   // Called once the server has accepted a turn, before any of its answer.
   onConnected?: () => void;
+  // Called as each tool call of the answer begins, ends or stops for a decision.
+  onStep?: (step: StepEvent) => void;
 }): DefaultChatTransport<UIMessage> {
-  const { gateway, tenant, conversation, onConnected } = options;
+  const { gateway, tenant, conversation, onConnected, onStep } = options;
   return new DefaultChatTransport<UIMessage>({
     api: 'assistant',
     prepareSendMessagesRequest: async ({ messages }) => {
@@ -81,7 +85,8 @@ export function chatTransport(options: {
       onConnected?.();
       const { response } = result;
       if (response.body === null) return response;
-      return new Response(deferStreamError(response.body), {
+      const held = deferStreamError(response.body);
+      return new Response(onStep === undefined ? held : watchSteps(held, onStep), {
         status: response.status,
         headers: response.headers,
       });

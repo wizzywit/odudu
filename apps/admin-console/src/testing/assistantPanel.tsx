@@ -130,6 +130,7 @@ export function panelElement(
       <AssistantPanel
         tenant={tenant}
         actingIn={actingIn}
+        username="ada"
         view={view}
         id="assistant-panel"
         label="Assistant panel"

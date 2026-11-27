@@ -1,0 +1,81 @@
+.rows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.label {
+  font-size: var(--type-13);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Side by side where each side has room for a short value, one above the
+   other where it has not, with no width the panel has to be for it. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--space-2);
+}
+
+.side {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+  padding: var(--space-2);
+  border: var(--hairline);
+  border-inline-start: 3px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+}
+
+.sideLabel {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.row[data-change='added'] .side[data-side='after'] {
+  border-inline-start-color: var(--signal-active-ink);
+}
+
+.row[data-change='removed'] .side[data-side='before'] {
+  border-inline-start-color: var(--signal-danger-ink);
+}
+
+.row[data-change='removed'] .side[data-side='before'] .value {
+  text-decoration: line-through;
+}
+
+.row[data-change='changed'] .side {
+  border-inline-start-color: var(--signal-warning-ink);
+}
+
+.row[data-change='same'] {
+  opacity: 0.8;
+}

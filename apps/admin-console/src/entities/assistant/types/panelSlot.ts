@@ -9,6 +9,8 @@ export interface AssistantPanelSlot {
   // The tenant named when it is not the signed-in administrator's own: the
   // conversation is theirs, and its tools run there.
   actingIn: string | null;
+  // The administrator's own username, which a card names as who decides.
+  username: string;
   view: AssistantView;
   id: string;
   label: string;

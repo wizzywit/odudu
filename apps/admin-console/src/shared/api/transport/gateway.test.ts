@@ -552,7 +552,7 @@ describe('gateway.download, a body kept as the bytes the server sent', () => {
     expect(result).toEqual({
       ok: true,
       status: 200,
-      data: { text: DOCUMENT, contentType: 'application/vnd.odudu.tenant+json' },
+      data: { text: DOCUMENT, contentType: 'application/vnd.odudu.tenant+json', date: null },
       etag: null,
       next: null,
     });

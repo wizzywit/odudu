@@ -23,6 +23,9 @@ function header(
     canStartNew?: boolean;
     onStartNew?: () => void;
     onShowConversations?: () => void;
+    onModeChange?: (value: string) => void;
+    modeDisabled?: boolean;
+    modeProblem?: string | null;
   } = {},
 ) {
   return (
@@ -37,6 +40,9 @@ function header(
       conversationsRef={createRef<HTMLButtonElement>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
+      onModeChange={options.onModeChange ?? vi.fn<(value: string) => void>()}
+      modeDisabled={options.modeDisabled ?? false}
+      modeProblem={options.modeProblem ?? null}
       acting={actingInText(options.actingIn ?? null)}
       meter={options.meter ?? null}
       models={options.models ?? null}
@@ -45,12 +51,34 @@ function header(
   );
 }
 
-it('offers both modes, says what the chosen one does, and says why Act is not yet to be chosen', () => {
+it('offers both modes, says what the chosen one does, and what Act leaves to the person', () => {
   render(header());
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
   expect(screen.getByText('Ask reads and explains. It changes nothing.')).toBeInTheDocument();
-  expect(screen.getByText('Act needs the approval card, which arrives next.')).toBeInTheDocument();
+  expect(screen.getByText(/each change it proposes waits for your approval/u)).toBeInTheDocument();
+});
+
+it('reports the mode the person picks, and says why a switch did not go through', async () => {
+  const user = userEvent.setup();
+  const onModeChange = vi.fn<(value: string) => void>();
+  const view = render(header({ onModeChange }));
+  await user.click(screen.getByRole('radio', { name: 'Act' }));
+  expect(onModeChange).toHaveBeenCalledWith('act');
+  view.unmount();
+  render(header({ modeProblem: 'The mode could not be changed. Try again.' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('could not be changed');
+});
+
+it('keeps the switch still while an answer runs, and never offers Act in another tenant', () => {
+  const running = render(header({ modeDisabled: true }));
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Ask' })).toBeDisabled();
+  running.unmount();
+  render(header({ actingIn: 'demo' }));
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
+  expect(screen.getByRole('radio', { name: 'Ask' })).toBeEnabled();
+  expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
 });
 
 it('offers no switch where one mode is offered', () => {

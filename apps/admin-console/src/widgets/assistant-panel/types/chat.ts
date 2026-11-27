@@ -18,7 +18,16 @@ export type StepState = 'running' | 'waiting' | 'done' | 'failed' | 'denied';
 // What the log draws of one message part. Reasoning, sources, files and data
 // parts are not drawn.
 export type PanelPart =
-  { kind: 'text'; text: string } | { kind: 'tool'; id: string; name: string; state: StepState };
+  | { kind: 'text'; text: string }
+  | {
+      kind: 'tool';
+      id: string;
+      name: string;
+      state: StepState;
+      // The arguments the model gave, and the error the call ended in, if it did.
+      input: unknown;
+      error: string | null;
+    };
 
 export type ChatStatus = 'submitted' | 'streaming' | 'ready' | 'error';
 
@@ -40,8 +49,7 @@ export type PanelState =
   | { kind: 'connecting' }
   | { kind: 'thinking' }
   | { kind: 'tool'; step: string }
-  // `act`: the conversation is in Act mode, which waits for a card that does not exist yet.
-  | { kind: 'waiting'; act: boolean }
+  | { kind: 'waiting' }
   | { kind: 'stopped' }
   | { kind: 'step-limit' }
   | { kind: 'budget'; level: AssistantBudgetLevel }
@@ -67,9 +75,17 @@ export interface Meter {
 // One line of a list of steps, worded and toned for the view.
 export interface StepLine {
   id: string;
+  name: string;
   text: string;
   label: string;
   tone: 'neutral' | 'active' | 'warning' | 'danger';
+  state: StepState;
+  // How long the step took, when this panel watched it, as a short phrase.
+  duration: string | null;
+  // The call as it was sent, for the step's expander.
+  raw: string;
+  // What became of the approval a finished write step carried, if it was one.
+  outcome: string | null;
 }
 
 // What a message is made of, as the log lays it out: answer text cut at the

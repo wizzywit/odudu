@@ -7,6 +7,7 @@ import { noticeScopeOf, noticeToShow } from '#/widgets/assistant-panel/services/
 import { modelsOf, type ModelEntry } from '#/widgets/assistant-panel/services/models';
 import { pageContextOf, pageLabel } from '#/widgets/assistant-panel/services/pageContext';
 import { actingInText, modeChoices } from '#/widgets/assistant-panel/services/crossTenant';
+import { modeOfChoice } from '#/widgets/assistant-panel/services/modeSwitch';
 import { COMPOSER_MAX } from '#/widgets/assistant-panel/services/composer';
 import { contentSize } from '#/widgets/assistant-panel/services/scroll';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
@@ -32,6 +33,8 @@ export interface AssistantPanelState {
   acting: string | null;
   // The modes the switch draws.
   modeChoices: readonly AssistantMode[];
+  // The person picked a mode on the switch; a value that is no mode is ignored.
+  chooseMode: (value: string) => void;
   // Where the administrator is, in the words the chip beside the composer shows.
   where: string;
   // The notice to show above the conversation, or null once it has been read.
@@ -92,6 +95,10 @@ export function useAssistantPanel(options: {
     mode: chat.mode,
     acting: actingInText(actingIn),
     modeChoices: modeChoices(view.modes ?? [], actingIn),
+    chooseMode: (value) => {
+      const next = modeOfChoice(value);
+      if (next !== null) chat.setMode(next);
+    },
     where: pageLabel(pageContext),
     notice: noticeToShow(read.unread, view.provider, actingIn),
     dismissNotice: read.dismiss,

@@ -1,0 +1,11 @@
+.countdown {
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+
+.countdown[data-expired] {
+  color: var(--signal-warning-ink);
+  font-weight: 600;
+}

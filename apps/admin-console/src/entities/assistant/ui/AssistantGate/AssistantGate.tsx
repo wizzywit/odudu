@@ -19,6 +19,7 @@ export function AssistantGate({
   tenant,
   available,
   actingIn,
+  username,
   paused,
   renderPanel,
   children,
@@ -27,6 +28,8 @@ export function AssistantGate({
   available: boolean;
   // The tenant the assistant acts in when it is not the caller's own.
   actingIn: string | null;
+  // The signed-in administrator's username.
+  username: string;
   // A dialog is open: the shortcut would act behind it.
   paused: boolean;
   // Draws the open panel, which a layer above this one provides: what it holds
@@ -53,6 +56,7 @@ export function AssistantGate({
       ? renderPanel({
           tenant,
           actingIn,
+          username,
           view: entry.view,
           id: entry.panelId,
           label: words.panelLabel,

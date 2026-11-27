@@ -29,6 +29,8 @@ export type { GatewayFailure, GatewayResult, GatewaySuccess };
 export interface RawBody {
   text: string;
   contentType: string | null;
+  // The server's own `Date` header, for a reading that needs the server's clock.
+  date: string | null;
 }
 
 // A body answered as bytes, for a file the console shows rather than saves,
@@ -314,7 +316,11 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
       return {
         ok: true,
         status: response.status,
-        data: { text, contentType: response.headers.get('content-type') },
+        data: {
+          text,
+          contentType: response.headers.get('content-type'),
+          date: response.headers.get('date'),
+        },
         etag: readEtag(response.headers),
         next: null,
       };
