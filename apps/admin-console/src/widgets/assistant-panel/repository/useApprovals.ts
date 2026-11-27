@@ -27,7 +27,7 @@ export function useApprovalList(
 }
 
 export type DecideWrite = Write<
-  { approvalId: string; approve: boolean },
+  { approvalId: string; approve: boolean; confirm?: string },
   GatewayResult<DecideApprovalResponse>
 >;
 
@@ -35,8 +35,8 @@ export function useDecideApproval(tenant: string, conversationId: string | null)
   const { invalidate } = useInvalidate();
   const id = conversationId ?? '';
   return useGatewayWrite({
-    send: (gateway, arg: { approvalId: string; approve: boolean }) =>
-      decideApproval(gateway, tenant, id, arg.approvalId, arg.approve),
+    send: (gateway, arg: { approvalId: string; approve: boolean; confirm?: string }) =>
+      decideApproval(gateway, tenant, id, arg.approvalId, arg.approve, arg.confirm),
     onSettled: () => {
       invalidate(assistantApprovalsKey(tenant, id));
     },

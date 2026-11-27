@@ -1500,3 +1500,14 @@ processes were removed afterwards. The rest of the page keeps its earlier captur
 The OpenAPI page's block was captured again on the same day on a fresh build of the same project, from the working tree of the commit after `7b164736b` that changed the card's wording (the image labels itself `bbca6958f`, the commit before it): 126 paths and 458408 bytes.
 
 `GET /admin/openapi.json` was fetched again on 2026-11-27 on a compose project, `odudu-e2e` (port `3080`, throttles at `10000`), built from the branch commit that lets a system administrator Act in another tenant, on a database that began empty; it is 497,402 bytes, 134 paths, after the descriptions of the conversation and mode routes gained a sentence. The route needs no token. The stack and its image were removed afterwards.
+
+The assistant's changes page, `post-assistantconversationsidapprovals-and-the-act-routes.md`, and the OpenAPI block of
+`get-adminopenapijson.md` were captured again on 2026-11-27 from the working tree of the branch `p5c-w0`, on 134 paths and 498720 bytes.
+It was not a compose project: Postgres 17 ran in a container (`odudu-w0-pg`, host port `5531`, the compose file's `initdb` role script) and
+the server ran from the sources with `node apps/server/src/main.ts` on port `3115` with `ODUDU_REAP_ENABLED=false`, throttles at `1000` and
+`ODUDU_ASSISTANT_MODELS=standard=openai-compatible:demo-model`, pointed at a script on the host that reads the role a message names,
+proposes changing its description and says what the tool returned. `ada` and her token were got as in
+[Getting the token](../reference/transcripts/admin-paths/getting-the-token.md). The blocks ran in the order the page shows them, in one
+script, each output written as it came back (carriage returns and trailing spaces removed); the two `psql` blocks ran in that container,
+and the second conversation's message and its approval, which the page does not show, were made between the mode switch and the
+decision. The container and the processes were removed afterwards.

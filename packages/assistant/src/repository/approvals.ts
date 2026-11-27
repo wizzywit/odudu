@@ -11,12 +11,22 @@ export type { ApprovalCardRow, ApprovalState, CardBody } from '#/service/approva
 const TENANT = sql`nullif(current_setting('app.tenant_id', true), '')::uuid`;
 
 // What the person is shown, minus what the rows around it supply.
-export const cardBodySchema = assistantApprovalCardSchema.pick({
-  title: true,
-  target: true,
-  before: true,
-  after: true,
-});
+// A card stored without a tier is read as the strictest one, which no decision
+// can satisfy, so it fails closed and is never taken for a tier A card.
+export const cardBodySchema = assistantApprovalCardSchema
+  .pick({
+    title: true,
+    tier: true,
+    confirm_with: true,
+    target: true,
+    before: true,
+    after: true,
+    diff: true,
+  })
+  .extend({
+    tier: assistantApprovalCardSchema.shape.tier.default('C'),
+    confirm_with: assistantApprovalCardSchema.shape.confirm_with.default(null),
+  });
 
 interface Row extends Record<string, unknown> {
   approval_id: string;

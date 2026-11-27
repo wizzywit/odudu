@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
@@ -11,12 +11,17 @@ import { ApprovalItem } from '#/widgets/assistant-panel/ui/ApprovalItem';
 const BROWSER_NOW = Date.parse('2026-11-26T05:30:00.000Z');
 const OFFSET = 600_000;
 
+// The server stores a removal as tier B and a change of who can sign in as C.
 function card(tool: string): ApprovalCard {
+  const tier = tool === 'clear_message_override' ? ('B' as const) : ('A' as const);
+  const typed = tool === 'update_role_composites';
   return {
     approval_id: 'a1',
     tool_call_id: 'call-1',
     tool,
     title: 'Change something',
+    tier: typed ? ('C' as const) : tier,
+    confirm_with: typed ? 'ops' : null,
     target: { type: 'group', name: 'ops' },
     before: { description: 'a' },
     after: { description: 'b' },
@@ -37,7 +42,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function item(onDecide = vi.fn<() => void>(), tool?: string, actingIn: string | null = null) {
+function item(
+  onDecide: (entry: Entry, approve: boolean, confirm?: string) => void = vi.fn<() => void>(),
+  tool?: string,
+  actingIn: string | null = null,
+) {
   return (
     <ApprovalItem
       entry={entry(tool)}
@@ -148,5 +157,39 @@ it('names the tenant in the question a removal asks, where the change is made in
   expect(dialog).toHaveTextContent('in demo, not in your own tenant');
   expect(onDecide).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Approve removal' }));
+  expect(onDecide).toHaveBeenCalledWith(expect.anything(), true);
+});
+
+it('holds a tier C approval until the name on the card is typed, then sends that name', async () => {
+  const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+  const onDecide = vi.fn<(entry: Entry, approve: boolean, confirm?: string) => void>();
+  render(
+    <ApprovalItem
+      entry={entry('update_role_composites')}
+      username="ada"
+      actingIn={null}
+      step="waiting"
+      words={PANEL_WORDING}
+      onDecide={onDecide}
+    />,
+  );
+  expect(screen.getByText(/type the name it names/iu)).toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Approve' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Approve this change?' });
+  const approve = screen.getByRole('button', { name: 'Approve change' });
+  expect(approve).toBeDisabled();
+  await user.type(within(dialog).getByRole('textbox'), 'op');
+  expect(approve).toBeDisabled();
+  await user.type(within(dialog).getByRole('textbox'), 's');
+  expect(approve).toBeEnabled();
+  await user.click(approve);
+  expect(onDecide).toHaveBeenCalledWith(expect.anything(), true, 'ops');
+});
+
+it('sends no text for a tier A or B approval, and asks nothing before a refusal', async () => {
+  const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+  const onDecide = vi.fn<(entry: Entry, approve: boolean, confirm?: string) => void>();
+  render(item(onDecide, 'update_group_description'));
+  await user.click(screen.getByRole('button', { name: 'Approve' }));
   expect(onDecide).toHaveBeenCalledWith(expect.anything(), true);
 });

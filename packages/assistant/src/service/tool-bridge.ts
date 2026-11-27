@@ -41,6 +41,10 @@ export type CallTool = (name: string, input: unknown, signal?: AbortSignal) => P
 export type WriteOutcome =
   | { kind: 'done'; result: ToolResult }
   | { kind: 'not_approved' }
+  // What it would change no longer reads as the card showed it: nothing was changed.
+  | { kind: 'moved' }
+  // The target came to reach an administrator capability since the person approved.
+  | { kind: 'human_only' }
   // The approval was already spent: the change may have been made by another call.
   | { kind: 'spent' };
 
@@ -58,6 +62,26 @@ const NOT_APPROVED = {
     detail:
       'It was not approved, the approval had ended, or it was for a different change. ' +
       'Nothing was changed. Propose it again if the person still wants it.',
+  },
+};
+
+// What the model reads when the target moved after the person approved.
+const MOVED = {
+  error: {
+    title: 'The change was not made',
+    detail:
+      'What it would change is no longer as the person saw it when they approved, so nothing ' +
+      'was changed. Read the target again and propose the change again if the person still wants it.',
+  },
+};
+
+// What the model reads when the target became one the assistant never changes.
+const HUMAN_ONLY = {
+  error: {
+    title: 'The change was not made',
+    detail:
+      'What it would change now reaches an administrator capability, which the assistant never ' +
+      'changes, so nothing was changed. Tell the person they can make it in the console.',
   },
 };
 
@@ -95,7 +119,11 @@ export function toSdkTools(
                 ? outcome.result.structuredContent
                 : outcome.kind === 'spent'
                   ? SPENT
-                  : NOT_APPROVED,
+                  : outcome.kind === 'moved'
+                    ? MOVED
+                    : outcome.kind === 'human_only'
+                      ? HUMAN_ONLY
+                      : NOT_APPROVED,
               mask,
             );
           }

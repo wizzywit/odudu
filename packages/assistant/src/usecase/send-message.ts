@@ -1,5 +1,6 @@
 import { toUIMessageStream, type UIMessage, type UIMessageChunk } from 'ai';
 import { approvalCardRepository } from '#/repository/approvals';
+import type { AssistantTx } from '#/repository/tx';
 import { conversationRepository, type ConversationMode } from '#/repository/conversations';
 import { toolsFor } from '#/service/tool-set';
 import {
@@ -41,6 +42,7 @@ import { attachConversation } from '#/usecase/reattach';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
 import { targetSide } from '#/usecase/target-side';
+import { movedSinceCard, tierRaisedSinceCard } from '#/usecase/state-guard';
 import type { TurnApprovals } from '#/usecase/tool-approval';
 import { traceRecorder } from '#/usecase/trace-recorder';
 
@@ -305,8 +307,43 @@ function turnApprovals(
         }),
       };
     },
-    write: async (tool, input, context) => {
+    write: async (tool, input, context, read) => {
       if (!(await actStillOffered(deps, caller))) return { kind: 'not_approved' };
+      // Only an Act conversation of the caller runs a change, and only the one
+      // the card was stored for.
+      const stored = async (tx: AssistantTx) => {
+        const record = await conversationRepository(tx).byId(id);
+        if (
+          record === undefined ||
+          !conversationIsCallers(record, caller) ||
+          effectiveMode(record.profile, record.mode) !== 'act'
+        ) {
+          return undefined;
+        }
+        const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
+        return card?.tool === tool ? card : undefined;
+      };
+      const find = async (tx: AssistantTx) => (await stored(tx))?.approvalId;
+      const card = await deps.transact(caller.tenantId, stored);
+      const entry = deps.tools.find((candidate) => candidate.name === tool);
+      if (
+        card !== undefined &&
+        entry !== undefined &&
+        (await tierRaisedSinceCard(entry, input, card.body, deps.targetFacts?.(caller)))
+      ) {
+        const retiring = { conversationId: id, tool, input, now: deps.now() };
+        await ports.retire(caller, { ...retiring, reason: 'human_only' }, find);
+        return { kind: 'human_only' };
+      }
+      if (
+        card !== undefined &&
+        entry !== undefined &&
+        (await movedSinceCard(entry, input, card.body, { read, signal: context.signal }))
+      ) {
+        const retiring = { conversationId: id, tool, input, now: deps.now() };
+        await ports.retire(caller, { ...retiring, reason: 'state_moved' }, find);
+        return { kind: 'moved' };
+      }
       return ports.write(
         caller,
         {
@@ -315,23 +352,11 @@ function turnApprovals(
           toolCallId: context.toolCallId,
           tool,
           input,
+          tier: card?.body.tier ?? 'A',
           now: deps.now(),
           signal: context.signal,
         },
-        async (tx) => {
-          // Only an Act conversation of the caller runs a change, and only the
-          // one the card was stored for.
-          const record = await conversationRepository(tx).byId(id);
-          if (
-            record === undefined ||
-            !conversationIsCallers(record, caller) ||
-            effectiveMode(record.profile, record.mode) !== 'act'
-          ) {
-            return undefined;
-          }
-          const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
-          return card?.tool === tool ? card.approvalId : undefined;
-        },
+        find,
       );
     },
   };
@@ -587,6 +612,7 @@ async function runConversationTurn(
         tenantText: prepared.pageContext,
         maskEmails: prepared.maskEmails,
         tools: toolsFor(deps.tools, caller),
+        ...(deps.targetFacts === undefined ? {} : { facts: deps.targetFacts(caller) }),
         mode: prepared.mode,
         earlierSignIn: carriedOn,
         ...(deps.approvalSecret === undefined ? {} : { approvalSecret: deps.approvalSecret }),

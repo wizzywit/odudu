@@ -746,6 +746,142 @@ describe('a grant a dead process left', () => {
   });
 });
 
+describe('a change that asks for a name to be typed', () => {
+  // The twelve changes are tier A, so a tier C card is a stored card made one.
+  async function typed() {
+    const made = await proposed();
+    await s().owner.db.execute(
+      sql`update assistant_approvals
+             set card = card || ${JSON.stringify({ tier: 'C', confirm_with: 'auditors' })}::jsonb
+           where tenant_id = ${made.w.tenantId} and approval_id = ${made.card?.approval_id ?? ''}`,
+    );
+    return { ...made, approval: made.card?.approval_id ?? '' };
+  }
+
+  it('shows the tier and the text to type on the card', async () => {
+    const { w, chat, id } = await typed();
+    const [card] = (await chat.approvals(callerOf(w), id)) ?? [];
+    expect(card).toMatchObject({ tier: 'C', confirm_with: 'auditors' });
+  });
+
+  it('refuses an approval without the exact text and leaves the approval pending', async () => {
+    const { w, chat, id, approval } = await typed();
+    for (const confirm of [undefined, '', 'Auditors', 'auditors ', 'auditor']) {
+      const decided = await chat.answerApproval(callerOf(w), id, approval, true, confirm);
+      expect(decided, String(confirm)).toEqual({ kind: 'confirm_required' });
+    }
+    expect(await approvalStates(w)).toEqual(['pending']);
+    expect(await audit(w, 'assistant.approval')).toEqual([]);
+  });
+
+  it('approves with the exact text, once, and a decision runs no call', async () => {
+    const { w, role, chat, id, approval } = await typed();
+    const decided = await chat.answerApproval(callerOf(w), id, approval, true, 'auditors');
+    expect(decided).toEqual({ kind: 'decided', state: 'approved' });
+    expect(await roleDescription(w, role.id)).toBe('Old text');
+    expect(await approvalStates(w)).toEqual(['approved']);
+    expect(await chat.answerApproval(callerOf(w), id, approval, true, 'auditors')).toEqual({
+      kind: 'not_pending',
+    });
+  });
+
+  it('answers a settled approval as one, even when the decision carries no text', async () => {
+    const { w, chat, id, approval } = await typed();
+    await chat.answerApproval(callerOf(w), id, approval, true, 'auditors');
+    expect(await chat.answerApproval(callerOf(w), id, approval, true)).toEqual({
+      kind: 'not_pending',
+    });
+  });
+
+  it('reads a card stored without a tier as the strictest, which no decision satisfies', async () => {
+    const { w, chat, id, card: stored } = await proposed();
+    await s().owner.db.execute(
+      sql`update assistant_approvals set card = card - 'tier' - 'confirm_with'
+           where tenant_id = ${w.tenantId} and approval_id = ${stored?.approval_id ?? ''}`,
+    );
+    const [card] = (await chat.approvals(callerOf(w), id)) ?? [];
+    expect(card).toMatchObject({ tier: 'C', confirm_with: null });
+    const decided = await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true, 'x');
+    expect(decided).toEqual({ kind: 'confirm_required' });
+  });
+
+  it('asks nothing of a refusal, and ignores a text on a tier A card', async () => {
+    const typedC = await typed();
+    const refused = await typedC.chat.answerApproval(
+      callerOf(typedC.w),
+      typedC.id,
+      typedC.approval,
+      false,
+    );
+    expect(refused).toEqual({ kind: 'decided', state: 'denied' });
+    const plain = await proposed();
+    const approved = await plain.chat.answerApproval(
+      callerOf(plain.w),
+      plain.id,
+      plain.card?.approval_id ?? '',
+      true,
+      'anything',
+    );
+    expect(approved).toEqual({ kind: 'decided', state: 'approved' });
+  });
+});
+
+describe('a replacing change whose target moved after the card', () => {
+  const MESSAGE = { locale: 'en', key: 'login.title', message: 'Hello there' };
+
+  async function overrideProposed() {
+    const w = await consoleWorld(s().appDb, BASE, CAPABILITIES);
+    const script = scripted([toolCall('call-1', 'set_message_override', MESSAGE), answer('Done.')]);
+    const chat = chatFor(script.model);
+    const id = await start(chat, w);
+    await say(chat, w, id, 'set the sign-in title');
+    const [card] = (await chat.approvals(callerOf(w), id)) ?? [];
+    return { w, script, chat, id, approval: card?.approval_id ?? '' };
+  }
+
+  async function storedMessage(w: World): Promise<string | null> {
+    const found = await rows<{ message: string }>(
+      sql`select message from message_overrides
+           where tenant_id = ${w.tenantId} and locale = 'en' and key = 'login.title'`,
+    );
+    return found[0]?.message ?? null;
+  }
+
+  it('runs when the target is as the card showed it', async () => {
+    const { w, chat, id, approval } = await overrideProposed();
+    await chat.answerApproval(callerOf(w), id, approval, true);
+    expect(await resume(chat, w, id)).toContain('Done.');
+    expect(await storedMessage(w)).toBe('Hello there');
+    expect(await approvalStates(w)).toEqual(['consumed']);
+  });
+
+  it('closes the approval as not run when the target changed, and tells the model', async () => {
+    const { w, script, chat, id, approval } = await overrideProposed();
+    await chat.answerApproval(callerOf(w), id, approval, true);
+    await s().owner.db.execute(
+      sql`insert into message_overrides (tenant_id, locale, key, message)
+          values (${w.tenantId}, 'en', 'login.title', 'Someone else')`,
+    );
+    const out = await resume(chat, w, id);
+    expect(out).toContain('"stopReason"');
+    expect(await storedMessage(w)).toBe('Someone else');
+    expect(await approvalStates(w)).toEqual(['consumed']);
+    expect(script.prompts.at(-1)).toContain('no longer as the person saw it');
+    expect((await assistantGrants(w)).map((grant) => grant.scope)).toEqual(['mcp:read']);
+    const rowsOf = await audit(w, 'assistant.approval');
+    expect(rowsOf.at(-1)).toMatchObject({
+      outcome: 'refused',
+      state: 'not_run',
+      state_moved: true,
+      approval,
+      tool: 'set_message_override',
+    });
+    expect(
+      (await audit(w, 'agent.tool_call')).filter((row) => row.tool === 'set_message_override'),
+    ).toEqual([]);
+  });
+});
+
 describe('the approval signature', () => {
   it('cannot be switched off by an empty key', () => {
     expect(() =>

@@ -43,6 +43,8 @@ const LATER = new Date(NOW.getTime() + 600_000);
 
 const BODY: CardBody = {
   title: 'Change the description of a role',
+  tier: 'A',
+  confirm_with: null,
   target: { type: 'role', id: 'r1', name: 'auditors' },
   before: { description: 'old' },
   after: { description: 'new' },

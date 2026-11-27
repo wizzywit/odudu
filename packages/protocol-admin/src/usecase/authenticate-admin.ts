@@ -36,6 +36,9 @@ export interface AdminAgent {
   // Set when the owner is the client's own service account: no person signed in to
   // that grant, so nothing counts what it creates against anybody's sign-in.
   readonly ownerIsServiceAccount?: true;
+  // Set when the grant belongs to the built-in assistant client, which the door
+  // admits to writes of its own beside the ones every agent may make.
+  readonly assistant?: true;
   // The tenant the grant names, set only when the grant belongs to the built-in
   // assistant client: no other client's grant is read for a target.
   readonly assistantTarget?: string;
@@ -416,6 +419,7 @@ export async function authenticateAdmin(
         ...(client.serviceSubjectId === payload.sub
           ? { ownerIsServiceAccount: true as const }
           : {}),
+        ...(client.builtinAssistant ? { assistant: true as const } : {}),
         ...(client.builtinAssistant && grant.targetTenantId !== null
           ? { assistantTarget: grant.targetTenantId }
           : {}),

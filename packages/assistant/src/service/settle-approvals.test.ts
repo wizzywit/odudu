@@ -23,7 +23,14 @@ function card(toolCallId: string, state: ApprovalState, expiresAt = LATER): Appr
     conversationId: 'c',
     toolCallId,
     tool: 'update_client_metadata',
-    body: { title: 't', target: { type: 'client' }, before: null, after: null },
+    body: {
+      title: 't',
+      tier: 'A',
+      confirm_with: null,
+      target: { type: 'client' },
+      before: null,
+      after: null,
+    },
     state,
     expiresAt,
   };

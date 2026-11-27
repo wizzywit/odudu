@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { TOOLS } from '#/service/catalogue';
-import { directCallerTools, toolVisible, visibleTools } from '#/service/visible-tools';
+import {
+  directCallerTools,
+  endpointTools,
+  toolVisible,
+  visibleTools,
+} from '#/service/visible-tools';
 
 const ALL = new Set([
   'manage-clients',
@@ -185,5 +190,31 @@ describe('directCallerTools', () => {
     expect(direct).toContain('update_tenant_text_settings');
     expect(direct.filter((n) => n.startsWith('list_')).length).toBeGreaterThan(10);
     expect(direct).toEqual([...direct].sort());
+  });
+});
+
+describe('a tool for the assistant alone', () => {
+  const [first] = TOOLS.filter((tool) => tool.access === 'read');
+  if (first === undefined) throw new Error('no read tool to copy');
+  const assistantOnly = { ...first, name: 'assistant_only_probe', audience: 'assistant' as const };
+  const withProbe = [...TOOLS, assistantOnly];
+
+  it('is not listed to an agent holding every scope and capability', () => {
+    const names = visibleTools(withProbe, ['mcp:read', 'mcp:write'], ALL, true).map((t) => t.name);
+    expect(names).not.toContain('assistant_only_probe');
+    expect(names).toContain(first.name);
+  });
+
+  it('is not served to a direct caller', () => {
+    expect(directCallerTools(withProbe).map((t) => t.name)).not.toContain('assistant_only_probe');
+  });
+
+  it('is not one of the tools the endpoint serves by name', () => {
+    expect(endpointTools(withProbe).map((t) => t.name)).not.toContain('assistant_only_probe');
+    expect(endpointTools(TOOLS)).toHaveLength(TOOLS.length);
+  });
+
+  it('is a tool of audience all when none is said', () => {
+    expect(TOOLS.every((tool) => tool.audience === undefined)).toBe(true);
   });
 });

@@ -5,6 +5,8 @@ import {
   changeInKicker,
   changeTenantNote,
   removalIn,
+  setHeading,
+  typedChangeIn,
   expiresInMinutes,
   expiresInSeconds,
   copyIdLabel,
@@ -16,6 +18,7 @@ import type {
   CardStatus,
   Decision,
   DiffRow,
+  SetSide,
 } from '#/widgets/assistant-panel/types/approvals';
 
 type Fields = ApprovalCard['before'];
@@ -36,14 +39,6 @@ export const WRITE_TOOLS: ReadonlySet<string> = new Set([
   'update_theme_draft',
   'update_client_theme_draft',
 ]);
-
-// A change that removes something. A card for one asks once more before the
-// approval is sent, since the other cards add or alter and can be altered back.
-const REMOVING_TOOLS: ReadonlySet<string> = new Set(['clear_message_override']);
-
-export function removesSomething(tool: string): boolean {
-  return REMOVING_TOOLS.has(tool);
-}
 
 function valueText(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined || value === '') return PANEL_WORDING.valueEmpty;
@@ -179,6 +174,48 @@ function remainingText(status: CardStatus, seconds: number): string {
   return status === 'pending' ? countdownText(seconds) : TIME_WORDS[status];
 }
 
+function setSide(label: string, names: readonly string[]): SetSide {
+  return { heading: setHeading(label, names.length), names, empty: PANEL_WORDING.setNone };
+}
+
+// The names a change that replaces a list adds and removes, each whole.
+export function setModel(diff: ApprovalCard['diff']): CardModel['set'] {
+  if (diff === undefined) return null;
+  return {
+    added: setSide(PANEL_WORDING.setAdds, diff.added),
+    removed: setSide(PANEL_WORDING.setRemoves, diff.removed),
+  };
+}
+
+// What the card says its tier asks of the person, or nothing for one that
+// only needs an answer.
+function tierNote(tier: ApprovalCard['tier']): string | null {
+  if (tier === 'B') return PANEL_WORDING.tierBNote;
+  return tier === 'C' ? PANEL_WORDING.tierCNote : null;
+}
+
+// The question asked once more before the approval is sent. A removal is asked
+// plainly; a change that decides who can sign in holds the answer until the
+// name the server wrote is typed.
+function dialogOf(
+  tier: ApprovalCard['tier'],
+  confirmWith: string | null,
+  tenant: string | null,
+): CardModel['dialog'] {
+  if (tier === 'C' && confirmWith !== null) {
+    const words =
+      tenant === null
+        ? { title: PANEL_WORDING.typedTitle, consequence: PANEL_WORDING.typedConsequence }
+        : typedChangeIn(tenant);
+    return { ...words, confirmLabel: PANEL_WORDING.typedConfirm, typed: confirmWith };
+  }
+  const words =
+    tenant === null
+      ? { title: PANEL_WORDING.removeTitle, consequence: PANEL_WORDING.removeConsequence }
+      : removalIn(tenant);
+  return { ...words, confirmLabel: PANEL_WORDING.removeConfirm, typed: null };
+}
+
 // A card as the view draws it: the server's stored change, who decides, the time
 // that is left and, once there is one, the outcome that takes the buttons' place.
 export function cardModel(input: {
@@ -198,10 +235,10 @@ export function cardModel(input: {
     kicker: tenant === null ? PANEL_WORDING.cardLabel : changeInKicker(tenant),
     tenant,
     tenantNote: tenant === null ? null : changeTenantNote(tenant),
-    removal:
-      tenant === null
-        ? { title: PANEL_WORDING.removeTitle, consequence: PANEL_WORDING.removeConsequence }
-        : removalIn(tenant),
+    tier: card.tier,
+    tierNote: tierNote(card.tier),
+    dialog: dialogOf(card.tier, card.confirm_with, tenant),
+    set: setModel(card.diff),
     title: card.title,
     targetType: card.target.type,
     targetName: card.target.name ?? null,
@@ -216,7 +253,7 @@ export function cardModel(input: {
       status === 'pending' || status === 'expired' ? countdownAnnouncement(seconds) : '',
     outcome: outcomeOf(status, step),
     problem: decision?.kind === 'failed' ? decision.problem : null,
-    risky: removesSomething(card.tool),
+    risky: card.tier !== 'A',
   };
 }
 
@@ -239,10 +276,16 @@ export function mayAnswer(decision: Decision | undefined): boolean {
   return decision === undefined || (decision.kind === 'failed' && !decision.final);
 }
 
-// What approving does: ask once more for a change that removes something,
-// send the approval for every other.
-export function approveRoute(removes: boolean): 'confirm' | 'send' {
-  return removes ? 'confirm' : 'send';
+// What approving does: ask once more for a change of tier B or C, send the
+// approval for every other.
+export function approveRoute(asksAgain: boolean): 'confirm' | 'send' {
+  return asksAgain ? 'confirm' : 'send';
+}
+
+// What a confirmed approval sends beside it: the name the server asked to be
+// typed, for a card of tier C, and nothing for any other.
+export function confirmArgs(dialog: CardModel['dialog']): [] | [string] {
+  return dialog.typed === null ? [] : [dialog.typed];
 }
 
 // The extra question stays open only while the card can still be answered.

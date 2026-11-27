@@ -46,7 +46,7 @@ export function ChatLog({
   words: PanelWords;
   logRef: RefObject<HTMLDivElement | null>;
   onScroll: () => void;
-  onDecide: (entry: Entry, approve: boolean) => void;
+  onDecide: (entry: Entry, approve: boolean, confirm?: string) => void;
 }) {
   const last = messages[messages.length - 1];
   return (

@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { NOT_TOOL_KINDS, NOT_TOOLS, TOOLS } from '../../packages/mcp/src/service/catalogue.js';
+import { tierOfTool } from '../../packages/assistant/src/service/approval-card.js';
+import { assistantTools } from '../../packages/assistant/src/service/tool-set.js';
+import {
+  HUMAN_ONLY,
+  NOT_TOOL_KINDS,
+  NOT_TOOLS,
+  TOOLS,
+  UNPLACED_WRITES,
+} from '../../packages/mcp/src/service/catalogue.js';
 import {
   ADMIN_ROUTES,
   AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
+  ASSISTANT_WRITE_ROUTES,
   INSTANCE_READS,
 } from '../../packages/protocol-admin/src/index.js';
 import { backticked, loadSource, tableWithHeadings } from './markdown.js';
@@ -39,6 +48,7 @@ interface Row {
   readonly cls: string;
   readonly tool: string | undefined;
   readonly placement: string;
+  readonly assistant: string;
 }
 
 const document = loadSource(DOC);
@@ -49,6 +59,7 @@ const routeTable = tableWithHeadings(document, [
   'Class',
   'MCP tool',
   'Placement',
+  'Assistant',
   'Console screen',
   'Notes',
 ]);
@@ -66,11 +77,31 @@ const ROWS: readonly Row[] = routeTable.rows.map((cells) => ({
   cls: cells[3] ?? '',
   tool: backticked(cells[4] ?? '')[0],
   placement: cells[5] ?? '',
+  assistant: cells[6] ?? '',
 }));
 
 const ROUTE_KEYS = ADMIN_ROUTES.map((route) => `${route.method} ${route.pattern}`);
 const TOOL_BY_ROUTE = new Map(TOOLS.map((tool) => [tool.routeKey, tool.name]));
 const rowOf = (key: string): Row | undefined => ROWS.find((row) => row.key === key);
+
+// What the console assistant does with a route, from the registries: a write is
+// a tool of its tier, a human-only route with its group, or not yet a tool; a
+// read is offered, or withheld with the kind of the withheld route.
+const OFFERED_READS = new Set(assistantTools(TOOLS).map((tool) => tool.routeKey));
+const HUMAN_ONLY_GROUP_OF = new Map(
+  HUMAN_ONLY.flatMap((entry) => entry.routes.map((route) => [route, entry.group] as const)),
+);
+function assistantCell(key: string): string {
+  if (key.startsWith('GET ')) {
+    if (OFFERED_READS.has(key)) return 'yes';
+    return TOOL_BY_ROUTE.has(key) ? 'no: own record' : `no: ${NOT_TOOL_KINDS[key] ?? 'unplaced'}`;
+  }
+  const tool = TOOLS.find((candidate) => candidate.routeKey === key);
+  if (tool !== undefined) return `tier ${tierOfTool(tool.name)}`;
+  const group = HUMAN_ONLY_GROUP_OF.get(key);
+  if (group !== undefined) return `human-only: ${group}`;
+  return UNPLACED_WRITES.includes(key) ? 'not yet' : 'unplaced';
+}
 
 describe('the route classes document against the admin routes', () => {
   it('has one row for every admin route, in order, and says how many', () => {
@@ -118,20 +149,38 @@ describe('the route classes document against the tool catalogue', () => {
     }
   });
 
-  it('puts every access-changing, credential and destructive route in P5b', () => {
+  it('has no tool of audience all for any access-changing, credential or destructive route', () => {
+    const everyAgent = new Set(
+      TOOLS.filter((tool) => tool.audience !== 'assistant').map((tool) => tool.routeKey),
+    );
     for (const row of ROWS.filter((r) => ['W2', 'C', 'D'].includes(r.cls))) {
+      expect(everyAgent.has(row.key), row.key).toBe(false);
       expect(row.placement, row.key).toBe('P5b');
-      expect(row.tool, row.key).toBeUndefined();
+      expect(row.tool === undefined || row.assistant.startsWith('tier '), row.key).toBe(true);
+    }
+  });
+
+  it('says in the Assistant column what the registries say of every route', () => {
+    for (const row of ROWS) expect(row.assistant, row.key).toBe(assistantCell(row.key));
+  });
+
+  it('keeps the routes only the assistant’s door admits out of the shared allowlist', () => {
+    const shared = new Set(AGENT_WRITE_ROUTES.map((entry) => `${entry.method} ${entry.pattern}`));
+    for (const entry of ASSISTANT_WRITE_ROUTES) {
+      expect(shared.has(`${entry.method} ${entry.pattern}`), entry.pattern).toBe(false);
     }
   });
 
   it('names the tool that serves a route, in a row of a class a tool may serve', () => {
     for (const [key, name] of TOOL_BY_ROUTE) {
       const row = rowOf(key);
-      expect(['R', 'W1', 'I'], `${key} is served by ${name}`).toContain(row?.cls);
+      const forEveryAgent = TOOLS.find((tool) => tool.name === name)?.audience !== 'assistant';
+      if (forEveryAgent) {
+        expect(['R', 'W1', 'I'], `${key} is served by ${name}`).toContain(row?.cls);
+        expect(NOT_TOOLS, key).not.toHaveProperty([key]);
+      }
       expect(row?.tool, key).toBe(name);
       expect(row?.placement, key).toBe('this phase');
-      expect(NOT_TOOLS, key).not.toHaveProperty([key]);
     }
   });
 

@@ -93,6 +93,7 @@ export interface Chat {
     id: string,
     approvalId: string,
     approve: boolean,
+    confirm?: string,
   ): Promise<DecideResult>;
   /** Carries the conversation on after a decision, streaming like a message does. */
   resume(caller: ChatCaller, id: string, signal: AbortSignal): Promise<ResumeResult>;
@@ -141,8 +142,8 @@ export function createChat(deps: ChatDeps): Chat {
 
     approvals: (caller, id) => listApprovals(deps, caller, id),
 
-    answerApproval: (caller, id, approvalId, approve) =>
-      decideCard(deps, caller, id, approvalId, approve),
+    answerApproval: (caller, id, approvalId, approve, confirm) =>
+      decideCard(deps, caller, id, approvalId, approve, confirm),
 
     async resume(caller, id, signal) {
       return streamed(await resumeTurn(deps, registry, caller, id, signal));

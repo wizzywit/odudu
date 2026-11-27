@@ -26,7 +26,7 @@ export function MessageView({
   username: string;
   actingIn: string | null;
   words: PanelWords;
-  onDecide: (entry: Entry, approve: boolean) => void;
+  onDecide: (entry: Entry, approve: boolean, confirm?: string) => void;
 }) {
   const mine = message.role === 'user';
   const who = mine ? words.you : words.assistant;

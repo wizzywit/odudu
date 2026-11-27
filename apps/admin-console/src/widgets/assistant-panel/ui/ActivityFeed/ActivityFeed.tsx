@@ -21,7 +21,7 @@ function Step({
   // The tenant the changes are made in, when it is not the person's own.
   actingIn: string | null;
   words: PanelWords;
-  onDecide: (entry: Entry, approve: boolean) => void;
+  onDecide: (entry: Entry, approve: boolean, confirm?: string) => void;
 }) {
   const [raw, setRaw] = useState(false);
   const rawId = useId();
@@ -85,7 +85,7 @@ export function ActivityFeed({
   username: string;
   actingIn: string | null;
   words: PanelWords;
-  onDecide: (entry: Entry, approve: boolean) => void;
+  onDecide: (entry: Entry, approve: boolean, confirm?: string) => void;
 }) {
   const feed = useFeed(steps, live, entries);
   const listId = useId();

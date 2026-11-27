@@ -45,6 +45,8 @@ it('gives each line the card of the change it proposed', () => {
       tool_call_id: 'd',
       tool: 'create_group',
       title: 'Create a group',
+      tier: 'A' as const,
+      confirm_with: null,
       target: { type: 'group' },
       before: null,
       after: { name: 'ops' },

@@ -9,6 +9,8 @@ const CARD = {
   tool_call_id: 'call-1',
   tool: 'create_group',
   title: 'Create a group',
+  tier: 'A',
+  confirm_with: null,
   target: { type: 'group', name: 'ops' },
   before: null,
   after: { name: 'ops' },
@@ -47,4 +49,14 @@ it('sends the decision to the change it is for, and answers what the server deci
   const result = await decideApproval(fake.transport.gateway, 'acme', 'c1', 'a1', false);
   expect(result).toMatchObject({ ok: true, data: { state: 'denied' } });
   expect(fake.sent.at(-1)).toMatchObject({ method: 'POST', body: { approve: false } });
+});
+
+it('sends the text a tier C card asked for beside the approval, and none otherwise', async () => {
+  const fake = fakeTransport({
+    [`POST ${APPROVALS}/a1`]: json({ state: 'approved' }),
+  });
+  await decideApproval(fake.transport.gateway, 'acme', 'c1', 'a1', true, 'auditors');
+  expect(fake.sent.at(-1)).toMatchObject({ body: { approve: true, confirm: 'auditors' } });
+  await decideApproval(fake.transport.gateway, 'acme', 'c1', 'a1', true);
+  expect(fake.sent.at(-1)?.body).toEqual({ approve: true });
 });

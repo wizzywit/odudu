@@ -281,6 +281,43 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
       });
     },
 
+    async retire(caller, input, find) {
+      const tenant = await tenantOf(caller);
+      await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
+        const found = await find(tx);
+        if (found === undefined) return;
+        const digest = writeDigest(
+          tenant.id,
+          caller.ownerSubjectId,
+          input.conversationId,
+          input.tool,
+          input.input,
+          targetOf(caller),
+        );
+        if (!(await consumeApproval(tx, found, digest, input.now))) return;
+        await auditRepository(tx).record({
+          eventType: 'admin_mutation',
+          action: 'assistant.approval',
+          outcome: 'refused',
+          actorTenantId: tenant.id,
+          actorSubjectId: caller.ownerSubjectId,
+          resourceType: 'assistant_conversation',
+          resourceId: input.conversationId,
+          detail: {
+            tenant: tenant.id,
+            ...(targetOf(caller) === undefined ? {} : { target_tenant: targetOf(caller) }),
+            subject: caller.ownerSubjectId,
+            conversation: input.conversationId,
+            approval: found,
+            tool: input.tool,
+            state: 'not_run',
+            ...(input.reason === 'state_moved' ? { state_moved: true } : { human_only: true }),
+            via: 'console',
+          },
+        });
+      });
+    },
+
     async write(caller, input, find) {
       const tenant = await tenantOf(caller);
       const at = input.now;
@@ -390,6 +427,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
               parts.logger,
               now,
               targetOf(caller),
+              input.tier === 'C',
             ),
             holdsWrite: true,
           },

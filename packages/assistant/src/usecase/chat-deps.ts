@@ -1,3 +1,4 @@
+import type { AssistantTier } from '@odudu/contracts/admin';
 import type { RegisteredTool } from '@odudu/mcp';
 import type { LanguageModel, Telemetry } from 'ai';
 import type { ConversationMode } from '#/repository/conversations';
@@ -8,6 +9,7 @@ import type { LevelName, StopReason } from '#/service/limits';
 import type { Slot } from '#/service/slots';
 import type { TurnStart, TurnSummary } from '#/service/turn-summary';
 import type { CapRefusal } from '#/service/approval-limits';
+import type { FactsReader } from '#/service/tier';
 import type { WriteOutcome } from '#/service/tool-bridge';
 
 /**
@@ -66,7 +68,9 @@ export type WithdrawReason = 'superseded' | 'mode_changed' | 'stopped';
 export type DecideResult =
   | { kind: 'decided'; state: 'approved' | 'denied' }
   | { kind: 'not_found' }
-  | { kind: 'not_pending' };
+  | { kind: 'not_pending' }
+  // The card asks for a text the decision did not carry: nothing was recorded.
+  | { kind: 'confirm_required' };
 
 /**
  * What the assistant needs of P5's approvals and of the write door, supplied by
@@ -108,6 +112,22 @@ export interface ApprovalPorts {
     load: (tx: AssistantTx) => Promise<DecidedTarget | undefined>,
   ) => Promise<DecideResult>;
   /**
+   * Closes an approved change that is not run because what it would change moved
+   * since the person approved: spends the approval, so it cannot run later, and
+   * leaves a row saying the state moved. `find` names the approval as for `write`.
+   */
+  readonly retire: (
+    caller: ChatCaller,
+    input: {
+      readonly conversationId: string;
+      readonly tool: string;
+      readonly input: unknown;
+      readonly now: Date;
+      readonly reason: 'state_moved' | 'human_only';
+    },
+    find: (tx: AssistantTx) => Promise<string | undefined>,
+  ) => Promise<void>;
+  /**
    * Runs one approved change: spends the approval for exactly this call,
    * gives it a grant of its own, makes it and ends the grant. `find` names the
    * approval the stored card holds for the call, or undefined where there is none.
@@ -120,6 +140,8 @@ export interface ApprovalPorts {
       readonly toolCallId: string;
       readonly tool: string;
       readonly input: unknown;
+      // What the card asked of the person; a tier C change is counted apart.
+      readonly tier: AssistantTier;
       readonly now: Date;
       readonly signal?: AbortSignal | undefined;
     },
@@ -204,6 +226,12 @@ interface ChatBase {
   readonly transact: <T>(tenantId: string, fn: (tx: AssistantTx) => Promise<T>) => Promise<T>;
   readonly model: (slot: Slot) => LanguageModel;
   readonly tools: readonly RegisteredTool[];
+  /**
+   * What the server knows of a target, for the caller's conversations: whether a
+   * change that asks more than tier A may be proposed at all. Absent, only tier A
+   * changes are proposed.
+   */
+  readonly targetFacts?: (caller: ChatCaller) => FactsReader;
   /**
    * How a turn of one of the caller's conversations gets a token and runs a tool.
    * `turnId` names the turn, so each tool call's audit row can carry it.

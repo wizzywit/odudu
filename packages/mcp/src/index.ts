@@ -44,7 +44,13 @@ export type { CallMcpToolDeps, RecordedToolCall } from '@odudu-io/mcp-stdio/inte
 export { createToolLimiter, DEFAULT_TOOL_LIMITS } from '#/service/rate-limit';
 export type { ToolLimiter, ToolLimiterOptions } from '#/service/rate-limit';
 export { TOOLS } from '#/service/catalogue';
+export type { HumanOnlyGroup } from '#/service/catalogue';
 export { contentWriteTool, descriptionField, nameField } from '#/service/write-tool';
-export { directCallerTools, visibleTools, toolVisible } from '#/service/visible-tools';
+export {
+  directCallerTools,
+  endpointTools,
+  visibleTools,
+  toolVisible,
+} from '#/service/visible-tools';
 export { toolServer } from '#/adapter/tool-server';
 export type { RegisteredTool } from '#/service/tool';

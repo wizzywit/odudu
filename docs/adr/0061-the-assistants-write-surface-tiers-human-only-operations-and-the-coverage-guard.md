@@ -218,3 +218,37 @@ the answer is paged under `MAX_LIMIT`.
 the stated rule is about its own rows, the mechanism hid everything, and "explain this event"
 needs the trail. _Filter in the tool layer or the console:_ a bypass through a second route
 or a count would remain; the door is where the person's rights are already applied.
+
+## Amendment 2026-11-27: what the groundwork fixed
+
+**A removal of wording is tier B.** `clear_message_override` removes what the audit row keeps
+the text of and the console already asked twice for, so its plan is tier B and the console
+reads the tier from the card, not from a list of tools of its own.
+
+**The re-read set is every replacing PUT.** A tool sends the `ETag` it reads as it makes the
+call, which guards the call against a race and not against what changed since the card, so a
+`PUT` whose route carries a mandatory `If-Match` is re-read when its approval is spent as well,
+and a difference closes the approval as not run (`state_moved`). `mcp-route-classes.md` lists
+each PUT route and what it says of `If-Match`.
+
+**Tier C has its own counters.** A change of tier C is counted on a column of the grant and one
+of the daily window beside the ordinary ones, under the same limits, so a burst of tier A cannot
+spend what it needs. The window and the grant are separate; the share of an agent instance is
+not, and the assistant acts as no instance.
+
+**A target that cannot be judged is human-only.** A session is not read yet, so a change to
+one fails closed as `own-session` until the removal increment reads it.
+
+**What carries the precondition to the write.** The re-read is made in the assistant and the
+spend is a separate transaction, so a change between them is not seen by the re-read. It is
+refused by the route instead: a content write tool sends the `if_match` of its approved input,
+which the digest binds (`write-tool.ts`, `theme-write.ts`), or a create that the route refuses
+for what exists (`createOnly`). A test holds every PUT tool to one of the two, so a later PUT
+tool that carries neither fails the build until it carries an etag on the write.
+
+**The tier is judged again as the approval is spent.** A role that gained an administrator
+composite, or a subject who joined an administrator group, while a B or C approval waited
+closes the approval as not run (`human_only` in the audit row). The facts also count the roles
+and groups a body grants, beside the record it names. A card stored without a tier is read as
+tier C, which no decision satisfies, and a settled approval answers `409` before the text is
+checked.

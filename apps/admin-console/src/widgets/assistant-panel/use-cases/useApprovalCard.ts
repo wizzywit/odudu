@@ -3,6 +3,7 @@ import { useNow } from '#/shared/lib/use-cases/useNow';
 import {
   approveRoute,
   cardModel,
+  confirmArgs,
   confirmOpen,
   secondsLeft,
 } from '#/widgets/assistant-panel/services/approval';
@@ -13,7 +14,7 @@ const TICK_MS = 1_000;
 
 export interface ApprovalCardState {
   model: CardModel;
-  // The extra question a removal is asked before it is approved.
+  // The extra question a change of tier B or C is asked before it is approved.
   confirming: boolean;
   approve: () => void;
   refuse: () => void;
@@ -21,14 +22,14 @@ export interface ApprovalCardState {
   cancel: () => void;
 }
 
-// One card kept up to date by the server's clock. A change that removes
-// something asks once more before the approval is sent.
+// One card kept up to date by the server's clock. A change of tier B or C asks
+// once more before the approval is sent, and C sends the name it was held for.
 export function useApprovalCard(
   entry: Entry,
   username: string,
   actingIn: string | null,
   step: StepState,
-  answer: (entry: Entry, approve: boolean) => void,
+  answer: (entry: Entry, approve: boolean, confirm?: string) => void,
 ): ApprovalCardState {
   const now = useNow(TICK_MS);
   const [confirming, setConfirming] = useState(false);
@@ -52,7 +53,7 @@ export function useApprovalCard(
     },
     confirm: () => {
       setConfirming(false);
-      answer(entry, true);
+      answer(entry, true, ...confirmArgs(model.dialog));
     },
     cancel: () => {
       setConfirming(false);

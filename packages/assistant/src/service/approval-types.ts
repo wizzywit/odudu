@@ -1,7 +1,10 @@
 import type { AssistantApprovalCard } from '@odudu/contracts/admin';
 
 /** What the person is shown, minus what the rows around it supply. */
-export type CardBody = Pick<AssistantApprovalCard, 'title' | 'target' | 'before' | 'after'>;
+export type CardBody = Pick<
+  AssistantApprovalCard,
+  'title' | 'tier' | 'confirm_with' | 'target' | 'before' | 'after' | 'diff'
+>;
 
 export type ApprovalState = 'pending' | 'approved' | 'denied' | 'expired' | 'consumed';
 

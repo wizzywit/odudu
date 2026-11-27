@@ -1397,6 +1397,10 @@ describeFields(assistantApprovalCardSchema, {
     'The model’s call this change is for; the same id the stream’s approval request names.',
   tool: 'The name of the change tool, one of the twelve the assistant may propose.',
   title: 'What the change does, in one line, written by the server.',
+  tier: 'How much the change asks of the person, decided by the server from the tool and its target: `A` answers the card, `B` asks once more before a removal, `C` also needs the target’s name typed in the decision.',
+  confirm_with:
+    'The exact text a `C` decision must carry as `confirm`, written by the server; null for `A` and `B`.',
+  diff: 'For a change that replaces a list: the names it adds and the names it removes, each shown whole, at most 40 a side; absent for any other change.',
   target:
     'What it changes: the kind of object and, where there is one, its id and the name the server read.',
   before:
@@ -1417,6 +1421,8 @@ describeFields(assistantApprovalListSchema, {
 describeFields(decideApprovalRequestSchema, {
   approve:
     'True to let the one change run, false to refuse it. Only the administrator the conversation belongs to may send it, from their own console session.',
+  confirm:
+    'For a `C` approval that is approved: the exact `confirm_with` text of its card. A missing or different text is refused `400` and the approval stays pending. Ignored for a refusal and for `A` and `B`.',
 });
 describeFields(decideApprovalResponseSchema, {
   state: 'What was recorded: `approved` or `denied`.',

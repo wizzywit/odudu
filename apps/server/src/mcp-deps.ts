@@ -18,6 +18,7 @@ import {
   createInProcessCaller,
   createMcpExchange,
   directCallerTools,
+  endpointTools,
   exchangeForAdmin,
   newRequestScope,
   scopeFor,
@@ -169,6 +170,9 @@ export function grantWriteBudget(
   logger?: Pick<PinoLogger, 'info'>,
   clock: () => Date = () => new Date(),
   alsoLimitedBy?: string,
+  // The write is one that changes who can sign in, what a token carries or what
+  // goes live, which is counted apart from the rest.
+  privileged = false,
 ): WriteBudget {
   // The time each held reservation was spent at, so a release lands in the
   // daily window that was charged even when midnight UTC has passed since.
@@ -208,6 +212,7 @@ export function grantWriteBudget(
           const now = clock();
           const outcome = await agentBudgetRepository(tx).spend({
             ...keys,
+            privileged,
             grantId: token.grantId,
             kind,
             now,
@@ -243,6 +248,7 @@ export function grantWriteBudget(
         async (tx) =>
           agentBudgetRepository(tx).release({
             ...(await keysOf(tx)),
+            privileged,
             grantId: token.grantId,
             kind,
             now: spentAt[kind].pop() ?? clock(),
@@ -330,7 +336,7 @@ export function mcpRouteDepsFor(parts: McpDepsParts, limiter: ToolLimiter): McpR
                 await capabilities(),
                 isSystemTenantId(token.tenant.id),
               )
-            : TOOLS,
+            : endpointTools(TOOLS),
         run: (tool, args) =>
           callMcpTool(
             {

@@ -43,6 +43,7 @@ export type {
   WithdrawReason,
 } from '#/usecase/chat-deps';
 export type { WriteOutcome } from '#/service/tool-bridge';
+export type { FactsReader, FactsRequest, TargetFacts } from '#/service/tier';
 export {
   actsInTenantOf,
   conversationIsCallers,

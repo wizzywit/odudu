@@ -19,6 +19,12 @@ carries the conversation on: the approved change is made under a grant of its ow
 call returns, and the assistant answers from its result. A refusal, an expired approval, another message or a stop closes the
 change without running it. In `ask` mode a change is refused with a reason the model reads and nothing is stored.
 
+A card also carries `tier` (`A`, `B` or `C`), `confirm_with` (the text a tier `C` decision must carry, otherwise `null`) and, for a
+change that replaces a list, `diff` (the names it adds and removes), and the decision body takes an optional `confirm`. A tier `C`
+approval is refused `400` and left pending unless `confirm` equals `confirm_with` exactly. The cards in the blocks below are tier `A`:
+every change of this page is, except the removal of a message override, which is tier `B`. No change of tier `C` exists yet, so no
+block here shows the `400`; the integration tests run it.
+
 The model here is the same kind of stand-in as on the [conversations page](./post-assistantconversations-and-the-conversation-routes.md):
 a small script behind `ODUDU_ASSISTANT_MODELS=standard=openai-compatible:demo-model` that reads the role a message names and then
 proposes changing its description to the quoted text, and says what the tool returned. What the server wrote, the cards, the
@@ -29,15 +35,25 @@ order below, by the administrator `ada` of the `system` tenant, who signed in as
 API=http://localhost:3115/admin/tenants/system
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"name":"auditors","description":"Old text"}' $API/roles
-ROLE_ID=01a2165a-3934-7734-8735-999817309513
+ROLE_ID=01a21f39-bae4-7246-873f-ac980d7f466c
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
   -d '{"mode":"act","page_context":{"route":"/roles","objectType":"role","objectId":"'$ROLE_ID'"}}' \
   $API/assistant/conversations
-ID=01a2165a-3965-75d9-89fd-5f3361452922
+ID=01a21f39-bb0c-7f75-8b8c-1b3f6367137a
 ```
 
 ```
-{"id":"01a2165a-3934-7734-8735-999817309513","name":"auditors","description":"Old text","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-26T05:35:41.362Z","admin_reach":[]}
+{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors","description":"Old text","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-27T22:56:46.815Z","admin_reach":[]}
+HTTP/1.1 201 Created
+x-request-id: 01a21f39-baf6-7f00-b9fa-9663006b0104
+cache-control: no-store
+content-type: application/json; charset=utf-8
+content-length: 191
+Date: Fri, 27 Nov 2026 22:56:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+{"id":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a","profile":"free-chat","mode":"act","title":null,"created_at":"2026-11-27T22:56:46.860Z","last_active_at":"2026-11-27T22:56:46.860Z","messages":[]}
 ```
 
 ```
@@ -66,40 +82,40 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: applicat
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3992-7ea8-8a51-bf5691eb8a4e
+x-request-id: 01a21f39-bb2e-741d-9a90-cc2ef5c0b46d
 cache-control: no-store
 connection: keep-alive
 content-type: text/event-stream
 x-accel-buffering: no
 x-vercel-ai-ui-message-stream: v1
-Date: Thu, 26 Nov 2026 05:35:41 GMT
+Date: Fri, 27 Nov 2026 22:56:46 GMT
 Transfer-Encoding: chunked
 
-data: {"type":"start","messageId":"01a2165a-39cc-722c-bbdf-efcb7de2e074"}
+data: {"type":"start","messageId":"01a21f39-bb78-7a24-ad4a-7b60f495c5e4"}
 
 data: {"type":"start-step"}
 
-data: {"type":"tool-input-start","toolCallId":"call_1795671341562","toolName":"get_role"}
+data: {"type":"tool-input-start","toolCallId":"call_1795820207010","toolName":"get_role"}
 
-data: {"type":"tool-input-delta","toolCallId":"call_1795671341562","inputTextDelta":"{\"id\":\"01a2165a-3934-7734-8735-999817309513\"}"}
+data: {"type":"tool-input-delta","toolCallId":"call_1795820207010","inputTextDelta":"{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\"}"}
 
-data: {"type":"tool-input-available","toolCallId":"call_1795671341562","toolName":"get_role","input":{"id":"01a2165a-3934-7734-8735-999817309513"}}
+data: {"type":"tool-input-available","toolCallId":"call_1795820207010","toolName":"get_role","input":{"id":"01a21f39-bae4-7246-873f-ac980d7f466c"}}
 
-data: {"type":"tool-output-available","toolCallId":"call_1795671341562","output":"<tool-data>{\"data\":{\"id\":\"01a2165a-3934-7734-8735-999817309513\",\"name\":\"auditors\",\"description\":\"Old text\",\"client_id\":null,\"client_key\":null,\"default_for_new_subjects\":false,\"created_at\":\"2026-11-26T05:35:41.362Z\",\"admin_reach\":[]},\"etag\":\"\\\"365aebb82c34954fb61b783a318915f35abb9ea13b490fd47a441fede59044d7\\\"\"}</tool-data>"}
+data: {"type":"tool-output-available","toolCallId":"call_1795820207010","output":"<tool-data>{\"data\":{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\",\"name\":\"auditors\",\"description\":\"Old text\",\"client_id\":null,\"client_key\":null,\"default_for_new_subjects\":false,\"created_at\":\"2026-11-27T22:56:46.815Z\",\"admin_reach\":[]},\"etag\":\"\\\"0fd509c4ad94605efeabb18136c730223cccea0d372063eade5dc0a7233e1ea9\\\"\"}</tool-data>"}
 
 data: {"type":"finish-step"}
 
 data: {"type":"start-step"}
 
-data: {"type":"tool-input-start","toolCallId":"call_1795671341662","toolName":"update_role_description"}
+data: {"type":"tool-input-start","toolCallId":"call_1795820207137","toolName":"update_role_description"}
 
-data: {"type":"tool-input-delta","toolCallId":"call_1795671341662","inputTextDelta":"{\"id\":\"01a2165a-3934-7734-8735-999817309513\",\"if_match\":\"\\\"365aebb82c34954fb61b783a318915f35abb9ea13b490fd47a441fede59044d7\\\"\",\"description\":\"Reviews the audit trail\"}"}
+data: {"type":"tool-input-delta","toolCallId":"call_1795820207137","inputTextDelta":"{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\",\"if_match\":\"\\\"0fd509c4ad94605efeabb18136c730223cccea0d372063eade5dc0a7233e1ea9\\\"\",\"description\":\"Reviews the audit trail\"}"}
 
-data: {"type":"tool-input-available","toolCallId":"call_1795671341662","toolName":"update_role_description","input":{"id":"01a2165a-3934-7734-8735-999817309513","if_match":"\"365aebb82c34954fb61b783a318915f35abb9ea13b490fd47a441fede59044d7\"","description":"Reviews the audit trail"}}
+data: {"type":"tool-input-available","toolCallId":"call_1795820207137","toolName":"update_role_description","input":{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","if_match":"\"0fd509c4ad94605efeabb18136c730223cccea0d372063eade5dc0a7233e1ea9\"","description":"Reviews the audit trail"}}
 
-data: {"type":"data-approval_card","data":{"approval_id":"01a2165a-3a7d-7327-b962-4163d72fe8de","tool_call_id":"call_1795671341662","tool":"update_role_description","title":"Change the description of a role","target":{"type":"role","id":"01a2165a-3934-7734-8735-999817309513","name":"auditors"},"before":{"description":"Old text"},"after":{"description":"Reviews the audit trail"},"expires_at":"2026-11-26T05:45:41.690Z"},"transient":true}
+data: {"type":"data-approval_card","data":{"approval_id":"01a21f39-bc5b-7123-be61-b5d98238c157","tool_call_id":"call_1795820207137","tool":"update_role_description","title":"Change the description of a role","tier":"A","confirm_with":null,"target":{"type":"role","id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors"},"before":{"description":"Old text"},"after":{"description":"Reviews the audit trail"},"expires_at":"2026-11-27T23:06:47.189Z"},"transient":true}
 
-data: {"type":"tool-approval-request","approvalId":"aitxt-dKzIwGW0Og05aRtTuJnBQLlx","toolCallId":"call_1795671341662"}
+data: {"type":"tool-approval-request","approvalId":"aitxt-t69aWO6z60q5NDppX9yFYK9w","toolCallId":"call_1795820207137","signature":"lnS_qxVZtvMqXCtgNCfgnHnYZL0-8SpZTpE5CuldA2Y"}
 
 data: {"type":"finish-step"}
 
@@ -114,21 +130,22 @@ The card, as the console lists it, and the role, which has not changed:
 
 ```bash
 curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" $API/assistant/conversations/$ID/approvals
-APPROVAL=01a2165a-3a7d-7327-b962-4163d72fe8de
+APPROVAL=01a21f39-bc5b-7123-be61-b5d98238c157
 curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $API/roles/$ROLE_ID
 ```
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3a99-7153-9b51-c651e48bf609
+x-request-id: 01a21f39-bc7c-7563-821e-f295c5f38681
 cache-control: no-store
 content-type: application/json; charset=utf-8
-content-length: 391
-Date: Thu, 26 Nov 2026 05:35:41 GMT
+content-length: 422
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"items":[{"approval_id":"01a2165a-3a7d-7327-b962-4163d72fe8de","tool_call_id":"call_1795671341662","tool":"update_role_description","title":"Change the description of a role","target":{"type":"role","id":"01a2165a-3934-7734-8735-999817309513","name":"auditors"},"before":{"description":"Old text"},"after":{"description":"Reviews the audit trail"},"expires_at":"2026-11-26T05:45:41.690Z"}]}
+{"items":[{"approval_id":"01a21f39-bc5b-7123-be61-b5d98238c157","tool_call_id":"call_1795820207137","tool":"update_role_description","title":"Change the description of a role","tier":"A","confirm_with":null,"target":{"type":"role","id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors"},"before":{"description":"Old text"},"after":{"description":"Reviews the audit trail"},"expires_at":"2026-11-27T23:06:47.189Z"}]}
+{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors","description":"Old text","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-27T22:56:46.815Z","admin_reach":[]}
 ```
 
 ```
@@ -143,15 +160,15 @@ curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $API/assistant/con
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a2165a-3ae6-77a0-bc91-3dbcd276428a
+x-request-id: 01a21f39-bcbd-784a-ac40-cf92707ed8ec
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 154
-Date: Thu, 26 Nov 2026 05:35:41 GMT
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"a change still waits for your decision","instance":"01a2165a-3ae6-77a0-bc91-3dbcd276428a"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"a change still waits for your decision","instance":"01a21f39-bcbd-784a-ac40-cf92707ed8ec"}
 ```
 
 ## Approve, then resume
@@ -165,15 +182,45 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $API/roles/$ROLE_ID
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3b06-702b-854c-b6d417780d12
+x-request-id: 01a21f39-bcfc-7450-bf5b-b63bb83f46db
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 20
-Date: Thu, 26 Nov 2026 05:35:41 GMT
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"state":"approved"}
+HTTP/1.1 200 OK
+x-request-id: 01a21f39-bd25-7224-bf8d-da6cea6eb6a4
+cache-control: no-store
+connection: keep-alive
+content-type: text/event-stream
+x-accel-buffering: no
+x-vercel-ai-ui-message-stream: v1
+Date: Fri, 27 Nov 2026 22:56:47 GMT
+Transfer-Encoding: chunked
+
+data: {"type":"start","messageId":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a-3"}
+
+data: {"type":"tool-output-available","toolCallId":"call_1795820207137","output":"<tool-data>{\"data\":{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\",\"name\":\"auditors\",\"description\":\"Reviews the audit trail\",\"client_id\":null,\"client_key\":null,\"default_for_new_subjects\":false,\"created_at\":\"2026-11-27T22:56:46.815Z\",\"admin_reach\":[]},\"etag\":\"\\\"c8f6ace47afe17a3f3020016abac1e6bee1e130cc9d0b50683f69e7a21596cc6\\\"\"}</tool-data>"}
+
+data: {"type":"start-step"}
+
+data: {"type":"text-start","id":"txt-0"}
+
+data: {"type":"text-delta","id":"txt-0","delta":"Done. The role now has the new description."}
+
+data: {"type":"text-end","id":"txt-0"}
+
+data: {"type":"finish-step"}
+
+data: {"type":"finish","finishReason":"stop"}
+
+data: {"type":"data-turn_end","data":{"stopReason":"done"},"transient":true}
+
+data: [DONE]
+{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors","description":"Reviews the audit trail","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-27T22:56:46.815Z","admin_reach":[]}
 ```
 
 ```
@@ -224,26 +271,25 @@ curl -sS -D - -X POST -H "Authorization: Bearer $ADMIN_TOKEN" $API/assistant/con
 
 ```
 HTTP/1.1 409 Conflict
-x-request-id: 01a2165a-3bb3-7713-9d79-aefd7a59b6f2
+x-request-id: 01a21f39-be01-7309-b7bf-fd47cb54381b
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 162
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"this change was already decided or has expired","instance":"01a2165a-3bb3-7713-9d79-aefd7a59b6f2"}
-
+{"type":"about:blank","title":"Conflict","status":409,"detail":"this change was already decided or has expired","instance":"01a21f39-be01-7309-b7bf-fd47cb54381b"}
 HTTP/1.1 409 Conflict
-x-request-id: 01a2165a-3bc8-7fe0-af2e-2f844182145c
+x-request-id: 01a21f39-be27-739b-a070-e6620618fc63
 cache-control: no-store
 content-type: application/problem+json; charset=utf-8
 content-length: 155
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
-{"type":"about:blank","title":"Conflict","status":409,"detail":"no decision is waiting to be carried on","instance":"01a2165a-3bc8-7fe0-af2e-2f844182145c"}
+{"type":"about:blank","title":"Conflict","status":409,"detail":"no decision is waiting to be carried on","instance":"01a21f39-be27-739b-a070-e6620618fc63"}
 ```
 
 ## What it left behind
@@ -279,8 +325,8 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" "$API/audit?action=agent.tool_c
 ```
 
 ```
-{"items":[{"id":"01a2165a-3b15-74da-9471-6a980d706f47","occurred_at":"2026-11-26T05:35:41.840Z","event_type":"admin_mutation","action":"assistant.approval","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2165a-3569-77ef-b7d9-ade0aca0f811","actor_client_id":null,"actor_name":"ada","actor_origin":"tenant","resource_type":"assistant_conversation","resource_id":"01a2165a-3965-75d9-89fd-5f3361452922","request_id":null,"ip":null,"detail":{"via":"console","tool":"update_role_description","state":"approved","tenant":"0199aa00-0000-7000-8000-000000000001","subject":"01a2165a-3569-77ef-b7d9-ade0aca0f811","approval":"01a2165a-3a7d-7327-b962-4163d72fe8de","conversation":"01a2165a-3965-75d9-89fd-5f3361452922"}}]}
-{"items":[{"id":"01a2165a-3b74-7550-960a-0718e728af22","occurred_at":"2026-11-26T05:35:41.940Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2165a-3569-77ef-b7d9-ade0aca0f811","actor_client_id":"01a2165a-3529-7cca-9835-7ba5b07da7f3","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"update_role_description","owner":"01a2165a-3569-77ef-b7d9-ade0aca0f811","route":"PATCH /admin/tenants/:tenant/roles/:id","agent_client":"01a2165a-3529-7cca-9835-7ba5b07da7f3"}},{"id":"01a2165a-3a79-7d9c-b50f-ed92762a8fe5","occurred_at":"2026-11-26T05:35:41.689Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2165a-3569-77ef-b7d9-ade0aca0f811","actor_client_id":"01a2165a-3529-7cca-9835-7ba5b07da7f3","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"get_role","owner":"01a2165a-3569-77ef-b7d9-ade0aca0f811","route":"GET /admin/tenants/:tenant/roles/:id","agent_client":"01a2165a-3529-7cca-9835-7ba5b07da7f3"}},{"id":"01a2165a-3a40-7e0c-808d-171d16e3667e","occurred_at":"2026-11-26T05:35:41.632Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a2165a-3569-77ef-b7d9-ade0aca0f811","actor_client_id":"01a2165a-3529-7cca-9835-7ba5b07da7f3","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"get_role","owner":"01a2165a-3569-77ef-b7d9-ade0aca0f811","route":"GET /admin/tenants/:tenant/roles/:id","agent_client":"01a2165a-3529-7cca-9835-7ba5b07da7f3"}}]}
+{"items":[{"id":"01a21f39-bd1a-71a5-a12c-fd1e1d75c3a6","occurred_at":"2026-11-27T22:56:47.376Z","event_type":"admin_mutation","action":"assistant.approval","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","actor_client_id":null,"actor_name":"ada","actor_origin":"tenant","resource_type":"assistant_conversation","resource_id":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a","request_id":null,"ip":null,"detail":{"via":"console","tool":"update_role_description","state":"approved","tenant":"0199aa00-0000-7000-8000-000000000001","subject":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","approval":"01a21f39-bc5b-7123-be61-b5d98238c157","conversation":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a"}}]}
+{"items":[{"id":"01a21f39-bda4-730c-b8bd-9c1e4cb6914a","occurred_at":"2026-11-27T22:56:47.521Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","actor_client_id":"01a21f39-b54c-7701-99bc-63f335a57e1a","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"update_role_description","turn":"01a21f39-bd3d-75a4-a69a-2a677d12d87c","owner":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","route":"PATCH /admin/tenants/:tenant/roles/:id","agent_client":"01a21f39-b54c-7701-99bc-63f335a57e1a","conversation":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a"}},{"id":"01a21f39-bc53-7a06-bd14-8244b80899e4","occurred_at":"2026-11-27T22:56:47.184Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","actor_client_id":"01a21f39-b54c-7701-99bc-63f335a57e1a","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"get_role","turn":"01a21f39-bb47-72b9-96d2-4432bebb8047","owner":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","route":"GET /admin/tenants/:tenant/roles/:id","agent_client":"01a21f39-b54c-7701-99bc-63f335a57e1a","conversation":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a"}},{"id":"01a21f39-bbf9-74c4-8a93-3d85f4babe90","occurred_at":"2026-11-27T22:56:47.094Z","event_type":"admin_access","action":"agent.tool_call","outcome":"allowed","actor_tenant_id":"0199aa00-0000-7000-8000-000000000001","actor_subject_id":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","actor_client_id":"01a21f39-b54c-7701-99bc-63f335a57e1a","actor_name":"ada","actor_origin":"tenant","resource_type":null,"resource_id":null,"request_id":null,"ip":null,"detail":{"tool":"get_role","turn":"01a21f39-bb47-72b9-96d2-4432bebb8047","owner":"01a21f39-b5c2-7d77-952e-45b0a858ae1f","route":"GET /admin/tenants/:tenant/roles/:id","agent_client":"01a21f39-b54c-7701-99bc-63f335a57e1a","conversation":"01a21f39-bb0c-7f75-8b8c-1b3f6367137a"}}]}
 ```
 
 ## Ask mode, and a refusal
@@ -295,42 +341,42 @@ curl -sS -D - -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: applicat
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3cee-7641-af9f-693aca8ae5f5
+x-request-id: 01a21f39-bf3b-747d-9947-7a1368b6cb15
 cache-control: no-store
 connection: keep-alive
 content-type: text/event-stream
 x-accel-buffering: no
 x-vercel-ai-ui-message-stream: v1
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:47 GMT
 Transfer-Encoding: chunked
 
-data: {"type":"start","messageId":"01a2165a-3d06-7b71-8508-b085738781f4"}
+data: {"type":"start","messageId":"01a21f39-bf78-76de-bd33-25eb656b2533"}
 
 data: {"type":"start-step"}
 
-data: {"type":"tool-input-start","toolCallId":"call_1795671342362","toolName":"get_role"}
+data: {"type":"tool-input-start","toolCallId":"call_1795820208017","toolName":"get_role"}
 
-data: {"type":"tool-input-delta","toolCallId":"call_1795671342362","inputTextDelta":"{\"id\":\"01a2165a-3934-7734-8735-999817309513\"}"}
+data: {"type":"tool-input-delta","toolCallId":"call_1795820208017","inputTextDelta":"{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\"}"}
 
-data: {"type":"tool-input-available","toolCallId":"call_1795671342362","toolName":"get_role","input":{"id":"01a2165a-3934-7734-8735-999817309513"}}
+data: {"type":"tool-input-available","toolCallId":"call_1795820208017","toolName":"get_role","input":{"id":"01a21f39-bae4-7246-873f-ac980d7f466c"}}
 
-data: {"type":"tool-output-available","toolCallId":"call_1795671342362","output":"<tool-data>{\"data\":{\"id\":\"01a2165a-3934-7734-8735-999817309513\",\"name\":\"auditors\",\"description\":\"Reviews the audit trail\",\"client_id\":null,\"client_key\":null,\"default_for_new_subjects\":false,\"created_at\":\"2026-11-26T05:35:41.362Z\",\"admin_reach\":[]},\"etag\":\"\\\"df27a849250e0bc882dae0e23516de2a19db976ac22e5e9a510e220ff8968ba6\\\"\"}</tool-data>"}
+data: {"type":"tool-output-available","toolCallId":"call_1795820208017","output":"<tool-data>{\"data\":{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\",\"name\":\"auditors\",\"description\":\"Reviews the audit trail\",\"client_id\":null,\"client_key\":null,\"default_for_new_subjects\":false,\"created_at\":\"2026-11-27T22:56:46.815Z\",\"admin_reach\":[]},\"etag\":\"\\\"c8f6ace47afe17a3f3020016abac1e6bee1e130cc9d0b50683f69e7a21596cc6\\\"\"}</tool-data>"}
 
 data: {"type":"finish-step"}
 
 data: {"type":"start-step"}
 
-data: {"type":"tool-input-start","toolCallId":"call_1795671342415","toolName":"update_role_description"}
+data: {"type":"tool-input-start","toolCallId":"call_1795820208115","toolName":"update_role_description"}
 
-data: {"type":"tool-input-delta","toolCallId":"call_1795671342415","inputTextDelta":"{\"id\":\"01a2165a-3934-7734-8735-999817309513\",\"if_match\":\"\\\"df27a849250e0bc882dae0e23516de2a19db976ac22e5e9a510e220ff8968ba6\\\"\",\"description\":\"Reviews the audit trail\"}"}
+data: {"type":"tool-input-delta","toolCallId":"call_1795820208115","inputTextDelta":"{\"id\":\"01a21f39-bae4-7246-873f-ac980d7f466c\",\"if_match\":\"\\\"c8f6ace47afe17a3f3020016abac1e6bee1e130cc9d0b50683f69e7a21596cc6\\\"\",\"description\":\"Reviews the audit trail\"}"}
 
-data: {"type":"tool-input-available","toolCallId":"call_1795671342415","toolName":"update_role_description","input":{"id":"01a2165a-3934-7734-8735-999817309513","if_match":"\"df27a849250e0bc882dae0e23516de2a19db976ac22e5e9a510e220ff8968ba6\"","description":"Reviews the audit trail"}}
+data: {"type":"tool-input-available","toolCallId":"call_1795820208115","toolName":"update_role_description","input":{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","if_match":"\"c8f6ace47afe17a3f3020016abac1e6bee1e130cc9d0b50683f69e7a21596cc6\"","description":"Reviews the audit trail"}}
 
-data: {"type":"tool-approval-request","approvalId":"aitxt-7XyLXpt2qIliJjJ4PIRiUovF","toolCallId":"call_1795671342415","isAutomatic":true}
+data: {"type":"tool-approval-request","approvalId":"aitxt-acnCIkeU2R3123w3RFbBegaI","toolCallId":"call_1795820208115","isAutomatic":true}
 
-data: {"type":"tool-approval-response","approvalId":"aitxt-7XyLXpt2qIliJjJ4PIRiUovF","approved":false,"reason":"This conversation is in Ask mode, so nothing was changed. If the person wants this done, tell them to switch the conversation to Act mode and ask again."}
+data: {"type":"tool-approval-response","approvalId":"aitxt-acnCIkeU2R3123w3RFbBegaI","approved":false,"reason":"This conversation is in Ask mode, so nothing was changed. If the person wants this done, tell them to switch the conversation to Act mode and ask again."}
 
-data: {"type":"tool-output-denied","toolCallId":"call_1795671342415"}
+data: {"type":"tool-output-denied","toolCallId":"call_1795820208115"}
 
 data: {"type":"finish-step"}
 
@@ -338,9 +384,7 @@ data: {"type":"start-step"}
 
 data: {"type":"text-start","id":"txt-0"}
 
-data: {"type":"text-delta","id":"txt-0","delta":"I cannot change it in Ask mode: switch t"}
-
-data: {"type":"text-delta","id":"txt-0","delta":"o Act mode and ask again."}
+data: {"type":"text-delta","id":"txt-0","delta":"Nothing was changed."}
 
 data: {"type":"text-end","id":"txt-0"}
 
@@ -362,46 +406,42 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" $API/roles/$ROLE_ID
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3d75-7174-962d-51f77b3aeff4
+x-request-id: 01a21f39-c031-7c9c-ab46-ea3f286f0229
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 14
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"mode":"act"}
-
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3e24-74a9-bbcc-88d10c91e247
+x-request-id: 01a21f39-c160-7ba8-b1ea-2d36569690cd
 cache-control: no-store
 content-type: application/json; charset=utf-8
 content-length: 18
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:48 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
 {"state":"denied"}
-
 HTTP/1.1 200 OK
-x-request-id: 01a2165a-3e3d-7013-837b-188f73dc0bbc
+x-request-id: 01a21f39-c18a-74d0-84a4-04f7a55b8b66
 cache-control: no-store
 connection: keep-alive
 content-type: text/event-stream
 x-accel-buffering: no
 x-vercel-ai-ui-message-stream: v1
-Date: Thu, 26 Nov 2026 05:35:42 GMT
+Date: Fri, 27 Nov 2026 22:56:48 GMT
 Transfer-Encoding: chunked
 
-data: {"type":"start","messageId":"01a2165a-3cd9-77d2-83aa-63730f2e2c30-5"}
+data: {"type":"start","messageId":"01a21f39-bf19-7439-ae78-3eb13deb5281-5"}
 
 data: {"type":"start-step"}
 
 data: {"type":"text-start","id":"txt-0"}
 
-data: {"type":"text-delta","id":"txt-0","delta":"The change was not made, and the role is"}
-
-data: {"type":"text-delta","id":"txt-0","delta":" as it was."}
+data: {"type":"text-delta","id":"txt-0","delta":"Done. The role now has the new description."}
 
 data: {"type":"text-end","id":"txt-0"}
 
@@ -412,8 +452,7 @@ data: {"type":"finish","finishReason":"stop"}
 data: {"type":"data-turn_end","data":{"stopReason":"done"},"transient":true}
 
 data: [DONE]
-
-{"id":"01a2165a-3934-7734-8735-999817309513","name":"auditors","description":"Reviews the audit trail","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-26T05:35:41.362Z","admin_reach":[]}
+{"id":"01a21f39-bae4-7246-873f-ac980d7f466c","name":"auditors","description":"Reviews the audit trail","client_id":null,"client_key":null,"default_for_new_subjects":false,"created_at":"2026-11-27T22:56:46.815Z","admin_reach":[]}
 ```
 
 Not shown here, because no sign-in on this stack can produce the token: the assistant's own token, or another administrator's,

@@ -155,14 +155,41 @@ const cardFieldsSchema = z.record(
   z.string(),
   z.union([z.string(), z.number(), z.boolean(), z.null()]),
 );
+
+// How much a change asks of the person, decided by the server from the tool and
+// its target: A answers the card, B asks once more for a removal and C also asks
+// for the target's name to be typed in the decision.
+export const ASSISTANT_TIERS = ['A', 'B', 'C'] as const;
+export const assistantTierSchema = z.enum(ASSISTANT_TIERS);
+export type AssistantTier = z.infer<typeof assistantTierSchema>;
+
+// The most names one side of a set change may carry, and the longest of them. A
+// change that replaces a list shows what it adds and what it removes, each name
+// whole: one whose diff does not fit is not proposed, never cut.
+export const SET_DIFF_MAX = 40;
+export const SET_DIFF_NAME_MAX = 120;
+const diffNamesSchema = z.array(z.string().max(SET_DIFF_NAME_MAX)).max(SET_DIFF_MAX);
+export const assistantSetDiffSchema = z.strictObject({
+  kind: z.literal('set'),
+  added: diffNamesSchema,
+  removed: diffNamesSchema,
+});
+export type AssistantSetDiff = z.infer<typeof assistantSetDiffSchema>;
+
+export const CONFIRM_TEXT_MAX = 200;
 export const assistantApprovalCardSchema = z.object({
   approval_id: z.string(),
   tool_call_id: z.string(),
   tool: z.string(),
   title: z.string(),
+  tier: assistantTierSchema,
+  // The exact text a tier C decision must carry as `confirm`; null below C.
+  confirm_with: z.string().max(CONFIRM_TEXT_MAX).nullable(),
   target: assistantApprovalTargetSchema,
   before: cardFieldsSchema.nullable(),
   after: cardFieldsSchema.nullable(),
+  // What a change that replaces a list adds and removes; absent for any other.
+  diff: assistantSetDiffSchema.optional(),
   // Server time: the client counts down to it and never extends it.
   expires_at: z.string(),
 });
@@ -175,7 +202,11 @@ export const assistantApprovalListSchema = z.object({
 });
 export type AssistantApprovalList = z.infer<typeof assistantApprovalListSchema>;
 
-export const decideApprovalRequestSchema = z.strictObject({ approve: z.boolean() });
+// `confirm` is read only for a tier C approval, whose card names the text.
+export const decideApprovalRequestSchema = z.strictObject({
+  approve: z.boolean(),
+  confirm: z.string().max(CONFIRM_TEXT_MAX).optional(),
+});
 export type DecideApprovalRequest = z.infer<typeof decideApprovalRequestSchema>;
 
 export const decideApprovalResponseSchema = z.object({ state: z.enum(['approved', 'denied']) });

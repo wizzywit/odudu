@@ -203,10 +203,12 @@ export interface AssistantChatPort {
     id: string,
     approvalId: string,
     approve: boolean,
+    confirm?: string,
   ): Promise<
     | { kind: 'decided'; state: 'approved' | 'denied' }
     | { kind: 'not_found' }
     | { kind: 'not_pending' }
+    | { kind: 'confirm_required' }
   >;
   resume(
     caller: AssistantCaller,
@@ -549,8 +551,20 @@ export function decideApprovalHandler(deps: AssistantChatRouteDeps): AdminRouteH
     const approvalId = request.params.approvalId;
     if (approvalId === undefined) return notFound(request, reply);
     const body = request.body as DecideApprovalRequest;
-    const outcome = await chat.answerApproval(caller, id, approvalId, body.approve);
+    const outcome = await chat.answerApproval(caller, id, approvalId, body.approve, body.confirm);
     if (outcome.kind === 'not_found') return notFound(request, reply);
+    if (outcome.kind === 'confirm_required') {
+      return sendProblem(
+        reply,
+        request,
+        problem(
+          400,
+          'about:blank',
+          'Bad Request',
+          'this change asks for the text on its card to be typed, and it was missing or different',
+        ),
+      );
+    }
     if (outcome.kind === 'not_pending') {
       return sendProblem(
         reply,

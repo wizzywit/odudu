@@ -11,6 +11,7 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The me API operations for delegations: list, create and revoke.
 - The admin API models carry `agent_type` and `delegated_actors` on a client and the nine `agent_*` tenant settings.
+- The assistant's approval card model carries `tier`, `confirm_with` and an optional `diff`, and the decision body takes an optional `confirm`.
 
 ## [0.1.0] - 2026-11-23
 

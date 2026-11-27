@@ -7,6 +7,8 @@ from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 
+from ..types import UNSET, Unset
+
 T = TypeVar(
     "T", bound="PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody"
 )
@@ -18,12 +20,17 @@ class PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody:
     Attributes:
         approve (bool): True to let the one change run, false to refuse it. Only the administrator the conversation
             belongs to may send it, from their own console session.
+        confirm (str | Unset): For a `C` approval that is approved: the exact `confirm_with` text of its card. A missing
+            or different text is refused `400` and the approval stays pending. Ignored for a refusal and for `A` and `B`.
     """
 
     approve: bool
+    confirm: str | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         approve = self.approve
+
+        confirm = self.confirm
 
         field_dict: dict[str, Any] = {}
 
@@ -32,6 +39,8 @@ class PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody:
                 "approve": approve,
             }
         )
+        if confirm is not UNSET:
+            field_dict["confirm"] = confirm
 
         return field_dict
 
@@ -40,8 +49,11 @@ class PostAdminTenantsTenantAssistantConversationsIdApprovalsApprovalIdBody:
         d = dict(src_dict)
         approve = d.pop("approve")
 
+        confirm = d.pop("confirm", UNSET)
+
         post_admin_tenants_tenant_assistant_conversations_id_approvals_approval_id_body = cls(
             approve=approve,
+            confirm=confirm,
         )
 
         return post_admin_tenants_tenant_assistant_conversations_id_approvals_approval_id_body

@@ -178,7 +178,7 @@ The assistant's own token budgets, provider layer and screens are its spec's; no
 
 Act's write surface, widened on 2026-11-27 from 12 writes to every console write but a human-only
 set, is [ADR 0061](adr/0061-the-assistants-write-surface-tiers-human-only-operations-and-the-coverage-guard.md)
-and [its plan](superpowers/plans/2026-11-27-p5c-act-surface.md); its first increment waits for cross-tenant Act to merge. What
+and [its plan](superpowers/plans/2026-11-27-p5c-act-surface.md); cross-tenant Act has merged, so its first increment is unblocked. What
 the plan cannot do yet (a secret reveal channel, tenant create and import, admin-reach changes, sessions without the caller) is P5d's.
 
 ## What P5b inherits

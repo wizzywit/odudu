@@ -15,6 +15,8 @@ function card(id: string, title = 'Create a group'): ApprovalCard {
     tool_call_id: `call-${id}`,
     tool: 'create_group',
     title,
+    tier: 'A',
+    confirm_with: null,
     target: { type: 'group' },
     before: null,
     after: { name: id },

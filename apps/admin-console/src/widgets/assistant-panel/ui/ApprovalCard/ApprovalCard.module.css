@@ -121,3 +121,16 @@
     gap: 0;
   }
 }
+
+.tier {
+  margin: 0;
+  padding: var(--space-2);
+  border: var(--hairline);
+  border-radius: var(--radius-s);
+  font-size: var(--type-13);
+  background: var(--surface-sunken);
+}
+
+.tier[data-tier='C'] {
+  border-inline-start: 3px solid var(--signal-danger-ink);
+}

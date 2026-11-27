@@ -68,6 +68,8 @@ it('grows when a card arrives or is decided, so a log that follows its end follo
       tool_call_id: 't',
       tool: 'create_group',
       title: 'Create a group',
+      tier: 'A' as const,
+      confirm_with: null,
       target: { type: 'group' },
       before: null,
       after: { name: 'ops' },
