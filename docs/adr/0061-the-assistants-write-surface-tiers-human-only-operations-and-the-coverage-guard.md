@@ -142,3 +142,47 @@ hold a second registry that must agree with the first.
   naming the target does (tenant delete, built-in scope delete).
 - **Putting a secret on a one-time stream part now:** it needs a path that keeps it out of
   messages, trace, export, compaction and the report. That is a spike, placed for later.
+
+## Amendment 2026-11-27: a human-only write is never a bare no
+
+**Decision (owner).** When the assistant will not do a write, the person gets the way to do it
+themselves: the console area, the controls to use in order, what they need, what the assistant
+prepared for them and why it does not do this itself. This holds for a human-only entry, for a
+write whose tool is designed but not built yet, and for a write the person's own capability or
+the tenant's settings forbid.
+
+**One record per entry, in the same registry.** Each `human-only` entry, and each route still
+on the ratchet list of withheld writes, carries `guidance`:
+
+| Field          | Content                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Stable, such as `sessions.end-all`; what a refusal names                                                                                                            |
+| `kind`         | `human-only` or `not-yet`                                                                                                                                           |
+| `area`, `path` | The console area and the console route the steps start from                                                                                                         |
+| `controls`     | The exact control names in the order a person meets them, each a name the docs `console-labels` evidence maps to the console source                                 |
+| `steps`        | Three to seven plain steps                                                                                                                                          |
+| `needs`        | The capability the person must hold                                                                                                                                 |
+| `prepare`      | `form` (the field names the assistant can prefill, never a secret), `link` (the page only) or `none`; for a secret-returning create, where the secret is shown once |
+| `reason`       | One line, why the assistant does not do it                                                                                                                          |
+| `variants`     | Different steps when the person's capability, Act being off for the tenant or an Ask-only cross-tenant conversation forbids the write                               |
+
+**Behaviour.** A read-only tool, `console_howto`, answers by operation, guidance id or a
+free-text topic with at most five records. The assistant's instructions say to call it
+whenever a person asks for something outside Act, and a server refusal of a write as
+human-only is a structured `human_only` result that carries the guidance id, so the model
+answers with the steps and not with a generic refusal. The console draws the answer from the
+result, not from the model's words: a numbered list with each control name as the console
+shows it, a button that opens the page, and the prefilled draft where one exists. The record
+holds no secret and none enters the model's context; for a secret-returning create the form is
+prepared without it and the answer says where it will be shown once.
+
+**Guard.** `tests/lint/mcp-tool-coverage.test.ts` fails an entry whose record is incomplete
+(steps outside three to seven, no controls, no capability, a multi-line reason, a field named
+like a secret in `prepare`). `apps/docs/tests/guidance-labels.test.ts` fails a control that is
+not a name in the `console-labels` evidence, and a path that is not a console route, so a label
+the console drops breaks the build. A golden task in the assistant's eval set asks to end
+every session and to set a person's password and asserts the answer carries steps.
+
+**Rejected.** A guidance table kept in the docs only (the model cannot reach it and nothing
+ties it to the registry); guidance written into the refusal text (it would be the model's
+paraphrase of the steps, where a rendered result is exact).
