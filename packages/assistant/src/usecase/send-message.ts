@@ -42,7 +42,7 @@ import { attachConversation } from '#/usecase/reattach';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
 import { targetSide } from '#/usecase/target-side';
-import { movedSinceCard } from '#/usecase/state-guard';
+import { movedSinceCard, tierRaisedSinceCard } from '#/usecase/state-guard';
 import type { TurnApprovals } from '#/usecase/tool-approval';
 import { traceRecorder } from '#/usecase/trace-recorder';
 
@@ -327,9 +327,19 @@ function turnApprovals(
       if (
         card !== undefined &&
         entry !== undefined &&
+        (await tierRaisedSinceCard(entry, input, card.body, deps.targetFacts?.(caller)))
+      ) {
+        const retiring = { conversationId: id, tool, input, now: deps.now() };
+        await ports.retire(caller, { ...retiring, reason: 'human_only' }, find);
+        return { kind: 'human_only' };
+      }
+      if (
+        card !== undefined &&
+        entry !== undefined &&
         (await movedSinceCard(entry, input, card.body, { read, signal: context.signal }))
       ) {
-        await ports.retire(caller, { conversationId: id, tool, input, now: deps.now() }, find);
+        const retiring = { conversationId: id, tool, input, now: deps.now() };
+        await ports.retire(caller, { ...retiring, reason: 'state_moved' }, find);
         return { kind: 'moved' };
       }
       return ports.write(

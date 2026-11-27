@@ -49,6 +49,7 @@ function loadCard(caller: ChatCaller, conversationId: string, approvalId: string
           tool: card.tool,
           tier: card.body.tier,
           confirmWith: card.body.confirm_with,
+          state: card.state,
         }
       : undefined;
   };
@@ -66,7 +67,8 @@ export async function decideCard(
   if (deps.approvals === undefined) return { kind: 'not_found' };
   const load = loadCard(caller, conversationId, approvalId);
   const stored = await deps.transact(caller.tenantId, load);
-  if (stored !== undefined && !confirmationAccepted(stored, approve, confirm)) {
+  // A settled approval answers as one, whatever the decision carries.
+  if (stored?.state === 'pending' && !confirmationAccepted(stored, approve, confirm)) {
     return { kind: 'confirm_required' };
   }
   return deps.approvals.answer(caller, { approvalId, approve, now: deps.now() }, load);

@@ -43,6 +43,8 @@ export type WriteOutcome =
   | { kind: 'not_approved' }
   // What it would change no longer reads as the card showed it: nothing was changed.
   | { kind: 'moved' }
+  // The target came to reach an administrator capability since the person approved.
+  | { kind: 'human_only' }
   // The approval was already spent: the change may have been made by another call.
   | { kind: 'spent' };
 
@@ -70,6 +72,16 @@ const MOVED = {
     detail:
       'What it would change is no longer as the person saw it when they approved, so nothing ' +
       'was changed. Read the target again and propose the change again if the person still wants it.',
+  },
+};
+
+// What the model reads when the target became one the assistant never changes.
+const HUMAN_ONLY = {
+  error: {
+    title: 'The change was not made',
+    detail:
+      'What it would change now reaches an administrator capability, which the assistant never ' +
+      'changes, so nothing was changed. Tell the person they can make it in the console.',
   },
 };
 
@@ -109,7 +121,9 @@ export function toSdkTools(
                   ? SPENT
                   : outcome.kind === 'moved'
                     ? MOVED
-                    : NOT_APPROVED,
+                    : outcome.kind === 'human_only'
+                      ? HUMAN_ONLY
+                      : NOT_APPROVED,
               mask,
             );
           }

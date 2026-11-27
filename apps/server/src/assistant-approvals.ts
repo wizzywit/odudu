@@ -311,7 +311,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             approval: found,
             tool: input.tool,
             state: 'not_run',
-            state_moved: true,
+            ...(input.reason === 'state_moved' ? { state_moved: true } : { human_only: true }),
             via: 'console',
           },
         });

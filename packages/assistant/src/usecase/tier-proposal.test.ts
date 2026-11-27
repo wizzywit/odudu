@@ -80,13 +80,33 @@ describe('the tier of a proposed change', () => {
     const { open, status } = deps(facts);
     expect(await status()).toBe('user-approval');
     expect(open.mock.calls[0]?.[0].body).toMatchObject({ tier: 'C', confirm_with: 'auditors' });
-    expect(facts).toHaveBeenCalledWith({ kind: 'role', id: ROLE, removes: false });
+    expect(facts).toHaveBeenCalledWith({ kind: 'role', id: ROLE, removes: false, granted: [] });
   });
 
   it('is human-only, and opens nothing, when the target reaches an administrator capability', async () => {
     raiseToC();
     const { open, status } = deps(() => Promise.resolve({ ...NONE, adminReach: ['view-audit'] }));
     expect(await status()).toEqual({ type: 'denied', reason: HUMAN_ONLY_DENIAL });
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('asks the facts about the roles and groups a body grants, whose reach counts as the target’s', async () => {
+    raiseToC();
+    plan.grants = () => [{ kind: 'role', id: 'r-admin' }];
+    const facts = vi.fn(() => Promise.resolve({ ...NONE, adminReach: ['manage-users'] }));
+    const { open, status } = deps(facts);
+    expect(await status()).toEqual({ type: 'denied', reason: HUMAN_ONLY_DENIAL });
+    expect(facts).toHaveBeenCalledWith(
+      expect.objectContaining({ granted: [{ kind: 'role', id: 'r-admin' }] }),
+    );
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('is not proposed when the text to type would not fit the card’s limit', async () => {
+    raiseToC();
+    plan.confirmWith = () => 'x'.repeat(201);
+    const { open, status } = deps(() => Promise.resolve(NONE));
+    expect(await status()).toMatchObject({ type: 'denied' });
     expect(open).not.toHaveBeenCalled();
   });
 

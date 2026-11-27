@@ -28,6 +28,8 @@ export interface FactsRequest {
   readonly kind: TargetKind;
   readonly id: string | undefined;
   readonly removes: boolean;
+  // Roles and groups the body grants: what they reach counts as the target's.
+  readonly granted: readonly { readonly kind: 'role' | 'group'; readonly id: string }[];
 }
 export type FactsReader = (request: FactsRequest) => Promise<TargetFacts>;
 

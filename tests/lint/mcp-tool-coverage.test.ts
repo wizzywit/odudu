@@ -275,6 +275,12 @@ describe('the console assistant’s writes against the admin routes', () => {
     }
   });
 
+  it('only ever shrinks the unplaced writes', () => {
+    // Lower this number when a tool serves a route; raising it fails review.
+    const CEILING = 62;
+    expect(UNPLACED_WRITES.length).toBeLessThanOrEqual(CEILING);
+  });
+
   it('keeps the unplaced writes to withheld routes that exist, once each', () => {
     expect(new Set(UNPLACED_WRITES).size).toBe(UNPLACED_WRITES.length);
     for (const route of UNPLACED_WRITES) {

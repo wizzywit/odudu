@@ -19,6 +19,9 @@ const NOTHING = {
   rootsConversationGrant: false,
 } as const;
 
+// Ids are uuids, which compare as the same whatever the case they were written in.
+const sameId = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
 /**
  * What the server reads about the record a change names, in the tenant the
  * conversation acts in, from the same queries the records' own `admin_reach`
@@ -28,7 +31,7 @@ const NOTHING = {
  */
 export function targetFactsFor(database: DatabaseHandle, caller: ChatCaller): FactsReader {
   const tenantId = caller.target?.id ?? caller.tenantId;
-  return ({ kind, id, removes }) => {
+  return ({ kind, id, removes, granted }) => {
     if (id === undefined || kind === 'other') return Promise.resolve(NOTHING);
     if (kind === 'session') return Promise.resolve(FAILS_CLOSED);
     return withTenantRetrying(database.db, tenantId, async (tx) => {
@@ -44,10 +47,14 @@ export function targetFactsFor(database: DatabaseHandle, caller: ChatCaller): Fa
           }),
         };
       }
+      const own = await targetAdminReach(tx, { kind, id, subtree: removes });
+      const given = await Promise.all(
+        granted.map((ref) => targetAdminReach(tx, { kind: ref.kind, id: ref.id })),
+      );
       return {
         ...NOTHING,
-        isOwner: kind === 'subject' && id === caller.ownerSubjectId,
-        adminReach: await targetAdminReach(tx, { kind, id, subtree: removes }),
+        isOwner: kind === 'subject' && sameId(id, caller.ownerSubjectId),
+        adminReach: [...new Set([...own, ...given.flat()])],
       };
     });
   };

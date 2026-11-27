@@ -29,18 +29,29 @@ type Names = readonly string[];
 
 // A tier C change is only decided by typing a text the server writes: the name
 // of what it changes, whole.
+// A change above tier A names the kind of record it touches, so that leaving it
+// out is a type error and never a target nobody judged.
 type Tiering =
-  | { readonly tier: 'A' | 'B' }
+  | { readonly tier: 'A'; readonly kind?: TargetKind }
+  | { readonly tier: 'B'; readonly kind: TargetKind }
   | {
       readonly tier: 'C';
+      readonly kind: TargetKind;
       readonly confirmWith: (input: Input, before: CardFields | null) => string;
     };
+
+// A role or group a body grants, beside the record it names.
+export interface GrantedRef {
+  readonly kind: 'role' | 'group';
+  readonly id: string;
+}
 
 type Plan = Tiering & {
   // One line saying what the change does; a constant, never the model's words.
   readonly title: string;
   readonly target: string;
-  readonly kind?: TargetKind;
+  // The roles and groups the body grants, whose reach counts as the target's.
+  readonly grants?: (input: Input) => readonly GrantedRef[];
   // The call replaces state the card read, with no precondition the write
   // carries from the card: the read is made again when the approval is spent.
   readonly replaces?: true;
@@ -153,6 +164,7 @@ export const WRITE_PLANS: Readonly<Record<string, Plan>> = {
   },
   clear_message_override: {
     tier: 'B',
+    kind: 'other',
     title: 'Remove the wording of one message in one language',
     target: 'message',
     idFrom: (input) => `${String(input.locale)} ${String(input.key)}`,
@@ -300,9 +312,14 @@ export function tierOfTool(tool: string): AssistantTier {
   return planOf(tool).tier;
 }
 
-/** What kind of record the tool's call names. */
+/** What kind of record the tool's call names; a tier A tool that says nothing names none. */
 export function targetKindOf(tool: string): TargetKind {
   return planOf(tool).kind ?? 'other';
+}
+
+/** The roles and groups the call's body grants. */
+export function grantsOf(tool: string, input: unknown): readonly GrantedRef[] {
+  return planOf(tool).grants?.(asRecord(input) ?? {}) ?? [];
 }
 
 /** Whether the tool removes what it names. */
@@ -339,6 +356,17 @@ export function stateMoved(
 ): boolean {
   const now = beforeOf(tool, names, input, data);
   return JSON.stringify(now ?? null) !== JSON.stringify(stored);
+}
+
+/** Whether the set change the call would make now differs from the one the card showed. */
+export function diffMoved(
+  tool: string,
+  input: unknown,
+  stored: AssistantSetDiff | undefined,
+  data: unknown,
+): boolean {
+  const now = diffOf(tool, input, data);
+  return JSON.stringify(now ?? null) !== JSON.stringify(stored ?? null);
 }
 
 /**

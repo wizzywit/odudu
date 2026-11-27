@@ -1,4 +1,4 @@
-import type { AssistantApprovalCard } from '@odudu/contracts/admin';
+import { CONFIRM_TEXT_MAX, type AssistantApprovalCard } from '@odudu/contracts/admin';
 import type { RegisteredTool, ToolResult } from '@odudu/mcp';
 import type { ToolApprovalStatus } from 'ai';
 import type { ConversationMode } from '#/repository/conversations';
@@ -10,6 +10,7 @@ import {
   confirmTextOf,
   cursorOf,
   diffOf,
+  grantsOf,
   mayCreate,
   oversizeBefore,
   oversizeField,
@@ -119,16 +120,22 @@ export async function readTarget(
 }
 
 // The tier of the call for this target, or why it is not proposed.
-async function tierFor(
-  deps: PolicyDeps,
+export async function tierFor(
+  facts: PolicyDeps['facts'],
   tool: string,
-  target: ReturnType<typeof targetOf>,
+  input: unknown,
+  id: string | undefined,
 ): Promise<Tier | { denied: string }> {
   if (tierOfTool(tool) === 'A') return 'A';
-  if (deps.facts === undefined) return { denied: FAILED_DENIAL };
+  if (facts === undefined) return { denied: FAILED_DENIAL };
   const kind = targetKindOf(tool);
-  const facts = await deps.facts({ kind, id: target.id, removes: removesTarget(tool) });
-  const outcome = tierOf(tool, { kind }, facts);
+  const read = await facts({
+    kind,
+    id,
+    removes: removesTarget(tool),
+    granted: grantsOf(tool, input),
+  });
+  const outcome = tierOf(tool, { kind }, read);
   return typeof outcome === 'object' ? { denied: HUMAN_ONLY_DENIAL } : outcome;
 }
 
@@ -154,10 +161,14 @@ async function propose(
   if (bigBefore !== undefined) return { type: 'denied', reason: oversizeDenial(bigBefore) };
   if (before === undefined) return { type: 'denied', reason: FAILED_DENIAL };
   const target = targetOf(entry.name, call.input, found.data);
-  const tier = await tierFor(deps, entry.name, target);
+  const tier = await tierFor(deps.facts, entry.name, call.input, target.id);
   if (typeof tier === 'object') return { type: 'denied', reason: tier.denied };
   const diff = diffOf(entry.name, call.input, found.data);
   if (diff === 'oversize') return { type: 'denied', reason: oversizeDenial('the list') };
+  const confirmWith = confirmTextOf(entry.name, call.input, before);
+  if (confirmWith !== null && confirmWith.length > CONFIRM_TEXT_MAX) {
+    return { type: 'denied', reason: oversizeDenial('the name to type') };
+  }
   const outcome = await deps.approvals.open({
     toolCallId: call.toolCallId,
     tool: entry.name,
@@ -165,7 +176,7 @@ async function propose(
     body: {
       title: titleOf(entry.name),
       tier,
-      confirm_with: confirmTextOf(entry.name, call.input, before),
+      confirm_with: confirmWith,
       target,
       before,
       after: afterOf(entry.name, names, call.input),

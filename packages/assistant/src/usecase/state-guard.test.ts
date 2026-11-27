@@ -1,6 +1,7 @@
 import { TOOLS, type ToolResult } from '@odudu/mcp';
-import { describe, expect, it } from 'vitest';
-import { movedSinceCard } from '#/usecase/state-guard';
+import { afterEach, describe, expect, it } from 'vitest';
+import { WRITE_PLANS } from '#/service/approval-card';
+import { movedSinceCard, tierRaisedSinceCard } from '#/usecase/state-guard';
 
 const tool = (name: string) => {
   const found = TOOLS.find((entry) => entry.name === name);
@@ -55,5 +56,60 @@ describe('a replacing change whose target is read again as the approval is spent
       await movedSinceCard(amend, { id: 'r', description: 'd' }, { before: null }, { read }),
     ).toBe(false);
     expect(reads).toBe(0);
+  });
+});
+
+describe('a stored set change compared as the approval is spent', () => {
+  const entry = tool('set_message_override');
+  const plan = WRITE_PLANS.set_message_override as unknown as Record<string, unknown>;
+  const original = { ...plan };
+  afterEach(() => {
+    for (const key of Object.keys(plan)) Reflect.deleteProperty(plan, key);
+    Object.assign(plan, original);
+  });
+
+  it('is moved when the names it adds or removes differ from the card’s', async () => {
+    plan.diff = (_input: unknown, data: unknown) => ({
+      before: (data as { names: string[] }[])[0]?.names ?? [],
+      after: ['a', 'b'],
+    });
+    const stored = { kind: 'set' as const, added: ['a', 'b'], removed: [] };
+    const card = { before: { message: 'old' }, diff: stored };
+    const read = (names: string[]) => () =>
+      Promise.resolve(answer([{ locale: 'en', key: 'login.title', message: 'old', names }]));
+    expect(await movedSinceCard(entry, input, card, { read: read([]) })).toBe(false);
+    expect(await movedSinceCard(entry, input, card, { read: read(['b']) })).toBe(true);
+  });
+});
+
+describe('the tier of an approved change, judged again as it is spent', () => {
+  const entry = tool('update_role_description');
+  const plan = WRITE_PLANS.update_role_description as unknown as Record<string, unknown>;
+  const original = { ...plan };
+  afterEach(() => {
+    for (const key of Object.keys(plan)) Reflect.deleteProperty(plan, key);
+    Object.assign(plan, original);
+  });
+  const card = { tier: 'C' as const, target: { type: 'role', id: 'r1' } };
+  const clean = {
+    adminReach: [],
+    isOwner: false,
+    isBuiltinClient: false,
+    rootsConversationGrant: false,
+  };
+
+  it('is raised when the target has come to reach an administrator capability', async () => {
+    plan.tier = 'C';
+    plan.confirmWith = () => 'x';
+    const reaches = () => Promise.resolve({ ...clean, adminReach: ['view-audit'] });
+    expect(await tierRaisedSinceCard(entry, {}, card, reaches)).toBe(true);
+    expect(await tierRaisedSinceCard(entry, {}, card, () => Promise.resolve(clean))).toBe(false);
+  });
+
+  it('is judged raised when the facts cannot be read, and never for a tier A card', async () => {
+    plan.tier = 'C';
+    plan.confirmWith = () => 'x';
+    expect(await tierRaisedSinceCard(entry, {}, card, undefined)).toBe(true);
+    expect(await tierRaisedSinceCard(entry, {}, { ...card, tier: 'A' }, undefined)).toBe(false);
   });
 });

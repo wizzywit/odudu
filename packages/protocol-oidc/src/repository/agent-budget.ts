@@ -16,7 +16,7 @@ export interface SpendInput {
   // A write that changes who can sign in, what a token carries or what goes
   // live is counted apart from the rest, on the grant and on the daily window,
   // so a burst of ordinary writes cannot spend what it needs. It has the same
-  // limits and is not counted as a create.
+  // limits; a create among them is still counted against the create limit.
   privileged?: boolean;
   grantId: string;
   instanceId: string | null;

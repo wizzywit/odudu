@@ -238,3 +238,17 @@ not, and the assistant acts as no instance.
 
 **A target that cannot be judged is human-only.** A session is not read yet, so a change to
 one fails closed as `own-session` until the removal increment reads it.
+
+**What carries the precondition to the write.** The re-read is made in the assistant and the
+spend is a separate transaction, so a change between them is not seen by the re-read. It is
+refused by the route instead: a content write tool sends the `if_match` of its approved input,
+which the digest binds (`write-tool.ts`, `theme-write.ts`), or a create that the route refuses
+for what exists (`createOnly`). A test holds every PUT tool to one of the two, so a later PUT
+tool that carries neither fails the build until it carries an etag on the write.
+
+**The tier is judged again as the approval is spent.** A role that gained an administrator
+composite, or a subject who joined an administrator group, while a B or C approval waited
+closes the approval as not run (`human_only` in the audit row). The facts also count the roles
+and groups a body grants, beside the record it names. A card stored without a tier is read as
+tier C, which no decision satisfies, and a settled approval answers `409` before the text is
+checked.

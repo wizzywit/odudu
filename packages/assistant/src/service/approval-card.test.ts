@@ -151,13 +151,28 @@ describe('the tier of every write', () => {
     }
   });
 
-  it('is never auto, in either mode, and is B for a removal and A for the rest of the twelve', () => {
+  it('is never auto, in either mode, and is above A for a removal', () => {
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
       for (const mode of ['ask', 'act'] as const) {
         const verdict = approvalPolicy({ mode, annotations: tool.annotations, tool: tool.name });
         expect(verdict, `${tool.name} in ${mode}`).not.toBe('auto');
       }
-      expect(tierOfTool(tool.name), tool.name).toBe(removesTarget(tool.name) ? 'B' : 'A');
+      expect(['A', 'B', 'C'], tool.name).toContain(tierOfTool(tool.name));
+      if (removesTarget(tool.name)) expect(tierOfTool(tool.name), tool.name).not.toBe('A');
+    }
+  });
+
+  it('names the kind of record of every plan above tier A', () => {
+    for (const [name, plan] of Object.entries(WRITE_PLANS)) {
+      if (plan.tier !== 'A') expect(plan.kind, name).toBeDefined();
+    }
+  });
+
+  it('carries a precondition on every PUT tool: the etag it was given, or a create that is refused for what exists', () => {
+    for (const tool of TOOLS.filter((candidate) => candidate.routeKey.startsWith('PUT '))) {
+      const shape = (tool.input as { shape?: Record<string, unknown> }).shape ?? {};
+      const createOnly = tool.name === 'set_message_override';
+      expect('if_match' in shape || createOnly, tool.name).toBe(true);
     }
   });
 

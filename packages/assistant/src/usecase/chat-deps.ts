@@ -123,6 +123,7 @@ export interface ApprovalPorts {
       readonly tool: string;
       readonly input: unknown;
       readonly now: Date;
+      readonly reason: 'state_moved' | 'human_only';
     },
     find: (tx: AssistantTx) => Promise<string | undefined>,
   ) => Promise<void>;

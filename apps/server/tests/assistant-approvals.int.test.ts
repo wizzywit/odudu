@@ -785,6 +785,26 @@ describe('a change that asks for a name to be typed', () => {
     });
   });
 
+  it('answers a settled approval as one, even when the decision carries no text', async () => {
+    const { w, chat, id, approval } = await typed();
+    await chat.answerApproval(callerOf(w), id, approval, true, 'auditors');
+    expect(await chat.answerApproval(callerOf(w), id, approval, true)).toEqual({
+      kind: 'not_pending',
+    });
+  });
+
+  it('reads a card stored without a tier as the strictest, which no decision satisfies', async () => {
+    const { w, chat, id, card: stored } = await proposed();
+    await s().owner.db.execute(
+      sql`update assistant_approvals set card = card - 'tier' - 'confirm_with'
+           where tenant_id = ${w.tenantId} and approval_id = ${stored?.approval_id ?? ''}`,
+    );
+    const [card] = (await chat.approvals(callerOf(w), id)) ?? [];
+    expect(card).toMatchObject({ tier: 'C', confirm_with: null });
+    const decided = await chat.answerApproval(callerOf(w), id, card?.approval_id ?? '', true, 'x');
+    expect(decided).toEqual({ kind: 'confirm_required' });
+  });
+
   it('asks nothing of a refusal, and ignores a text on a tier A card', async () => {
     const typedC = await typed();
     const refused = await typedC.chat.answerApproval(
