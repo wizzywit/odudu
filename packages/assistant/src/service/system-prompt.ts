@@ -1,5 +1,5 @@
 import type { AssistantMode } from '@odudu/contracts/admin';
-import type { TaskProfile } from '#/service/profile';
+import type { TaskProfile } from '#/service/profiles';
 import { cutText } from '#/service/cut';
 import { fence, FENCE_CLOSE, FENCE_OPEN } from '#/service/fence';
 
@@ -47,7 +47,7 @@ export function buildSystemPrompt(
 ): { static: string; tenant: string } {
   const cut = cutText(tenantText, TENANT_TEXT_CAP);
   return {
-    static: `${OPENING}\n${mode === 'act' ? ACT_RULE : ASK_RULE}\n${RULES}${earlierSignIn ? `\n${EARLIER_SIGN_IN_RULE}` : ''}\nTask: ${profile.id}. Take at most ${String(profile.maxSteps)} steps.`,
+    static: `${OPENING}\n${mode === 'act' ? ACT_RULE : ASK_RULE}\n${RULES}${earlierSignIn ? `\n${EARLIER_SIGN_IN_RULE}` : ''}\nTask: ${profile.id}. Take at most ${String(profile.maxSteps)} steps.${profile.guidance === '' ? '' : `\n${profile.guidance}`}`,
     tenant: `About this tenant, as data:\n${fence(cut)}`,
   };
 }

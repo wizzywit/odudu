@@ -60,7 +60,11 @@ function fakePort(recorded: Recorded): AssistantChatPort {
           ? { kind: 'unknown_profile' as const }
           : body.profile === 'denied'
             ? { kind: 'access_refused' as const, reason: 'grant_not_console' }
-            : {
+            : body.profile === 'act-off'
+              ? { kind: 'access_refused' as const, reason: 'mode_not_offered' }
+              : body.profile === 'wrong-mode'
+                ? { kind: 'access_refused' as const, reason: 'profile_mode_refused' }
+                : {
                 kind: 'created' as const,
                 conversation: conversation('11111111-1111-4111-8111-111111111111'),
               },
@@ -294,6 +298,24 @@ describe('POST /assistant/conversations', () => {
       payload: { profile: 'nonesuch', page_context: CONTEXT },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('answers 409 when the tenant does not offer Act, and 400 for a mode the profile does not run in', async () => {
+    const { tenant, headers } = await bearer();
+    const off = await fx().http.inject({
+      method: 'POST',
+      url: BASE(tenant),
+      headers,
+      payload: { profile: 'act-off', mode: 'act', page_context: CONTEXT },
+    });
+    expect(off.statusCode).toBe(409);
+    const wrong = await fx().http.inject({
+      method: 'POST',
+      url: BASE(tenant),
+      headers,
+      payload: { profile: 'wrong-mode', mode: 'act', page_context: CONTEXT },
+    });
+    expect(wrong.statusCode).toBe(400);
   });
 
   it('answers 403 when the sign-in cannot be given an assistant, without naming why', async () => {

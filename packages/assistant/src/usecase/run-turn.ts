@@ -14,7 +14,7 @@ import { boundHistory } from '#/service/context';
 import { inputUpperBound } from '#/service/estimate';
 import { stepLimitFor } from '#/service/limits';
 import { maskEmailAddresses } from '#/service/mask-emails';
-import type { TaskProfile } from '#/service/profile';
+import { activeToolsFor, type TaskProfile } from '#/service/profiles';
 import {
   MAX_OUTPUT_TOKENS,
   MAX_REQUEST_TOKENS,
@@ -158,7 +158,7 @@ function buildAgent(
     ...(deps.trace === undefined
       ? {}
       : { telemetry: { integrations: [...deps.trace.integrations] } }),
-    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    maxOutputTokens: Math.min(MAX_OUTPUT_TOKENS, deps.profile.maxTokens),
     stopWhen: stepCountIs(stepLimit(deps)),
     // The compacted messages carry forward, so a long turn is trimmed once and
     // not again at every step, and what is reserved is what is sent.
@@ -215,12 +215,12 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
     return deps.callTool(accessToken, name, args, signal);
   };
   const { approvals } = deps;
-  const offered = [
+  const mode = approvals === undefined ? 'ask' : (deps.mode ?? 'ask');
+  const offered = activeToolsFor(deps.profile, [
     ...assistantTools(deps.tools),
     ...(approvals === undefined ? [] : assistantWriteTools(deps.tools)),
-  ];
+  ]);
   const tools = toSdkTools(offered, read, masking(deps), approvals?.write);
-  const mode = approvals === undefined ? 'ask' : (deps.mode ?? 'ask');
   deps.trace?.onDecision(
     'narrowing',
     narrowingDecision(

@@ -18,7 +18,7 @@ import { titleOf } from '#/service/conversation-title';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import type { EndedReason } from '#/service/reattach-reason';
-import { profileById } from '#/service/profile';
+import { profileById } from '#/service/profiles';
 import { slotDecision } from '#/service/trace-decisions';
 import { startOf, summaryOf } from '#/service/turn-summary';
 import {

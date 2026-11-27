@@ -50,8 +50,8 @@ export {
   settingsOfTwo,
 } from '#/service/conversation-access';
 export { toolsFor } from '#/service/tool-set';
-export { profileById } from '#/service/profile';
-export type { TaskProfile } from '#/service/profile';
+export { profileById } from '#/service/profiles';
+export type { TaskProfile } from '#/service/profiles';
 export type { StatusDeps } from '#/usecase/status';
 export type { AssistantEnv, Provider, ResolvedSlots, Slot, SlotModel } from '#/service/slots';
 export { openEntitlements } from '#/usecase/entitlements';

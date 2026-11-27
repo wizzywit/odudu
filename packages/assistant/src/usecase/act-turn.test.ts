@@ -3,11 +3,11 @@ import { toUIMessageStream, type UIMessage, type UIMessageChunk } from 'ai';
 import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 import { ASK_MODE_DENIAL } from '#/service/approval-policy';
-import type { TaskProfile } from '#/service/profile';
+import { FREE_CHAT, type TaskProfile } from '#/service/profiles';
 import { startTurn, type RunTurnDeps } from '#/usecase/run-turn';
 import type { TurnApprovals } from '#/usecase/tool-approval';
 
-const PROFILE: TaskProfile = { id: 'free-chat', slot: 'standard', maxSteps: 5 };
+const PROFILE: TaskProfile = { ...FREE_CHAT, maxSteps: 5 };
 const CONVERSATION = '0192a0a0-0000-7000-8000-0000000000c1';
 const CLIENT = '0192a0a0-0000-7000-8000-0000000000a1';
 

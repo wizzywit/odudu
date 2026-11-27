@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildSystemPrompt, TENANT_TEXT_CAP } from '#/service/system-prompt';
 import { FENCE_CLOSE, FENCE_OPEN } from '#/service/tool-bridge';
-import type { TaskProfile } from '#/service/profile';
+import { FREE_CHAT, REVIEW_CLIENT, type TaskProfile } from '#/service/profiles';
 
-const PROFILE: TaskProfile = { id: 'ask-anything', slot: 'standard', maxSteps: 8 };
+const PROFILE: TaskProfile = { ...FREE_CHAT, maxSteps: 8 };
 
 describe('buildSystemPrompt', () => {
   it('names the fence and says its content is data, not instructions', () => {
@@ -20,6 +20,11 @@ describe('buildSystemPrompt', () => {
     expect(carried.static).toMatch(/signed in again/u);
     expect(carried.static).toMatch(/out of date/u);
     expect(carried.tenant).toBe(fresh.tenant);
+  });
+
+  it('states the profile’s task in the static part, and nothing for free chat', () => {
+    expect(buildSystemPrompt(REVIEW_CLIENT, '').static).toContain(REVIEW_CLIENT.guidance);
+    expect(buildSystemPrompt(FREE_CHAT, '').static).not.toMatch(/\n\n|\n$/u);
   });
 
   it('does not vary the static part with the tenant', () => {

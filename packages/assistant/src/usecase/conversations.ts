@@ -9,12 +9,19 @@ import { MAX_LOAD, messageRepository } from '#/repository/messages';
 import { conversationView, visibleMessages } from '#/usecase/conversation-view';
 import { runKey } from '#/service/run-key';
 import { PAGE_CONTEXT_PART } from '#/service/page-context';
-import { FREE_CHAT, profileById } from '#/service/profile';
+import { FREE_CHAT, modeForProfile, profileById } from '#/service/profiles';
+import { openEntitlements } from '#/usecase/entitlements';
 import { targetOffersAct } from '#/usecase/approvals';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
 
 /** The refusal of a conversation started in Act in a tenant that does not offer Act. */
 export const TARGET_ACT_NOT_OFFERED = 'target_act_not_offered';
+
+/** The refusal of a conversation started in Act in a tenant whose modes lack Act. */
+export const MODE_NOT_OFFERED = 'mode_not_offered';
+
+/** The refusal of a mode the conversation's profile does not run in. */
+export const PROFILE_MODE_REFUSED = 'profile_mode_refused';
 
 export type CreateOutcome =
   | { kind: 'created'; conversation: AssistantConversation }
@@ -27,11 +34,16 @@ export async function createConversation(
   caller: ChatCaller,
   request: CreateConversationRequest,
 ): Promise<CreateOutcome> {
-  const profile = request.profile ?? FREE_CHAT.id;
-  if (profileById(profile) === undefined) return { kind: 'unknown_profile' };
+  const task = profileById(request.profile ?? FREE_CHAT.id);
+  if (task === undefined) return { kind: 'unknown_profile' };
+  const profile = task.id;
   const id = deps.newId();
   const now = deps.now();
-  const mode = request.mode ?? 'ask';
+  const mode = modeForProfile(task, request.mode);
+  if (mode === null) return { kind: 'access_refused', reason: PROFILE_MODE_REFUSED };
+  if (mode === 'act' && !(await ownTenantOffersAct(deps, caller))) {
+    return { kind: 'access_refused', reason: MODE_NOT_OFFERED };
+  }
   if (mode === 'act' && !(await targetOffersAct(deps, caller))) {
     return { kind: 'access_refused', reason: TARGET_ACT_NOT_OFFERED };
   }
@@ -57,6 +69,13 @@ export async function createConversation(
   if (outcome.kind === 'refused') return { kind: 'access_refused', reason: outcome.reason };
   const record = outcome.value;
   return { kind: 'created', conversation: conversationView(record, []) };
+}
+
+async function ownTenantOffersAct(deps: ChatDeps, caller: ChatCaller): Promise<boolean> {
+  const limits = await deps.transact(caller.tenantId, (tx) =>
+    (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId),
+  );
+  return limits.modes.includes('act');
 }
 
 /**
