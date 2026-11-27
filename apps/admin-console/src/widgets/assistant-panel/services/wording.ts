@@ -41,8 +41,7 @@ export const PANEL_WORDING = {
   stepLimitNote:
     'This answer used the most steps one answer may take, so the assistant stopped. Ask again, with a narrower question, to carry on.',
   waitingNote:
-    'A change is waiting for your decision. Approve or refuse it in the card above; the conversation takes no new message until you do.',
-  actNote: 'In Act, each change it proposes waits for your approval and nothing else is changed.',
+    'A change waits for your decision. The conversation takes no new message until you decide it.',
   actOtherTenantNote: 'Act is not available in another tenant.',
   modeBusy: 'Wait for the answer to finish before switching the mode.',
   valueEmpty: '(empty)',

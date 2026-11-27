@@ -127,17 +127,21 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             words={panel.words}
           />
           {chat.readOnly === null ? (
-            <Composer
-              running={chat.running}
-              blocked={chat.blocked}
-              contextLabel={panel.where}
-              draft={panel.draft}
-              onDraft={panel.setDraft}
-              words={panel.words}
-              maxLength={panel.maxLength}
-              onSend={chat.send}
-              onStop={chat.stop}
-            />
+            // A change waits for a decision: the card is where the person acts, so
+            // the field gives its room to it, and the draft is kept for after.
+            chat.blocked ? null : (
+              <Composer
+                running={chat.running}
+                blocked={false}
+                contextLabel={panel.where}
+                draft={panel.draft}
+                onDraft={panel.setDraft}
+                words={panel.words}
+                maxLength={panel.maxLength}
+                onSend={chat.send}
+                onStop={chat.stop}
+              />
+            )
           ) : (
             <ReadOnlyBar
               reason={chat.readOnly}

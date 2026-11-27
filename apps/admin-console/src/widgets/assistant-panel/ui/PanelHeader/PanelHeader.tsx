@@ -118,9 +118,7 @@ export function PanelHeader({
             ))}
           </div>
           <p className={styles.modeHint}>{modeWords(words)[mode].hint}</p>
-          <p className={styles.modeHint}>
-            {acting === null ? words.actNote : words.actOtherTenantNote}
-          </p>
+          {acting === null ? null : <p className={styles.modeHint}>{words.actOtherTenantNote}</p>}
           <Problem>{modeProblem}</Problem>
         </RadioGroup>
       ) : (

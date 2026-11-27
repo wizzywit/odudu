@@ -135,7 +135,7 @@ it('shows the card of a change that waits, announces it once, and does not take 
     expect(status()).toHaveTextContent(`Approval needed: ${CARD.title}`);
   });
   expect(card).not.toContainElement(document.activeElement as HTMLElement);
-  expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeDisabled();
+  expect(screen.queryByRole('textbox', { name: 'Message to the assistant' })).toBeNull();
 });
 
 it('moves to the card only when the person asks', async () => {

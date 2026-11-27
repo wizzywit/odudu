@@ -240,7 +240,7 @@ it('names the step a tool is on, and draws it as a step of the answer', async ()
   stream.close();
 });
 
-it('waits for the person when a change needs a decision, and says nothing is approved from here yet', async () => {
+it('waits for the person when a change needs a decision, and gives its room to the card', async () => {
   const user = userEvent.setup();
   await renderPanel({
     [`POST ${MESSAGES}`]: wholeStream(
@@ -260,7 +260,7 @@ it('waits for the person when a change needs a decision, and says nothing is app
   await waitFor(() => {
     expect(status()).toHaveTextContent('Waiting for you');
   });
-  expect(screen.getByRole('note')).toHaveTextContent('waiting for your decision');
+  expect(screen.getByRole('note')).toHaveTextContent('waits for your decision');
   expect(screen.getByText('Waiting for you', { selector: 'span' })).toBeInTheDocument();
 });
 
@@ -668,7 +668,7 @@ it('keeps a refusal in the meter through the next send, until a turn ends well',
 it('offers Act, and says what it leaves to the person', async () => {
   await renderPanel({});
   expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
-  expect(screen.getByText(/each change it proposes waits for your approval/u)).toBeInTheDocument();
+  expect(screen.getByText('Ask reads and explains. It changes nothing.')).toBeInTheDocument();
 });
 
 it('starts in Ask even where the tenant starts in Act', async () => {

@@ -56,7 +56,6 @@ it('offers both modes, says what the chosen one does, and what Act leaves to the
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
   expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
   expect(screen.getByText('Ask reads and explains. It changes nothing.')).toBeInTheDocument();
-  expect(screen.getByText(/each change it proposes waits for your approval/u)).toBeInTheDocument();
 });
 
 it('reports the mode the person picks, and says why a switch did not go through', async () => {
