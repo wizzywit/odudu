@@ -31,12 +31,12 @@ whatever no tool happens to cover.
 **Every console write is in exactly one of four tiers**, and a tier is decided by the server
 from the tool and its target, never by the model:
 
-| Tier | Meaning | What a person does |
-| ---- | ------- | ------------------ |
-| A | Creates or edits something inert or restorable | Answers the card |
-| B | Removes something the API already guards | Answers the card, then confirms the removal; the card shows what depends on it |
-| C | Changes who can sign in, what a token carries or what goes live | Answers the card, which is a set-diff where the call replaces a list, and types the target's name in the decision |
-| X | Human-only | Does it in the console; the assistant may prefill the form |
+| Tier | Meaning                                                         | What a person does                                                                                                |
+| ---- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| A    | Creates or edits something inert or restorable                  | Answers the card                                                                                                  |
+| B    | Removes something the API already guards                        | Answers the card, then confirms the removal; the card shows what depends on it                                    |
+| C    | Changes who can sign in, what a token carries or what goes live | Answers the card, which is a set-diff where the call replaces a list, and types the target's name in the decision |
+| X    | Human-only                                                      | Does it in the console; the assistant may prefill the form                                                        |
 
 A tool of tier A to C is never `auto` and has no "allow for this conversation" control. A
 write budget per tier keeps a burst of A from spending what C needs.
@@ -57,18 +57,18 @@ X: refused at proposal and at the door with a constant denial.
 The owner's rulings of 2026-11-27 are the first three rows. "May overturn" says whether the
 owner may later move the row to a tool once what it waits for exists.
 
-| Group id | Routes | Reason | May overturn |
-| -------- | ------ | ------ | ------------ |
-| `secret-returned` | confidential `POST ~/clients`, `POST ~/clients/:id/secret`, `POST ~/registration-tokens`, `POST ~/subjects/:id/password` | The one-time secret would pass through model context, stored messages, trace, export and the provider. The assistant prefills the console form; the person submits. | Yes, with a reveal channel that bypasses the model |
-| `secret-supplied` | `PUT ~/smtp` | The relay password would arrive through chat; a redirected relay captures every mailed link. | Yes, with the same channel or a person-typed field |
-| `admin-capability-reach` | Any role, group, composite, default, group-role, subject role or group change whose target reaches an administrator capability; changes to or deletion of an administrator or the owner | Escalation and lockout. Decided on the server per target, not by tool name. | Yes, once a delegated-administrator rule exists |
-| `own-session` | `DELETE ~/sessions` (tenant-wide) | No "except mine" parameter: it ends the approver's session and the run. | Yes, once the route can exclude the caller |
-| `self-authority` | `PUT ~/assistant/settings`, the nine `agent_*` fields of `PATCH ~/settings`, `PATCH ~/clients/:id` of `odudu-assistant` and `odudu-admin`, `PATCH ~/settings` `audit_retention_days`, `DELETE ~/agents/:id` of its own lineage | The assistant's own mode, budget, write allowance, evidence | No |
-| `control-plane` | The nine `~/assistant/conversations*` routes | The approval decision must not be reachable by the model | No |
-| `tenant-lifecycle` | `PATCH ~` with `enabled`, `DELETE ~` | A disable ends every session, the conversation's included; delete loses the tenant | No |
-| `instance-level` | `POST /admin/tenants`, `POST /admin/tenant-imports` | No tenant to bind a grant to, and the import answers fresh secrets once. Placed, not refused. | Yes, with an instance-write door |
-| `binary-body` | `POST ~/theme/assets` | A raw image body; the model has no bytes | No |
-| `verified-claims` | `email_verified`, `phone_number_verified` in `PATCH ~/subjects/:id/profile` | Relying parties trust them; only the mail flow sets them | No |
+| Group id                 | Routes                                                                                                                                                                                                                         | Reason                                                                                                                                                              | May overturn                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `secret-returned`        | confidential `POST ~/clients`, `POST ~/clients/:id/secret`, `POST ~/registration-tokens`, `POST ~/subjects/:id/password`                                                                                                       | The one-time secret would pass through model context, stored messages, trace, export and the provider. The assistant prefills the console form; the person submits. | Yes, with a reveal channel that bypasses the model |
+| `secret-supplied`        | `PUT ~/smtp`                                                                                                                                                                                                                   | The relay password would arrive through chat; a redirected relay captures every mailed link.                                                                        | Yes, with the same channel or a person-typed field |
+| `admin-capability-reach` | Any role, group, composite, default, group-role, subject role or group change whose target reaches an administrator capability; changes to or deletion of an administrator or the owner                                        | Escalation and lockout. Decided on the server per target, not by tool name.                                                                                         | Yes, once a delegated-administrator rule exists    |
+| `own-session`            | `DELETE ~/sessions` (tenant-wide)                                                                                                                                                                                              | No "except mine" parameter: it ends the approver's session and the run.                                                                                             | Yes, once the route can exclude the caller         |
+| `self-authority`         | `PUT ~/assistant/settings`, the nine `agent_*` fields of `PATCH ~/settings`, `PATCH ~/clients/:id` of `odudu-assistant` and `odudu-admin`, `PATCH ~/settings` `audit_retention_days`, `DELETE ~/agents/:id` of its own lineage | The assistant's own mode, budget, write allowance, evidence                                                                                                         | No                                                 |
+| `control-plane`          | The nine `~/assistant/conversations*` routes                                                                                                                                                                                   | The approval decision must not be reachable by the model                                                                                                            | No                                                 |
+| `tenant-lifecycle`       | `PATCH ~` with `enabled`, `DELETE ~`                                                                                                                                                                                           | A disable ends every session, the conversation's included; delete loses the tenant                                                                                  | No                                                 |
+| `instance-level`         | `POST /admin/tenants`, `POST /admin/tenant-imports`                                                                                                                                                                            | No tenant to bind a grant to, and the import answers fresh secrets once. Placed, not refused.                                                                       | Yes, with an instance-write door                   |
+| `binary-body`            | `POST ~/theme/assets`                                                                                                                                                                                                          | A raw image body; the model has no bytes                                                                                                                            | No                                                 |
+| `verified-claims`        | `email_verified`, `phone_number_verified` in `PATCH ~/subjects/:id/profile`                                                                                                                                                    | Relying parties trust them; only the mail flow sets them                                                                                                            | No                                                 |
 
 `POST ~/subjects/bulk` is not human-only: it is a tier C tool with a batch bound (ruling of
 2026-11-27, coordinator-resolved; the owner may overturn).
@@ -100,7 +100,7 @@ hold a second registry that must agree with the first.
    under `audit`, `agents` or `assistant` to be in it. The chat bridge resolves a call through
    the same assistant tool set the model was offered.
 6. `docs/protocols/mcp-route-classes.md` gains an "Assistant" column (`tier A..C`, `human-only:
-   <group>`, `no: <why>`), generated from the registries and asserted by
+<group>`, `no: <why>`), generated from the registries and asserted by
    `tests/docs/mcp-route-classes.test.ts`. The assertion that every access-changing,
    credential and destructive route is placed on the MCP phase and has no tool becomes "has no
    tool of audience `all`".
