@@ -186,3 +186,35 @@ every session and to set a person's password and asserts the answer carries step
 **Rejected.** A guidance table kept in the docs only (the model cannot reach it and nothing
 ties it to the registry); guidance written into the refusal text (it would be the model's
 paraphrase of the steps, where a rendered result is exact).
+
+## Amendment 2026-11-27: the assistant reads the audit trail, minus its own record
+
+**Decision (owner).** `list_audit` and `count_audit` are assistant tools, offered when the
+person holds `view-audit`, because explaining an event is a profile the assistant is built
+for. ADR 0058's boundary rule (the assistant never reads its own audit or trace) still holds,
+and is kept on the server instead of by hiding the trail: the audit list and count routes,
+when called with an assistant grant, apply one predicate that removes the assistant's own
+record, and the same predicate is applied to both, so a count cannot disclose a row the list
+hides.
+
+**The own record** is every event whose actor is the built-in assistant client, its grant or
+an agent instance rooted in a conversation, every event whose `action` begins `assistant.`
+(turn, approval, config, text read, conversation delete and export, report), and the rows
+that record the assistant's own reads. It is one registered predicate, `OWN_RECORD_FILTER`,
+read by the list, the count and the test, not a regex over route names. It is a mandatory
+`AND` in the query: a filter, a cursor, a date range or a request for `event_type` or
+`actor_client_id` of the assistant cannot widen it, and such a request answers an empty page
+and a zero count, not an error that confirms a row exists.
+
+**What changes in the guard.** `ASSISTANT_WITHHELD` no longer holds `GET ~/audit` or
+`GET ~/audit/count`; it keeps the guard that a read tool under `agents` or `assistant` must be
+in it, and the audit routes carry the Assistant column value `yes, minus own record`.
+`auditor-text-rule` leaves the closed reason set. `GET ~/audit/export` stays withheld (volume
+at scale, a person fetches it with their own token). The free text these two tools return
+(usernames, client names, `detail`) is registered in the injection coverage as planted, and
+the answer is paged under `MAX_LIMIT`.
+
+**Rejected.** _Hide the whole trail from the assistant_ (the earlier decision in this ADR):
+the stated rule is about its own rows, the mechanism hid everything, and "explain this event"
+needs the trail. _Filter in the tool layer or the console:_ a bypass through a second route
+or a count would remain; the door is where the person's rights are already applied.
