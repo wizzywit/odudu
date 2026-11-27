@@ -1176,8 +1176,9 @@ describe('the landing page in a browser', () => {
     );
     expect(bytes).toBeGreaterThan(50_000);
     // The route registry in the main chunk grows with every page. The ten SDKs pages added
-    // about 1.1 KB gzip (189,862 bytes measured, 422 over 185 KB); 186 KB leaves 602 bytes.
-    expect(bytes).toBeLessThan(186 * 1024);
+    // about 1.1 KB gzip (189,862 bytes measured, 422 over 185 KB); 186 KB left 602 bytes. The
+    // assistant pages then took it to 190,475, so 187 KB leaves 973 bytes.
+    expect(bytes).toBeLessThan(187 * 1024);
     await close();
   });
 
