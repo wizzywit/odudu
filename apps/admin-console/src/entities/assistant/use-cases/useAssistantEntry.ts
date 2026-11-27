@@ -7,7 +7,7 @@ import { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantS
 import { listenForTask } from '#/entities/assistant/adapter/taskEvent';
 import type { TaskRequest } from '#/entities/assistant/types/taskRequest';
 import { conversationFor, type AssistantView } from '#/entities/assistant/services/gate';
-import { askedFor } from '#/entities/assistant/services/taskRequest';
+import { askedFor, lastFor } from '#/entities/assistant/services/taskRequest';
 
 export interface AssistantEntry {
   // The gate is open and the tenant has the assistant on: nothing below
@@ -113,7 +113,7 @@ export function useAssistantEntry(
     headingRef,
     view,
     conversationId: conversationFor(remembered, tenant),
-    task: applied?.tenant === tenant ? applied : null,
+    task: lastFor(applied, tenant),
     rememberConversation: (id) => {
       setRemembered(id === null ? null : { tenant, id });
     },

@@ -1,6 +1,8 @@
 // Every word the conversation draws, under a stable id. A count or a name is
 // a function beside this record, never a literal in a view.
 export const PANEL_WORDING = {
+  panelTitle: 'Assistant',
+  panelLabel: 'Assistant panel',
   conversationLabel: 'Conversation',
   composerLabel: 'Message to the assistant',
   composerPlaceholder: 'Message the assistant',

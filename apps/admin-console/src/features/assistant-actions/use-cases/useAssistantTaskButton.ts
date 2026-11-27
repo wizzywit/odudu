@@ -1,4 +1,4 @@
-import { mayUseAssistant, askAssistant, useAssistantStatus } from '#/entities/assistant';
+import { mayUseAssistant, useAskAssistant, useAssistantStatus } from '#/entities/assistant';
 import { useAuthority } from '#/entities/session';
 import {
   ASSISTANT_TASKS,
@@ -17,12 +17,13 @@ export interface AssistantTaskButtonState {
 // this caller in this tenant, and the call that puts the task in the panel.
 export function useAssistantTaskButton(tenant: string, id: TaskId): AssistantTaskButtonState {
   const view = useAssistantStatus(tenant, mayUseAssistant(useAuthority(tenant)));
+  const ask = useAskAssistant();
   const task = ASSISTANT_TASKS[id];
   return {
     shown: view.enabled,
     task,
     press: () => {
-      askAssistant({ tenant, profile: task.id, draft: task.starter });
+      ask({ tenant, profile: task.id, draft: task.starter });
     },
   };
 }

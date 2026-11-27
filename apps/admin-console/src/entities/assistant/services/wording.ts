@@ -2,9 +2,6 @@
 export const ASSISTANT_WORDING = {
   openButton: 'Ask the assistant',
   openButtonShort: 'Ask',
-  panelTitle: 'Assistant',
-  panelLabel: 'Assistant panel',
-  closeButton: 'Close',
   shortcutLead: 'or press',
 } as const;
 

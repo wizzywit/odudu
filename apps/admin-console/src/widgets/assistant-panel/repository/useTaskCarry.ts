@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { carryFor } from '#/widgets/assistant-panel/services/taskHandover';
 import type { TaskCarry } from '#/widgets/assistant-panel/types/carry';
 
 interface Carried {
@@ -22,5 +23,5 @@ export function useTaskCarry(tenant: string): {
 } {
   const carry = useCarried((state) => state.carry);
   const hand = useCarried((state) => state.hand);
-  return { carried: carry?.tenant === tenant ? carry : null, hand };
+  return { carried: carryFor(carry, tenant), hand };
 }

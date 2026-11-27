@@ -14,9 +14,6 @@ export interface AssistantPanelSlot {
   username: string;
   view: AssistantView;
   id: string;
-  label: string;
-  title: string;
-  closeLabel: string;
   headingRef: RefObject<HTMLHeadingElement | null>;
   // The panel stays mounted once opened, so a closed one keeps its answer running.
   open: boolean;

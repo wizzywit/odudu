@@ -147,9 +147,6 @@ export function panelElement(
         username="ada"
         view={view}
         id="assistant-panel"
-        label="Assistant panel"
-        title="Assistant"
-        closeLabel="Close"
         headingRef={headingRef}
         open={open}
         conversationId={id}

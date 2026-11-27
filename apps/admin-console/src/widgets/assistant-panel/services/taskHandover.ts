@@ -19,3 +19,8 @@ export function handoverNote(task: TaskRequest | null, carried: TaskCarry | null
   ].filter((line) => line !== null);
   return lines.length === 0 ? null : lines.join(' ');
 }
+
+// What an earlier panel left is for the tenant it was in.
+export function carryFor(carry: TaskCarry | null, tenant: string): TaskCarry | null {
+  return carry?.tenant === tenant ? carry : null;
+}

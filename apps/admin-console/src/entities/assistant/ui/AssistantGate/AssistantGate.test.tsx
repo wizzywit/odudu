@@ -35,7 +35,7 @@ function gate(available: boolean, tenant = 'acme') {
       paused={false}
       renderPanel={(slot) =>
         slot.open ? (
-          <aside aria-label={slot.label}>{`panel for ${slot.tenant}`}</aside>
+          <aside aria-label="Assistant panel">{`panel for ${slot.tenant}`}</aside>
         ) : (
           <i data-testid="kept" />
         )

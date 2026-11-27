@@ -11,5 +11,5 @@ export {
 } from '#/entities/assistant/services/safeMarkdown';
 export type { AssistantView } from '#/entities/assistant/services/gate';
 export type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';
-export { askAssistant } from '#/entities/assistant/adapter/askAssistant';
+export { useAskAssistant } from '#/entities/assistant/use-cases/useAskAssistant';
 export type { AskedTask, TaskRequest } from '#/entities/assistant/types/taskRequest';
