@@ -138,11 +138,7 @@ it('names the tenant it acts in and offers Act there, in a tag no screen reader 
 
 it('says where Act makes its changes once the conversation is in it in another tenant', () => {
   render(header({ actingIn: 'demo', mode: 'act' }));
-  expect(
-    screen.getByText(
-      'Act makes changes in demo, not in your own tenant. Each one waits for your approval.',
-    ),
-  ).toBeVisible();
+  expect(screen.getByText('Act makes changes in demo, not in your own tenant.')).toBeVisible();
 });
 
 it('names no tenant in the administrator’s own', () => {

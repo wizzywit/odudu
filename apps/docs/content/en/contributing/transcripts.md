@@ -1498,3 +1498,5 @@ not sign `ada` in, because the console assertion needs the console's key, so its
 processes were removed afterwards. The rest of the page keeps its earlier capture.
 
 The OpenAPI page's block was captured again on the same day on a fresh build of the same project, from the working tree of the commit after `7b164736b` that changed the card's wording (the image labels itself `bbca6958f`, the commit before it): 126 paths and 458408 bytes.
+
+`GET /admin/openapi.json` was fetched again on 2026-11-27 on a compose project, `odudu-e2e` (port `3080`, throttles at `10000`), built from the branch commit that lets a system administrator Act in another tenant, on a database that began empty; it is 497,402 bytes, 134 paths, after the descriptions of the conversation and mode routes gained a sentence. The route needs no token. The stack and its image were removed afterwards.

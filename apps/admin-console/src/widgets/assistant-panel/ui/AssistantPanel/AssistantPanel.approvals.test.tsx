@@ -248,9 +248,7 @@ describe('in another tenant', () => {
     await user.click(screen.getByRole('radio', { name: 'Act' }));
     expect(screen.getByRole('radio', { name: 'Act' })).toBeChecked();
     expect(
-      screen.getByText(
-        'Act makes changes in demo, not in your own tenant. Each one waits for your approval.',
-      ),
+      screen.getByText('Act makes changes in demo, not in your own tenant.'),
     ).toBeInTheDocument();
     await ask(user);
     const card = await screen.findByRole('region', { name: CARD.title });

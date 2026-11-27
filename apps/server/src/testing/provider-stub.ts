@@ -19,18 +19,6 @@ interface Fixture {
 
 export const FIXTURES: readonly Fixture[] = [
   {
-    match: /approve me elsewhere/iu,
-    rounds: [
-      {
-        tool: {
-          name: 'create_group',
-          arguments: { name: 'e2e-approved-elsewhere', idempotency_key: 'e2e-approve-elsewhere-1' },
-        },
-      },
-      { text: 'The group e2e-approved-elsewhere was created.' },
-    ],
-  },
-  {
     match: /how many clients/iu,
     rounds: [
       { tool: { name: 'count_clients', arguments: {} } },

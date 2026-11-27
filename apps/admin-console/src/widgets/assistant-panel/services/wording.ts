@@ -193,7 +193,7 @@ export function removalIn(tenant: string): { title: string; consequence: string 
 }
 
 export function actInNote(tenant: string): string {
-  return `Act makes changes in ${tenant}, not in your own tenant. Each one waits for your approval.`;
+  return `Act makes changes in ${tenant}, not in your own tenant.`;
 }
 
 export function targetDeclinesAct(tenant: string): string {

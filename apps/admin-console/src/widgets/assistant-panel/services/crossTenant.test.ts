@@ -7,9 +7,7 @@ it('names the tenant the conversation acts in, and none in the own tenant', () =
 });
 
 it('says where changes land only for Act in another tenant', () => {
-  expect(actNoteOf('demo', 'act')).toBe(
-    'Act makes changes in demo, not in your own tenant. Each one waits for your approval.',
-  );
+  expect(actNoteOf('demo', 'act')).toBe('Act makes changes in demo, not in your own tenant.');
   expect(actNoteOf('demo', 'ask')).toBeNull();
   expect(actNoteOf(null, 'act')).toBeNull();
 });

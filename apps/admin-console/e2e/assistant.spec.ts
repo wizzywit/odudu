@@ -7,10 +7,10 @@ import { inTenant, psql, seeded, sqlText, type Account } from './stack';
 const accounts = seeded().assistant;
 const TENANT = accounts.read.tenant;
 
-function groupsNamed(name: string): number {
+function groupsNamed(name: string, tenant = TENANT): number {
   return Number(
     psql(
-      `select count(*) from groups where tenant_id = ${inTenant(TENANT)} and path = ${sqlText(`/${name}`)}`,
+      `select count(*) from groups where tenant_id = ${inTenant(tenant)} and path = ${sqlText(`/${name}`)}`,
     ),
   );
 }
@@ -97,27 +97,31 @@ test('refusing a write changes nothing, and the assistant is told', async ({ pag
 test('a system administrator approves a change in another tenant, and it is made there', async ({
   page,
 }) => {
+  // A tenant no other assistant test creates a group in.
+  const target = seeded().other.tenant;
   await signIn(page, accounts.cross);
-  await page.goto(`/console/${TENANT}`);
+  await page.goto(`/console/${target}`);
   await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
   const panel = page.getByRole('complementary', { name: 'Assistant panel' });
-  await expect(panel.getByText(`Acting in ${TENANT}`)).toBeVisible();
+  await expect(panel.getByText(`Acting in ${target}`)).toBeVisible();
   await chooseAct(panel);
   await expect(
-    panel.getByText(`Act makes changes in ${TENANT}, not in your own tenant.`, { exact: false }),
+    panel.getByText(`Act makes changes in ${target}, not in your own tenant.`, { exact: false }),
   ).toBeVisible();
-  await say(page, 'Please approve me elsewhere');
+  await say(page, 'Please approve me');
   const card = panel.getByRole('region', { name: 'Create a group' });
   await expect(card).toBeVisible();
-  await expect(card.getByText(`Change in ${TENANT} waiting for your approval`)).toBeVisible();
-  await expect(card.getByText(TENANT, { exact: true })).toBeVisible();
-  expect(groupsNamed('e2e-approved-elsewhere')).toBe(0);
+  await expect(card.getByText(`Change in ${target} waiting for your approval`)).toBeVisible();
+  await expect(card.getByText(target, { exact: true })).toBeVisible();
+  expect(groupsNamed('e2e-approved', target)).toBe(0);
   await expectAccessible(page);
 
   await card.getByRole('button', { name: 'Approve' }).click();
   await expect(card.getByText('Approved by you. The change was made.')).toBeVisible();
-  await expect(panel.getByText('The group e2e-approved-elsewhere was created.')).toBeVisible();
-  expect(groupsNamed('e2e-approved-elsewhere')).toBe(1);
+  await expect(panel.getByText('The group e2e-approved was created.')).toBeVisible();
+  expect(groupsNamed('e2e-approved', target)).toBe(1);
+  // The administrator's own tenant is not where it was made.
+  expect(groupsNamed('e2e-approved', accounts.cross.tenant)).toBe(0);
 });
 
 test('the card fits a phone, with the change stacked and the buttons reachable', async ({
