@@ -330,6 +330,8 @@ const EXPECTED_CHECKS: Record<string, string> = {
     'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
   'token_grants.token_grants_target_not_home':
     'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'token_grants.token_grants_revoked_cause_known':
+    "CHECK (((revoked_cause IS NULL) OR ((revoked_at IS NOT NULL) AND (revoked_cause = ANY (ARRAY['sign_out'::text, 'reattached'::text])))))",
   'assistant_messages.assistant_messages_parts_shape':
     "CHECK (((jsonb_typeof(parts) = 'array'::text) AND (octet_length((parts)::text) <= 1048576)))",
   'assistant_messages.assistant_messages_role_check':
