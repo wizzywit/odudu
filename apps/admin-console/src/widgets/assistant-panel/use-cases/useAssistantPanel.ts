@@ -79,7 +79,7 @@ export function useAssistantPanel(options: {
     chat,
   });
   const read = useFirstRunNotice(noticeScopeOf(actingIn));
-  const scroll = usePinnedScroll(contentSize(chat.messages), options.open);
+  const scroll = usePinnedScroll(contentSize(chat.messages, chat.approvals.entries), options.open);
   const docked = useDocked();
   const [draft, setDraft] = useState('');
   // A message the server took back is written into the field again, once, so

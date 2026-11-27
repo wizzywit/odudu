@@ -61,6 +61,31 @@ it('counts what is in the log, so a change in it is one a view can watch for', (
   ).not.toBe(before);
 });
 
+it('grows when a card arrives or is decided, so a log that follows its end follows it', () => {
+  const entry = {
+    card: {
+      approval_id: 'a',
+      tool_call_id: 't',
+      tool: 'create_group',
+      title: 'Create a group',
+      target: { type: 'group' },
+      before: null,
+      after: { name: 'ops' },
+      expires_at: '2099-01-01T00:00:00.000Z',
+    },
+    offsetMs: 0,
+    decision: undefined,
+  };
+  const none = contentSize([], []);
+  const waiting = contentSize([], [entry]);
+  const decided = contentSize(
+    [],
+    [{ ...entry, decision: { kind: 'decided' as const, state: 'denied' as const } }],
+  );
+  expect(waiting).toBeGreaterThan(none);
+  expect(decided).not.toBe(waiting);
+});
+
 it('docks the panel from 1280 pixels and lays it over the page below', () => {
   expect(docked(1280)).toBe(true);
   expect(docked(1279)).toBe(false);
