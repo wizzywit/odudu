@@ -211,7 +211,7 @@ Record each result in `docs/phases/p5c-spikes.md` as command, output and a `resu
 ## Increment I16: task profiles and AI buttons, read profiles (6 h)
 
 **Files:** Create `packages/assistant/src/service/profiles.ts` (data), `apps/admin-console/src/features/assistant-actions/{ui,use-cases,services}/…`.
-**Interfaces:** `interface TaskProfile { id: ProfileId; mode: Mode; slot: Slot; tools: readonly string[]; subagents: 'allowed'|'required'|'never'; maxSteps: number; maxTokens: number }`; `profileById(id): TaskProfile`; `activeToolsFor(profile, mode): readonly string[]` (never wider than the mode). Profiles of this increment: Ask anything, Why can't this person sign in? (Subject), Explain this event (Audit), Review this client (Client).
+**Interfaces:** `interface TaskProfile { id: ProfileId; mode: Mode; slot: Slot; tools: readonly string[]; subagents: 'allowed'|'required'|'never'; maxSteps: number; maxTokens: number }`; `profileById(id): TaskProfile`; `activeToolsFor(profile, mode): readonly string[]` (never wider than the mode). Profiles of this increment: Ask anything, Why can't this person sign in? (Subject), Explain this event (Audit, which uses `list_audit` and `count_audit` once the act-surface plan's R1c offers them minus the assistant's own record; until R1c merges the profile is withheld), Review this client (Client).
 
 - [ ] **Step 1: Failing tests:** each profile's tool list is a subset of the 64 reads; Act-only profiles are refused in a tenant whose allowed modes lack Act; each AI button opens the panel with its profile and a `page_context` chip; the sign-in profile's golden fixture (I20) names lockout, required actions, sessions, factors, roles in its tool list.
 - [ ] **Step 2-3:** Implement; features are used by two or more pages (Subject, Audit, Client). Docs: area pages mention the button; `console-labels.test.ts`. Commit `feat(assistant): read profiles and AI buttons`.
@@ -233,6 +233,15 @@ Record each result in `docs/phases/p5c-spikes.md` as command, output and a `resu
 - [ ] **Step 1: Failing tests:** a person without the capability sees no menu entry; the list renders at most one page; replay of a fixture conversation shows every step; report disables itself after a 409 at the cap with the stated reason; `tests/lint/console-covers-admin-routes.test.ts` passes.
 - [ ] **Step 2-3:** Implement. Docs: `admin-console/assistant-activity.mdx`, tour, screenshots, `console-areas.test.ts`. Commit `feat(console): assistant activity screen`.
 
+## Increment I18b: un-report a conversation (4 h, activity follow-up)
+
+**Why:** a holder of `read-assistant-activity` can report others' conversations without reading their text and so fill a tenant's 100 places, after which owners are refused with 409 (`docs/NEXT.md`, "Telling a person that someone read their assistant conversation's text, and un-reporting a conversation"; `grep: grep -n "un-report" docs/NEXT.md`).
+**Files:** the report route's neighbours in `packages/protocol-admin/src/service/capability.ts` and `packages/assistant/src/view/`, a new audit action in `packages/domain-audit`, the activity screen's report control.
+**Interfaces:** `DELETE ~/assistant/activity/conversations/:id/report` (or the verb the report route's own shape asks for; read it first), answering 204, idempotent; **who may un-report is the owner's decision, not made here: the plan's provisional call is the person who reported it, or a holder of `manage-assistant`**, recorded as an open row in `docs/NEXT.md` until the owner answers. An audit row `assistant.report_withdrawn` (conversation id, who, no text).
+
+- [ ] **Step 1: Failing tests:** the route un-reports and frees a place under the cap; a person who may not un-report gets 403; a second call is a no-op; the audit row is written and a failed write stops the call (fail closed, as the report route); a foreign-tenant conversation id is 404; the route is a human-only entry of the Act guard (`control-plane`), not an assistant tool; `tests/lint/console-covers-admin-routes.test.ts` passes with the control on the activity screen.
+- [ ] **Step 2-3:** Implement; docs: `admin-console/assistant-activity.mdx`, the transcript for the new route re-run on a live stack, screenshots; remove the NEXT entry's "un-reporting" half. Commit `feat(assistant): withdraw a report on a conversation`.
+
 ## Increment I19: sub-agents and routing with escalation (6 h)
 
 **Files:** Create `packages/assistant/src/service/{router,subagent}.ts`, `src/usecase/subagent-tool.ts`.
@@ -241,11 +250,13 @@ Record each result in `docs/phases/p5c-spikes.md` as command, output and a `resu
 - [ ] **Step 1: Failing tests:** a failed step escalates standard to deep once; "why" is recorded in the trace; a child cannot exceed its share (turn refused at the share), cannot hold a write tool, and a parent's `never` profile has no spawn tool; the audit range read returns a summary within a token ceiling; a child instance is revoked when the parent turn ends.
 - [ ] **Step 2-3:** Implement. Commit `feat(assistant): sub-agents and routing`.
 
-## Increment I20: the eval harness and golden tasks (6 h)
+## Increment I20: the eval harness and golden tasks (7 h)
 
 **Files:** Create `evals/assistant/{promptfooconfig.yaml,golden/*.yaml,fixtures/*.json}`, `evals/assistant/record.ts`, `.github/workflows` job `assistant-evals` in `verify.yml` (and the `gate` job's list, ADR 0044), a root script `pnpm evals:assistant`.
 **Interfaces:** one golden task per profile of 5.6: scripted user message, recorded model responses replayed by a stub provider (the I15 OpenAI-compatible stub), assertions on the tool calls made and the answer's facts, and a token ceiling taken from the recorded run plus 15%; `record.ts --live` re-records a fixture against a real provider with the owner's key.
 
+- [ ] **Step 0b: Audit golden:** "Explain this event" on a fixture trail calls `list_audit` (and `count_audit` for a range), names the event's actor, action and outcome from the rows, and never shows or counts a row of the assistant's own record (planted in the fixture).
+- [ ] **Step 0: Guidance goldens** (owner, 2026-11-27; ADR 0061's amendment): two more golden tasks. "Delete all sessions" and "set this user's password" must each end in a `console_howto` call and an answer whose steps and control names equal the guidance record's, with no secret asked for or repeated and no write proposed.
 - [ ] **Step 1: Failing tests:** a fixture whose recorded usage exceeds its ceiling fails; a golden task fails if the model calls a tool outside its profile; the job runs only for changes under `packages/assistant`, `evals/`, the console panel (ADR 0044's rule: read how `verify.yml` scopes `mcp`, `grep: mcp: .github/workflows/verify.yml`).
 - [ ] **Step 2-3:** Implement; run through heavy-slot `e2e` for the stack. Commit `test(assistant): golden tasks on recorded fixtures`.
 

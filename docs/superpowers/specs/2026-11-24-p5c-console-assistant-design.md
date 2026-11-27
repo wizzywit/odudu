@@ -253,6 +253,21 @@ built-in client or the conversation's own grant is X.
 - `POST ~/theme/assets` (a raw image body) and the two verified-claim fields of a subject's
   profile (only the mail flow sets them). No.
 
+The audit trail is read, not withheld (owner, 2026-11-27): `list_audit` and `count_audit` are
+offered to a person who holds `view-audit`, and the server removes the assistant's own record
+(its client, grant and instances, and every `assistant.*` event) from both the list and the
+count, so section 5.8's rule that it cannot read its own audit holds without hiding the
+trail; the audit export stays refused. The Audit profile's "Explain this event" uses them.
+
+A human-only or not-yet write is never a bare refusal (owner, 2026-11-27; ADR 0061's
+amendment). Each such entry has a guidance record, kept in the registry that holds the entry:
+console area and route, the exact control names in order, three to seven steps, the
+capability needed, what the assistant prepares (prefilled values or the page link, never a
+secret), the one-line reason, and different steps when the person's capability or the
+tenant's settings (Act off, cross-tenant) forbid the write. A read-only tool `console_howto`
+returns it by operation or topic, and a human-only refusal names the guidance id; the panel
+renders the steps as a numbered list with a button to the page.
+
 Bulk subject creation (`POST ~/subjects/bulk`) is a tier C tool with a batch bound; the owner
 may overturn. The reads are accounted for the same way: every one is a tool or a registered
 exclusion with a reason, three gain a tool (registration tokens without the token, a subject's
@@ -515,11 +530,12 @@ applies.
 9. Sub-agent tool and routing with escalation.
 10. Evals, injection suite, golden tasks in CI; documentation; closing pass.
 11. The write surface of section 5.3a and the reads' accounting, in the plan
-    `2026-11-27-p5c-act-surface.md`: W0 to W6 (door, tiers, the tools), R1a and R1b (reads,
-    assistant exclusions, injection coverage) and F1 (prefilled drafts of the human-only
-    creates). 66 hours.
+    `2026-11-27-p5c-act-surface.md`: W0 to W6 (door, tiers, the tools), W0b and W0c (the
+    guidance for what a person does themselves), R1a and R1b (reads, assistant exclusions,
+    injection coverage), R1c (the audit reads without the assistant's own record) and F1 (prefilled drafts of the human-only creates). 82 hours. The
+    activity follow-up I18b (un-report) adds 4 and two guidance goldens in the eval increment 1.
 
-Estimate 190 to 230 hours.
+Estimate 210 to 250 hours.
 
 ## 8. Exit criteria
 
@@ -539,7 +555,8 @@ leaves an audit row and a trace that the activity screen replays, and if the row
 cannot be written the action does not run; the injection suite passes against a real
 model; every console write is an assistant tool of a tier or a registered human-only entry
 with a reason and a decision, and every read is a tool or a registered exclusion, both held by
-`tests/lint/mcp-tool-coverage.test.ts`; every new table is probed with a foreign tenant; documentation, transcripts,
+`tests/lint/mcp-tool-coverage.test.ts`; a write the assistant will not make is answered with the
+console's steps from a checked guidance record, never a bare refusal; every new table is probed with a foreign tenant; documentation, transcripts,
 screenshots and `CHANGELOG.md` are current.
 
 ## 9. Residual risk stated

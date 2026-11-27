@@ -47,7 +47,13 @@ function recordCalls(page: Page): Call[] {
   return calls;
 }
 
-const paths = (calls: readonly Call[]): string[] => calls.map((call) => call.path).sort();
+// The shell asks whether the assistant is on once per page, which the e2e stack
+// turns on; it is not a call of the tab under test.
+const paths = (calls: readonly Call[]): string[] =>
+  calls
+    .map((call) => call.path)
+    .filter((path) => path !== 'assistant/status')
+    .sort();
 
 // The page has stopped asking: nothing shows as loading, the preview frame has
 // loaded, and every call sent has been answered. 'networkidle' is not used,

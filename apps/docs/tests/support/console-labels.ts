@@ -658,7 +658,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Show steps': widget('assistant-panel/services/wording.ts', "feedShow: 'Show steps'"),
   'Hide steps': widget('assistant-panel/services/wording.ts', "feedHide: 'Hide steps'"),
   'Show the call': widget('assistant-panel/services/wording.ts', "stepRaw: 'Show the call'"),
-  'You, as': widget('assistant-panel/services/approval.ts', 'who: `You, as ${username}`'),
+  'You, as': widget('assistant-panel/services/wording.ts', 'return `You, as ${username}`'),
   Stopped: widget('assistant-panel/services/wording.ts', "statusStopped: 'Stopped'"),
   Finished: widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
   'Finished.': widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),

@@ -126,6 +126,11 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'a registered human-only entry',
   ],
   [
+    'P5c',
+    'What it will not do itself it explains',
+    'a write the assistant will not make is answered with the console',
+  ],
+  [
     'P5d',
     'What the assistant leaves to a person today',
     'a reveal channel',
