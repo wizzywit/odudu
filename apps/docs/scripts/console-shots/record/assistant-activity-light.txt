@@ -109,8 +109,7 @@ Last active
 recently
 Activity
 1 answer, 1 model call
-0
- tokens
+0 tokens
 Fast 0, standard 0, deep 0
 No tool called
 Last outcome
@@ -133,8 +132,7 @@ Last active
 recently
 Activity
 1 answer, 1 model call
-0
- tokens
+0 tokens
 Fast 0, standard 0, deep 0
 No tool called
 Last outcome
@@ -157,8 +155,7 @@ Last active
 recently
 Activity
 1 answer, 1 model call
-0
- tokens
+0 tokens
 Fast 0, standard 0, deep 0
 No tool called
 Last outcome
