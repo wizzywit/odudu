@@ -219,11 +219,14 @@ describe('reattachDecision', () => {
     });
   });
 
-  it('refuses a hidden conversation that would otherwise be carried on, and only then', () => {
+  it('refuses a hidden conversation, carried on or live, so a hidden one takes no message', () => {
     expect(reattachDecision({ ...afterSignOut, archived: true })).toEqual({
       kind: 'refused',
       reason: 'conversation_archived',
     });
-    expect(reattachDecision({ ...live, archived: true })).toEqual({ kind: 'live' });
+    expect(reattachDecision({ ...live, archived: true })).toEqual({
+      kind: 'refused',
+      reason: 'conversation_archived',
+    });
   });
 });

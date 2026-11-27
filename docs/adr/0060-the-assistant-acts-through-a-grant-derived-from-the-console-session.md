@@ -158,3 +158,10 @@ sign-in that lapsed without a revocation, or one still held by another sign-in o
 is carried on, and the old grant is ended as superseded. Default deny: a grant revoked before
 the column existed has no cause and is not carried on. The server tells the model, in its
 instructions and not in user text, that what its tools returned earlier may be out of date.
+
+The console revoking its own refresh token is taken as the person's sign-out whatever made the
+gateway do it, so a session the gateway cleaned up after a refusal the server did not itself
+revoke is carried on like a lapse; the new sign-in's own checks (subject, tenant, assistant,
+capabilities) still apply. A message to an archived conversation is refused whether or not its
+grant is live, and a send that is refused as busy or limited never replaces a grant: the
+replacement happens only once the turn is admitted, with the two grants it reads locked.

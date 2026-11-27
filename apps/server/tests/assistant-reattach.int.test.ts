@@ -30,6 +30,8 @@ let stack: McpStack | undefined;
 let assisted: FastifyInstance | undefined;
 // What the model was sent last, so a test can read its instructions.
 let lastPrompt: unknown;
+// While set, a model call waits for it, so a test can hold a turn in flight.
+let hold: Promise<void> | undefined;
 
 function s(): McpStack {
   if (stack === undefined) throw new Error('stack not started');
@@ -54,8 +56,9 @@ function scriptedModel() {
     modelId: 'stub',
     supportedUrls: {},
     doGenerate: () => Promise.reject(new Error('streaming only')),
-    doStream: (options: { prompt?: unknown }) => {
+    doStream: async (options: { prompt?: unknown }) => {
       lastPrompt = options.prompt;
+      if (hold !== undefined) await hold;
       call += 1;
       const parts =
         call % 2 === 1
@@ -405,6 +408,69 @@ describe('a conversation carried on after the person signs in again', () => {
     expect((await conversationRow(id))?.grant_id).toBeNull();
     expect((await conversationRow(id))?.run_generation).toBe(0);
     expect(await reattachedRows(w)).toHaveLength(0);
+  });
+});
+
+describe('a send that is not admitted changes nothing', () => {
+  it('leaves the grant a running turn acts under alone when another sign-in sends and is told it is busy', async () => {
+    const w = await consoleWorld(s().appDb, BASE, WORLD);
+    const first = await firstSignIn(w);
+    const id = await started(w, first.token);
+    const second = await signInAgain(w);
+    let release: () => void = () => undefined;
+    hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      const running = say(w, first.token, id, 'long one');
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const busy = await say(w, second.token, id, 'from the other tab');
+      expect(busy.statusCode).toBe(409);
+      expect(await grantRow(id)).toMatchObject({ revoked: false });
+      expect((await conversationRow(id))?.run_generation).toBe(0);
+      expect(await reattachedRows(w)).toHaveLength(0);
+      release();
+      const done = await running;
+      expect(done.statusCode, done.body).toBe(200);
+      expect(done.body).toContain('tool-output-available');
+      expect(done.body).not.toContain('Forbidden');
+    } finally {
+      release();
+      hold = undefined;
+    }
+  });
+});
+
+describe('a revocation for cause that commits while a message is being carried on', () => {
+  it('is honoured: the message waits for it and is then refused', async () => {
+    const w = await consoleWorld(s().appDb, BASE, WORLD);
+    const first = await firstSignIn(w);
+    const id = await started(w, first.token);
+    const second = await signInAgain(w);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let locked: () => void = () => undefined;
+    const holding = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    // An administrator ends the old sign-in, and has not committed yet.
+    const revoking = withTenant(s().appDb.db, w.tenantId, async (tx) => {
+      await tokenGrantRepository(tx).revoke(first.grantId, new Date());
+      locked();
+      await gate;
+    });
+    await holding;
+    const sending = say(w, second.token, id, 'racing');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    release();
+    await revoking;
+    const answer = await sending;
+    expect(answer.statusCode, answer.body).toBe(409);
+    expect(answer.json()).toMatchObject({ type: 'about:blank#conversation-ended' });
+    expect(await reattachedRows(w)).toHaveLength(0);
+    expect((await conversationRow(id))?.grant_id).toBeNull();
   });
 });
 

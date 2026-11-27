@@ -353,12 +353,11 @@ async function runConversationTurn(
   const head = await readHead(deps, caller, id);
   const profile = head === null ? undefined : profileById(head.profileId);
   if (head === null || profile === undefined) return { kind: 'not_found' };
-  // The conversation acts under a grant of the sign-in this request came on: one
-  // that ended with an earlier sign-in is carried on before anything is stored.
-  const attached = await attachConversation(deps, caller, id);
-  if (attached.kind === 'not_found') return { kind: 'not_found' };
-  if (attached.kind === 'ended') return { kind: 'ended', reason: attached.reason };
-  const prepared: Head = { ...head, generation: attached.generation };
+  const prepared: Head = head;
+  // The run and sign-in facts the conversation has once it is admitted and, if
+  // need be, carried on under this sign-in.
+  let generation = head.generation;
+  let carriedOn = false;
 
   const turn = new AbortController();
   const admitted = registry.begin(id, () => {
@@ -537,6 +536,18 @@ async function runConversationTurn(
   };
 
   try {
+    // Only an admitted turn carries a conversation on: a send that is refused as
+    // busy or limited never replaces the grant a running turn acts under. A
+    // grant that ended with an earlier sign-in is replaced before anything is stored.
+    const attached = await attachConversation(deps, caller, id);
+    if (attached.kind !== 'ready') {
+      await conclude();
+      return attached.kind === 'ended'
+        ? { kind: 'ended', reason: attached.reason }
+        : { kind: 'not_found' };
+    }
+    generation = attached.generation;
+    carriedOn = attached.carriedOn;
     // What was asked of the person is settled before the model reads the
     // conversation: a change they moved on from is withdrawn, one they decided
     // is closed or handed back, and a resume with nothing to carry on from says so.
@@ -582,7 +593,7 @@ async function runConversationTurn(
         maskEmails: prepared.maskEmails,
         tools: toolsFor(deps.tools, caller),
         mode: prepared.mode,
-        earlierSignIn: attached.carriedOn,
+        earlierSignIn: carriedOn,
         ...(deps.approvalSecret === undefined ? {} : { approvalSecret: deps.approvalSecret }),
         ...(deps.log === undefined ? {} : { log: deps.log }),
         ...(deps.approvals === undefined
@@ -608,7 +619,7 @@ async function runConversationTurn(
       },
       {
         conversationId: id,
-        generation: prepared.generation,
+        generation,
         ...(start.kind === 'message' ? { message: start.message } : {}),
         signal: AbortSignal.any([signal, turn.signal]),
       },

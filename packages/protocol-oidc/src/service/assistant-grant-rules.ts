@@ -195,10 +195,10 @@ export function reattachDecision(grounds: ReattachGrounds): ReattachDecision {
   if (previous === null) return refused('conversation_grant_missing');
   if (previous.subjectId !== grounds.expectedSubjectId) return refused('subject_mismatch');
   if (!previous.isAssistantGrant) return refused('conversation_grant_not_assistant');
+  if (grounds.archived) return refused('conversation_archived');
   if (previous.revokedAt === null && previous.exchangedFromGrantId === grounds.consoleGrantId) {
     return { kind: 'live' };
   }
-  if (grounds.archived) return refused('conversation_archived');
   if (previous.revokedAt === null) {
     // Ended without a revocation (the session lapsed) or still held by another
     // sign-in of the owner; a console grant revoked for cause would have taken

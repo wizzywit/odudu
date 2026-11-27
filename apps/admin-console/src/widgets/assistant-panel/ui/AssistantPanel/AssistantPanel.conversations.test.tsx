@@ -1,9 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useToasts } from '#/shared/lib/repository/useToasts';
 import { json, problem, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
+import { toastsShown } from '#/testing/toastsShown';
 import {
   CONVERSATION,
   CONVERSATIONS,
@@ -81,7 +81,7 @@ async function openList(user: ReturnType<typeof userEvent.setup>) {
 // The toasts the shell would draw, as the console's own queue holds them.
 async function toast(message: string) {
   await waitFor(() => {
-    expect(useToasts.getState().toasts.map((entry) => entry.message)).toContain(message);
+    expect(toastsShown()).toContain(message);
   });
 }
 

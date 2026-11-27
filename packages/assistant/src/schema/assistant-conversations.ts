@@ -11,10 +11,10 @@ export const assistantConversations = pgTable(
     id: uuid('id').notNull(),
     ownerSubjectId: uuid('owner_subject_id').notNull(),
     instanceId: uuid('instance_id').notNull(),
-    // Which run of the conversation's agent instance is current; see the migration.
     // The grant the conversation acts under when it is not its own id: set once a
     // conversation is carried on after a sign-in. Null means the grant stored under `id`.
     grantId: uuid('grant_id'),
+    // Which run of the conversation's agent instance is current; see the migration.
     runGeneration: integer('run_generation').notNull().default(0),
     profile: text('profile').notNull(),
     mode: text('mode').notNull(),

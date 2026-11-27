@@ -448,6 +448,18 @@ export function tokenGrantRepository(tx: TenantScopedDatabase) {
       await cascadeAll(ids, at);
     },
 
+    // Takes the rows' own locks, in the order given, so a revoke that has them
+    // waits for the caller and the caller's next read sees one that committed first.
+    async lockRows(ids: readonly string[]): Promise<void> {
+      for (const id of ids) {
+        await tx
+          .select({ id: tokenGrants.id })
+          .from(tokenGrants)
+          .where(eq(tokenGrants.id, id))
+          .for('update');
+      }
+    },
+
     // The share lock a derived grant takes on its parent before it is made.
     // A revoke of the parent updates the row and so waits for it, which makes a
     // concurrent revoke either see the child or find the parent already gone.

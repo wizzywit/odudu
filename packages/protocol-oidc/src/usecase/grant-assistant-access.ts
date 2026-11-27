@@ -214,6 +214,12 @@ export async function reattachAssistantAccess(
   input: ReattachAssistantAccessInput,
 ): Promise<ReattachedAccess> {
   const grants = tokenGrantRepository(tx);
+  // The two grants the decision reads are locked first, the console's before the
+  // conversation's as a revoke takes them, so a revocation for cause that is
+  // committing now is either seen or made to wait.
+  const seen = await grants.byId(input.previousGrantId);
+  if (seen?.exchangedFromGrantId != null) await grants.lockRows([seen.exchangedFromGrantId]);
+  await grants.lockRows([input.previousGrantId]);
   const decision = await reattachDecisionFor(tx, input);
   if (decision.kind === 'live') return { kind: 'live' };
   if (decision.kind === 'refused') throw new AssistantGrantRefused(decision.reason);
