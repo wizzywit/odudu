@@ -49,7 +49,7 @@ export function ApprovalCard({
                 <strong className={styles.name}>{model.targetName}</strong>
               )}
               {model.targetId === null ? null : (
-                <CopyValue label={`Copy the ${model.targetType} id`} value={model.targetId} short />
+                <CopyValue label={model.copyLabel} value={model.targetId} short />
               )}
             </span>
           </dd>

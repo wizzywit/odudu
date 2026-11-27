@@ -24,7 +24,7 @@ it('reads the waiting changes and how far the server’s clock is from the brows
   const result = await listApprovals(fake.transport.gateway, 'acme', 'c1', () =>
     Date.parse('2026-11-26T05:39:00Z'),
   );
-  expect(result).toMatchObject({ ok: true, data: { items: [CARD], offsetMs: 60_000 } });
+  expect(result).toMatchObject({ ok: true, data: { items: [CARD], offsetMs: 60_999 } });
 });
 
 it('treats a list that is not the contract’s as a defect, and passes a refusal on', async () => {

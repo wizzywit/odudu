@@ -4,7 +4,7 @@ import { useChatSession } from '#/widgets/assistant-panel/repository/useChatSess
 import { useConversationCalls } from '#/widgets/assistant-panel/repository/useConversationCalls';
 import { useConversationRead } from '#/widgets/assistant-panel/repository/useConversationRead';
 import { NO_METER, nextMeter, readStreamPart } from '#/widgets/assistant-panel/services/budget';
-import { modeAfter } from '#/widgets/assistant-panel/services/modeSwitch';
+import { modeAfter, shownMode } from '#/widgets/assistant-panel/services/modeSwitch';
 import { NO_TIMES, recordStep, type StepTimes } from '#/widgets/assistant-panel/services/stepTimes';
 import { useApprovals, type Approvals } from '#/widgets/assistant-panel/use-cases/useApprovals';
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
@@ -122,7 +122,7 @@ export function useAssistantChat(
   const [chosenMode, setChosenMode] = useState<AssistantMode | null>(null);
   const [modeProblem, setModeProblem] = useState<string | null>(null);
   const loaded = storedOf(stored, asked) ?? resumed;
-  const mode = chosenMode ?? modeOf(loaded);
+  const mode = shownMode(chosenMode, modeOf(loaded), env.actingIn);
   const latest = useLatest({ profile, pageContext, mode, onConversation: env.onConversation });
 
   const startConversation = async (): Promise<string> => {

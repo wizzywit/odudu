@@ -42,6 +42,8 @@ export interface CardModel {
   targetType: string;
   targetName: string | null;
   targetId: string | null;
+  // The label of the control that copies the target's id.
+  copyLabel: string;
   creating: boolean;
   rows: readonly DiffRow[];
   who: string;

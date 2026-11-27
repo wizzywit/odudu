@@ -74,7 +74,7 @@ it('disables both buttons while the decision is sent, and says so', () => {
 });
 
 it.each([
-  ['approved', 'Approved by you. The change was made.'],
+  ['approved', 'Approved. Applying the change…'],
   ['denied', 'Refused by you. Nothing was changed.'],
 ] as const)('replaces the buttons with the outcome once it is %s', (state, outcome) => {
   render(view({ kind: 'decided', state }).ui);

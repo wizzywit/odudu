@@ -160,7 +160,7 @@ it('sends the approval, shows who decided, and carries the answer on', async () 
   expect(
     await screen.findByText('Done. The role now has the new description.'),
   ).toBeInTheDocument();
-  expect(within(card).getByText('Approved by you. The change was made.')).toBeInTheDocument();
+  expect(within(card).getByText('Approved. Applying the change…')).toBeInTheDocument();
   expect(within(card).queryByRole('button', { name: 'Approve' })).toBeNull();
   const decide = sent.filter((request) => request.path === `${APPROVALS}/ap1`);
   expect(decide).toHaveLength(1);

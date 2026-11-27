@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { loadedData } from '#/shared/lib/services/read';
+import { mayAnswer, resumes } from '#/widgets/assistant-panel/services/approval';
 import {
   useApprovalList,
   useDecideApproval,
@@ -41,6 +42,7 @@ export function useApprovals(options: {
   const [held, setHeld] = useState<Held>(NOTHING_HELD);
   const entries = entriesOf(loadedData(list), held, conversationId);
   const answer = (entry: Entry, approve: boolean): void => {
+    if (!mayAnswer(entry.decision)) return;
     const base = { card: entry.card, offsetMs: entry.offsetMs };
     setHeld((previous) =>
       withDecision(previous, conversationId, {
@@ -53,7 +55,7 @@ export function useApprovals(options: {
       .then((result) => {
         const decision = afterDecision(result);
         setHeld((previous) => withDecision(previous, conversationId, { ...base, decision }));
-        if (decision.kind === 'decided') resume();
+        if (resumes(decision)) resume();
       })
       .catch(() => undefined);
   };

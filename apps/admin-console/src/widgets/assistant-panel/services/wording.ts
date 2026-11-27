@@ -64,6 +64,8 @@ export const PANEL_WORDING = {
   cardMinuteLeft: 'One minute left to decide',
   cardDeciding: 'Sending your decision',
   cardApproved: 'Approved by you. The change was made.',
+  cardApplying: 'Approved. Applying the change…',
+  cardApprovedFailed: 'Approved, but the change failed. The step says why.',
   cardRefused: 'Refused by you. Nothing was changed.',
   cardExpiredOutcome: 'Expired. Nothing was changed.',
   cardNeeded: 'Approval needed',
@@ -75,6 +77,7 @@ export const PANEL_WORDING = {
   changeChanged: 'changed',
   changeSame: 'unchanged',
   stepApproved: 'Approved by you. The change was made.',
+  stepApprovedFailed: 'Approved, but the change failed. The step says why.',
   stepNotApproved: 'Not approved. You refused it or it expired, and nothing was changed.',
   decideConflict:
     'This change was already decided or has expired, so nothing was changed. Ask the assistant to propose it again.',
@@ -162,5 +165,22 @@ export const PANEL_WORDING = {
   unavailableNote:
     'The assistant was switched off for this tenant while the conversation was running. Nothing further was run. Ask an administrator to switch it on again.',
 } as const;
+
+// A count or a name written into a sentence.
+export function expiresInMinutes(minutes: number): string {
+  return `Expires in ${String(minutes)} min`;
+}
+
+export function expiresInSeconds(seconds: number): string {
+  return `Expires in ${String(seconds)} s`;
+}
+
+export function youAs(username: string): string {
+  return `You, as ${username}`;
+}
+
+export function copyIdLabel(kind: string): string {
+  return `Copy the ${kind} id`;
+}
 
 export type PanelWordingId = keyof typeof PANEL_WORDING;

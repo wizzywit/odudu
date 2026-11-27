@@ -16,3 +16,13 @@ export function modeAfter(result: GatewayResult<{ mode: AssistantMode }>): {
 export function modeOfChoice(value: string): AssistantMode | null {
   return value === 'ask' || value === 'act' ? value : null;
 }
+
+// The mode in force: what the person chose here, else the conversation's own,
+// and never Act in another tenant, where the assistant only reads.
+export function shownMode(
+  chosen: AssistantMode | null,
+  stored: AssistantMode,
+  actingIn: string | null,
+): AssistantMode {
+  return actingIn === null ? (chosen ?? stored) : 'ask';
+}

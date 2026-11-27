@@ -1,5 +1,12 @@
+import type { StepState } from '#/widgets/assistant-panel/types/chat';
 import type { GatewayFailure } from '#/shared/lib/services/result';
-import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
+import {
+  PANEL_WORDING,
+  expiresInMinutes,
+  expiresInSeconds,
+  copyIdLabel,
+  youAs,
+} from '#/widgets/assistant-panel/services/wording';
 import type {
   ApprovalCard,
   CardModel,
@@ -71,11 +78,13 @@ export function diffRows(before: Fields, after: Fields): DiffRow[] {
 }
 
 // Server time minus the browser's, from the `Date` header of an answer. The
-// header has whole seconds, which is as fine as the countdown reads.
+// header has whole seconds and says the second the server was in, so the
+// server is taken to be at the end of it: a card is never shown open for a
+// moment the server has already closed it.
 export function clockOffset(serverDate: string | null, browserNowMs: number): number {
   if (serverDate === null) return 0;
   const at = Date.parse(serverDate);
-  return Number.isNaN(at) ? 0 : at - browserNowMs;
+  return Number.isNaN(at) ? 0 : at + 999 - browserNowMs;
 }
 
 // Whole seconds until the server's own expiry, by the server's clock, never below zero.
@@ -89,8 +98,8 @@ const MINUTE = 60;
 
 export function countdownText(seconds: number): string {
   if (seconds <= 0) return PANEL_WORDING.cardExpired;
-  if (seconds > MINUTE) return `Expires in ${String(Math.ceil(seconds / MINUTE))} min`;
-  return `Expires in ${String(seconds)} s`;
+  if (seconds > MINUTE) return expiresInMinutes(Math.ceil(seconds / MINUTE));
+  return expiresInSeconds(seconds);
 }
 
 // What a screen reader is told of the time: nothing until a minute is left,
@@ -130,14 +139,29 @@ function statusOf(decision: Decision | undefined, seconds: number): CardStatus {
   return seconds <= 0 ? 'expired' : 'pending';
 }
 
-const OUTCOMES: Readonly<Record<CardStatus, string | null>> = {
-  pending: null,
-  deciding: PANEL_WORDING.cardDeciding,
-  approved: PANEL_WORDING.cardApproved,
-  refused: PANEL_WORDING.cardRefused,
-  expired: PANEL_WORDING.cardExpiredOutcome,
-  closed: null,
-};
+// What an approval became once the step it was for has run or not: the server
+// takes the decision first and the assistant makes the change when its answer
+// carries on, so "made" is said only of a step that is done.
+function approvedOutcome(step: StepState | undefined): string {
+  if (step === 'done') return PANEL_WORDING.cardApproved;
+  if (step === 'failed' || step === 'denied') return PANEL_WORDING.cardApprovedFailed;
+  return PANEL_WORDING.cardApplying;
+}
+
+function outcomeOf(status: CardStatus, step: StepState | undefined): string | null {
+  switch (status) {
+    case 'deciding':
+      return PANEL_WORDING.cardDeciding;
+    case 'approved':
+      return approvedOutcome(step);
+    case 'refused':
+      return PANEL_WORDING.cardRefused;
+    case 'expired':
+      return PANEL_WORDING.cardExpiredOutcome;
+    default:
+      return null;
+  }
+}
 
 const TIME_WORDS: Readonly<Record<Exclude<CardStatus, 'pending'>, string>> = {
   deciding: PANEL_WORDING.cardDecidingShort,
@@ -159,8 +183,10 @@ export function cardModel(input: {
   username: string;
   decision: Decision | undefined;
   seconds: number;
+  // How the step that proposed the change stands, which says whether it was made.
+  step?: StepState | undefined;
 }): CardModel {
-  const { card, username, decision, seconds } = input;
+  const { card, username, decision, seconds, step } = input;
   const status = statusOf(decision, seconds);
   return {
     id: card.approval_id,
@@ -168,14 +194,15 @@ export function cardModel(input: {
     targetType: card.target.type,
     targetName: card.target.name ?? null,
     targetId: card.target.id ?? null,
+    copyLabel: copyIdLabel(card.target.type),
     creating: card.before === null,
     rows: diffRows(card.before, card.after),
-    who: `You, as ${username}`,
+    who: youAs(username),
     status,
     remaining: remainingText(status, seconds),
     announcement:
       status === 'pending' || status === 'expired' ? countdownAnnouncement(seconds) : '',
-    outcome: OUTCOMES[status],
+    outcome: outcomeOf(status, step),
     problem: decision?.kind === 'failed' ? decision.problem : null,
     risky: removesSomething(card.tool),
   };
@@ -189,6 +216,29 @@ export function outcomeOfStep(
 ): string | null {
   if (!WRITE_TOOLS.has(tool)) return null;
   if (state === 'done') return PANEL_WORDING.stepApproved;
+  if (state === 'failed') return PANEL_WORDING.stepApprovedFailed;
   if (state === 'denied') return PANEL_WORDING.stepNotApproved;
   return null;
+}
+
+// Whether a card may be answered now: not while an answer is on its way, and
+// never again once the server has taken one.
+export function mayAnswer(decision: Decision | undefined): boolean {
+  return decision === undefined || (decision.kind === 'failed' && !decision.final);
+}
+
+// What approving does: ask once more for a change that removes something,
+// send the approval for every other.
+export function approveRoute(removes: boolean): 'confirm' | 'send' {
+  return removes ? 'confirm' : 'send';
+}
+
+// The extra question stays open only while the card can still be answered.
+export function confirmOpen(asked: boolean, status: CardStatus): boolean {
+  return asked && status === 'pending';
+}
+
+// Whether the answer carries on: only once the server took the decision.
+export function resumes(decision: Decision): boolean {
+  return decision.kind === 'decided';
 }

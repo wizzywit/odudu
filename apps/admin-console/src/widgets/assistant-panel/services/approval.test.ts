@@ -9,6 +9,10 @@ import {
   diffRows,
   outcomeOfStep,
   removesSomething,
+  mayAnswer,
+  approveRoute,
+  confirmOpen,
+  resumes,
   secondsLeft,
 } from '#/widgets/assistant-panel/services/approval';
 import type { ApprovalCard } from '#/widgets/assistant-panel/types/approvals';
@@ -48,7 +52,7 @@ it('shows a target that does not exist yet as all added, and an empty value as e
 
 it('counts down by the server clock, not the browser’s', () => {
   const offset = clockOffset('Thu, 26 Nov 2026 05:40:00 GMT', Date.parse('2026-11-26T05:30:00Z'));
-  expect(offset).toBe(600_000);
+  expect(offset).toBe(600_999);
   const expires = '2026-11-26T05:45:00.000Z';
   // The browser says 05:30:00, the server 05:40:00, so five minutes are left.
   expect(secondsLeft(expires, Date.parse('2026-11-26T05:30:00Z'), offset)).toBe(300);
@@ -164,4 +168,38 @@ it('says what a finished write step became, and nothing of a read', () => {
   expect(outcomeOfStep('create_group', 'denied')).toContain('Not approved');
   expect(outcomeOfStep('create_group', 'waiting')).toBeNull();
   expect(outcomeOfStep('list_roles', 'done')).toBeNull();
+});
+
+it('says an approval was applied only once its step is done', () => {
+  const approved = { kind: 'decided', state: 'approved' } as const;
+  const outcome = (step?: 'waiting' | 'running' | 'done' | 'failed' | 'denied') =>
+    cardModel({ card: CARD, username: 'ada', decision: approved, seconds: 100, step }).outcome;
+  expect(outcome()).toBe('Approved. Applying the change…');
+  expect(outcome('waiting')).toBe('Approved. Applying the change…');
+  expect(outcome('running')).toBe('Approved. Applying the change…');
+  expect(outcome('done')).toBe('Approved by you. The change was made.');
+  expect(outcome('failed')).toContain('the change failed');
+  expect(outcomeOfStep('create_group', 'failed')).toContain('the change failed');
+});
+
+it('counts the second the server was in as its last moment, so a card is never open past expiry', () => {
+  const offset = clockOffset('Thu, 26 Nov 2026 05:44:59 GMT', Date.parse('2026-11-26T05:44:59Z'));
+  expect(offset).toBe(999);
+  expect(
+    secondsLeft('2026-11-26T05:45:00.000Z', Date.parse('2026-11-26T05:44:59.100Z'), offset),
+  ).toBe(0);
+});
+
+it('answers a card once, and never again after the server took a decision', () => {
+  expect(mayAnswer(undefined)).toBe(true);
+  expect(mayAnswer({ kind: 'failed', problem: 'x', final: false })).toBe(true);
+  expect(mayAnswer({ kind: 'failed', problem: 'x', final: true })).toBe(false);
+  expect(mayAnswer({ kind: 'deciding', approve: true })).toBe(false);
+  expect(mayAnswer({ kind: 'decided', state: 'approved' })).toBe(false);
+  expect(approveRoute(true)).toBe('confirm');
+  expect(approveRoute(false)).toBe('send');
+  expect(confirmOpen(true, 'pending')).toBe(true);
+  expect(confirmOpen(true, 'expired')).toBe(false);
+  expect(resumes({ kind: 'decided', state: 'denied' })).toBe(true);
+  expect(resumes({ kind: 'failed', problem: 'x', final: true })).toBe(false);
 });

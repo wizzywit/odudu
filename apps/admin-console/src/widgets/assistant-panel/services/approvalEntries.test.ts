@@ -94,3 +94,20 @@ it('says nothing until the card is known, then names the change once', () => {
   expect(waitingLine('ready', [])).toBe('Waiting for you');
   expect(waitingLine('failed', [])).toBe('Waiting for you');
 });
+
+it('keeps a decision the server took when a later try is refused as already decided', () => {
+  const decided = withDecision(NOTHING_HELD, 'c1', {
+    card: card('a'),
+    offsetMs: 0,
+    decision: { kind: 'decided', state: 'approved' },
+  });
+  const after = withDecision(decided, 'c1', {
+    card: card('a'),
+    offsetMs: 0,
+    decision: { kind: 'failed', problem: 'already decided', final: true },
+  });
+  expect(entriesOf(undefined, after, 'c1')[0]?.decision).toEqual({
+    kind: 'decided',
+    state: 'approved',
+  });
+});

@@ -39,7 +39,13 @@ afterEach(() => {
 
 function item(onDecide = vi.fn<() => void>(), tool?: string) {
   return (
-    <ApprovalItem entry={entry(tool)} username="ada" words={PANEL_WORDING} onDecide={onDecide} />
+    <ApprovalItem
+      entry={entry(tool)}
+      username="ada"
+      step="waiting"
+      words={PANEL_WORDING}
+      onDecide={onDecide}
+    />
   );
 }
 
@@ -64,7 +70,15 @@ it('counts down by the server’s clock, announces only at one minute and at exp
 it('decides with the entry it was given', async () => {
   const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
   const onDecide = vi.fn<(entry: Entry, approve: boolean) => void>();
-  render(<ApprovalItem entry={entry()} username="ada" words={PANEL_WORDING} onDecide={onDecide} />);
+  render(
+    <ApprovalItem
+      entry={entry()}
+      username="ada"
+      step="waiting"
+      words={PANEL_WORDING}
+      onDecide={onDecide}
+    />,
+  );
   await user.click(screen.getByRole('button', { name: 'Refuse' }));
   expect(onDecide).toHaveBeenCalledWith(expect.objectContaining({ offsetMs: OFFSET }), false);
   await user.click(screen.getByRole('button', { name: 'Approve' }));
@@ -78,6 +92,7 @@ it('asks once more before approving a change that removes something, and not bef
     <ApprovalItem
       entry={entry('clear_message_override')}
       username="ada"
+      step="waiting"
       words={PANEL_WORDING}
       onDecide={onDecide}
     />,
@@ -98,4 +113,24 @@ it('asks once more before approving a change that removes something, and not bef
 it('passes axe in both themes', async () => {
   vi.useRealTimers();
   expect(await axeInBothThemes(() => item())).toEqual({ light: [], dark: [] });
+});
+
+it('closes the extra question when the card expires, so approval is not offered after it', async () => {
+  const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+  render(
+    <ApprovalItem
+      entry={entry('clear_message_override')}
+      username="ada"
+      step="waiting"
+      words={PANEL_WORDING}
+      onDecide={vi.fn<() => void>()}
+    />,
+  );
+  await user.click(screen.getByRole('button', { name: 'Approve' }));
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  act(() => {
+    vi.advanceTimersByTime(70_000);
+  });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Approve removal' })).toBeNull();
 });

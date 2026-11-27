@@ -46,7 +46,13 @@ function Step({
         </pre>
       ) : null}
       {entry === undefined ? null : (
-        <ApprovalItem entry={entry} username={username} words={words} onDecide={onDecide} />
+        <ApprovalItem
+          entry={entry}
+          username={username}
+          step={step.state}
+          words={words}
+          onDecide={onDecide}
+        />
       )}
       {entry === undefined && step.outcome !== null ? (
         <p className={styles.outcome}>{step.outcome}</p>

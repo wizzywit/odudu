@@ -1,4 +1,5 @@
 import { ConfirmDialog } from '#/shared/ui/ConfirmDialog';
+import type { StepState } from '#/widgets/assistant-panel/types/chat';
 import type { Entry } from '#/widgets/assistant-panel/types/approvals';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import { useApprovalCard } from '#/widgets/assistant-panel/use-cases/useApprovalCard';
@@ -10,15 +11,18 @@ import { ApprovalCard } from '#/widgets/assistant-panel/ui/ApprovalCard';
 export function ApprovalItem({
   entry,
   username,
+  step,
   words,
   onDecide,
 }: {
   entry: Entry;
   username: string;
+  // How the step that proposed the change stands.
+  step: StepState;
   words: PanelWords;
   onDecide: (entry: Entry, approve: boolean) => void;
 }) {
-  const card = useApprovalCard(entry, username, onDecide);
+  const card = useApprovalCard(entry, username, step, onDecide);
   return (
     <>
       <ApprovalCard

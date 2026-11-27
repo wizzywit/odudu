@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { modeAfter, modeOfChoice } from '#/widgets/assistant-panel/services/modeSwitch';
+import { modeAfter, modeOfChoice, shownMode } from '#/widgets/assistant-panel/services/modeSwitch';
 
 it('takes the mode the server put in force', () => {
   expect(
@@ -25,4 +25,11 @@ it('reads a switch’s value as a mode only when it is one', () => {
   expect(modeOfChoice('act')).toBe('act');
   expect(modeOfChoice('ask')).toBe('ask');
   expect(modeOfChoice('root')).toBeNull();
+});
+
+it('shows Act only in the administrator’s own tenant', () => {
+  expect(shownMode(null, 'ask', null)).toBe('ask');
+  expect(shownMode('act', 'ask', null)).toBe('act');
+  expect(shownMode(null, 'act', null)).toBe('act');
+  expect(shownMode('act', 'act', 'demo')).toBe('ask');
 });

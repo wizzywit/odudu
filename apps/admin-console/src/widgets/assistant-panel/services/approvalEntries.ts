@@ -29,11 +29,13 @@ function knownIn(held: Held, conversation: string | null): Readonly<Record<strin
   return held.conversation === conversation ? held.known : {};
 }
 
+// A decision the server took is the last word on a card: a later answer from
+// a second try (refused as already decided) does not take it back.
 export function withDecision(held: Held, conversation: string | null, known: Known): Held {
-  return {
-    conversation,
-    known: { ...knownIn(held, conversation), [known.card.approval_id]: known },
-  };
+  const before = knownIn(held, conversation);
+  const kept = before[known.card.approval_id];
+  const next = kept?.decision.kind === 'decided' ? kept : known;
+  return { conversation, known: { ...before, [known.card.approval_id]: next } };
 }
 
 // The cards to draw: those the server holds as waiting, then those decided

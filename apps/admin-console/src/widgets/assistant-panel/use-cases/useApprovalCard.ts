@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useNow } from '#/shared/lib/use-cases/useNow';
-import { cardModel, secondsLeft } from '#/widgets/assistant-panel/services/approval';
+import {
+  approveRoute,
+  cardModel,
+  confirmOpen,
+  secondsLeft,
+} from '#/widgets/assistant-panel/services/approval';
+import type { StepState } from '#/widgets/assistant-panel/types/chat';
 import type { CardModel, Entry } from '#/widgets/assistant-panel/types/approvals';
 
 const TICK_MS = 1_000;
@@ -20,6 +26,7 @@ export interface ApprovalCardState {
 export function useApprovalCard(
   entry: Entry,
   username: string,
+  step: StepState,
   answer: (entry: Entry, approve: boolean) => void,
 ): ApprovalCardState {
   const now = useNow(TICK_MS);
@@ -29,12 +36,13 @@ export function useApprovalCard(
     username,
     decision: entry.decision,
     seconds: secondsLeft(entry.card.expires_at, now.getTime(), entry.offsetMs),
+    step,
   });
   return {
     model,
-    confirming,
+    confirming: confirmOpen(confirming, model.status),
     approve: () => {
-      if (model.risky) setConfirming(true);
+      if (approveRoute(model.risky) === 'confirm') setConfirming(true);
       else answer(entry, true);
     },
     refuse: () => {
