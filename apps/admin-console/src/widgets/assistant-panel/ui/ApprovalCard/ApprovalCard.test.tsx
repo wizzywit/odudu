@@ -18,10 +18,10 @@ const CARD: Card = {
   expires_at: '2026-11-26T05:45:00.000Z',
 };
 
-function view(decision?: Decision, seconds = 240) {
+function view(decision?: Decision, seconds = 240, tenant: string | null = null) {
   const onApprove = vi.fn<() => void>();
   const onRefuse = vi.fn<() => void>();
-  const model = cardModel({ card: CARD, username: 'ada', decision, seconds });
+  const model = cardModel({ card: CARD, username: 'ada', tenant, decision, seconds });
   const ui = (
     <ApprovalCard model={model} words={PANEL_WORDING} onApprove={onApprove} onRefuse={onRefuse} />
   );
@@ -104,6 +104,27 @@ it('says in an alert why a decision was refused, and offers no second try when i
 it('passes axe in both themes, open and decided', async () => {
   expect(await axeInBothThemes(() => view().ui)).toEqual({ light: [], dark: [] });
   expect(await axeInBothThemes(() => view({ kind: 'decided', state: 'approved' }).ui)).toEqual({
+    light: [],
+    dark: [],
+  });
+});
+
+it('puts the tenant a change lands in first, and says it is not the person’s own', () => {
+  render(view(undefined, 240, 'demo').ui);
+  const card = screen.getByRole('region', { name: 'Change the description of a role' });
+  expect(within(card).getByText('Change in demo waiting for your approval')).toBeInTheDocument();
+  expect(within(card).getByText('Tenant')).toBeInTheDocument();
+  expect(within(card).getByText('demo')).toBeInTheDocument();
+  expect(within(card).getByText(/not your own tenant/u)).toBeInTheDocument();
+});
+
+it('names no tenant on a card for the own tenant', () => {
+  render(view().ui);
+  expect(screen.queryByText('Tenant')).toBeNull();
+});
+
+it('passes axe in both themes, for a change in another tenant', async () => {
+  expect(await axeInBothThemes(() => view(undefined, 240, 'demo').ui)).toEqual({
     light: [],
     dark: [],
   });

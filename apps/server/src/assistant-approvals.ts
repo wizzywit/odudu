@@ -19,7 +19,7 @@ import {
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
-import { callAsAssistant, type AssistantChatParts } from '#/assistant-call';
+import { callAsAssistant, targetFactsOf, type AssistantChatParts } from '#/assistant-call';
 import { grantWriteBudget } from '#/mcp-deps';
 
 // The kind an approval for one of the assistant's changes carries, apart from
@@ -28,8 +28,10 @@ export const ASSISTANT_WRITE_KIND = 'assistant_write';
 
 /**
  * What an approval is a digest of: the tool, every argument as the call carries
- * it, the conversation and the person it is for. The arguments are taken as
- * the JSON they are, so a member the model left undefined is one it never sent.
+ * it, the conversation, the person it is for and, in another tenant, that
+ * tenant. The arguments are taken as the JSON they are, so a member the model
+ * left undefined is one it never sent. An own-tenant digest has no target
+ * member, so it is what it was before a conversation could act elsewhere.
  */
 export function writeDigest(
   tenantId: string,
@@ -37,17 +39,26 @@ export function writeDigest(
   conversationId: string,
   tool: string,
   input: unknown,
+  targetTenantId?: string,
 ): string {
   return approvalDigest({
     name: tool,
     input: {
       conversation: conversationId,
+      ...(targetTenantId === undefined ? {} : { target_tenant: targetTenantId }),
       arguments: JSON.parse(JSON.stringify(input ?? null)) as unknown,
     },
     tenantId,
     ownerSubjectId,
     instanceId: null,
   });
+}
+
+// The tenant a conversation acts in when it is not the caller's own.
+function targetOf(caller: ChatCaller): string | undefined {
+  return caller.target !== undefined && caller.target.id !== caller.tenantId
+    ? caller.target.id
+    : undefined;
 }
 
 // The approval did not cover this call, or the write could not be made ready:
@@ -121,6 +132,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
                 input.conversationId,
                 input.tool,
                 input.input,
+                targetOf(caller),
               ),
               now: input.now,
             },
@@ -181,6 +193,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           resourceId: target.conversationId,
           detail: {
             tenant: tenant.id,
+            ...(targetOf(caller) === undefined ? {} : { target_tenant: targetOf(caller) }),
             subject: caller.ownerSubjectId,
             conversation: target.conversationId,
             approval: input.approvalId,
@@ -202,6 +215,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
       if (tool?.access !== 'write' || consoleGrantId === undefined) {
         return { kind: 'not_approved' };
       }
+      const targetFacts = await targetFactsOf(parts, lookup, caller);
       const mintDeps = {
         tenantId: tenant.id,
         issuer: caller.issuer,
@@ -222,6 +236,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             input.conversationId,
             input.tool,
             input.input,
+            targetOf(caller),
           );
           if (!(await consumeApproval(tx, found, digest, at))) {
             const held = await agentApprovalRepository(tx).byId(found);
@@ -236,6 +251,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
                 consoleGrantId,
                 expectedSubjectId: caller.ownerSubjectId,
                 now: at,
+                ...(targetFacts === undefined ? {} : { target: targetFacts }),
               },
             );
           } catch (error) {

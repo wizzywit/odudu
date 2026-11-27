@@ -2,11 +2,12 @@ import type { AssistantApprovalCard, AssistantMode } from '@odudu/contracts/admi
 import { approvalCardRepository, type ApprovalCardRow } from '#/repository/approvals';
 import { conversationRepository } from '#/repository/conversations';
 import { messageRepository } from '#/repository/messages';
-import { conversationIsCallers, crossTenant } from '#/service/conversation-access';
+import { actsInTenantOf, conversationIsCallers, crossTenant } from '#/service/conversation-access';
 import { modeOffered } from '#/service/proposal-rules';
 import { settleParts } from '#/service/settle-approvals';
 import type { ChatCaller, ChatDeps, DecideResult, WithdrawReason } from '#/usecase/chat-deps';
 import { openEntitlements } from '#/usecase/entitlements';
+import { targetSide } from '#/usecase/target-side';
 
 /** A card as the person is shown it, with the expiry by the server's clock. */
 export function cardView(row: ApprovalCardRow): AssistantApprovalCard {
@@ -136,13 +137,18 @@ export async function settleLastMessage(
 }
 
 export type SetModeOutcome =
-  { kind: 'set'; mode: AssistantMode } | { kind: 'not_found' } | { kind: 'not_offered' };
+  | { kind: 'set'; mode: AssistantMode }
+  | { kind: 'not_found' }
+  // `cause` says the tenant the conversation acts in is the one that does not
+  // offer the mode, not the caller's own.
+  | { kind: 'not_offered'; cause?: 'target' };
 
 /**
  * Switches one conversation between Ask and Act. It is the person's act from
  * the console and never a tool. Leaving Act withdraws what was waiting, since
  * Ask mode runs no change; Act is refused where the tenant's limits do not
- * offer it or the deployment cannot propose a change.
+ * offer it, the deployment cannot propose a change or, in another tenant, that
+ * tenant does not offer it.
  */
 export async function setConversationMode(
   deps: ChatDeps,
@@ -150,22 +156,33 @@ export async function setConversationMode(
   conversationId: string,
   mode: AssistantMode,
 ): Promise<SetModeOutcome> {
-  const outcome = await deps.transact(caller.tenantId, async (tx) => {
+  const checked = await deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
     if (record === undefined || !conversationIsCallers(record, caller)) return 'not_found' as const;
-    // Act reaches another tenant only with approvals made for it, which this
-    // path does not yet carry: the conversation stays in Ask there.
-    if (mode === 'act' && crossTenant(caller)) return 'not_offered' as const;
     if (mode === 'act') {
       const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
       if (!modeOffered({ mode, canPropose: deps.approvals !== undefined, modes: limits.modes })) {
         return 'not_offered' as const;
       }
     }
-    await conversationRepository(tx).setMode(conversationId, mode);
-    return 'set' as const;
+    return 'checked' as const;
   });
-  if (outcome !== 'set') return { kind: outcome };
+  if (checked !== 'checked') return { kind: checked };
+  if (mode === 'act' && !(await targetOffersAct(deps, caller))) {
+    return { kind: 'not_offered', cause: 'target' };
+  }
+  await deps.transact(caller.tenantId, (tx) =>
+    conversationRepository(tx).setMode(conversationId, mode),
+  );
   if (mode === 'ask') await withdrawPending(deps, caller, conversationId, 'mode_changed');
   return { kind: 'set', mode };
+}
+
+/**
+ * Whether the tenant a conversation acts in offers Act. A conversation in the
+ * caller's own tenant has no other tenant to ask, so it is always offered here.
+ */
+export async function targetOffersAct(deps: ChatDeps, caller: ChatCaller): Promise<boolean> {
+  if (!crossTenant(caller)) return true;
+  return (await targetSide(deps, actsInTenantOf(caller))).modes.includes('act');
 }

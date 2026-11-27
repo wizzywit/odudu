@@ -35,11 +35,20 @@ export function ApprovalCard({
       data-status={model.status}
       tabIndex={-1}
     >
-      <p className={styles.kicker}>{words.cardLabel}</p>
+      <p className={styles.kicker}>{model.kicker}</p>
       <h4 id={titleId} className={styles.title}>
         {model.title}
       </h4>
       <dl className={styles.facts}>
+        {model.tenant === null ? null : (
+          <div className={styles.fact}>
+            <dt>{words.cardTenant}</dt>
+            <dd>
+              <strong className={styles.tenant}>{model.tenant}</strong>{' '}
+              <span className={styles.aside}>{model.tenantNote}</span>
+            </dd>
+          </div>
+        )}
         <div className={styles.fact}>
           <dt>{words.cardTarget}</dt>
           <dd>

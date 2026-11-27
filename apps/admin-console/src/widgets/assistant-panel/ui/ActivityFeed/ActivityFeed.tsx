@@ -11,12 +11,15 @@ function Step({
   step,
   entry,
   username,
+  actingIn,
   words,
   onDecide,
 }: {
   step: StepLine;
   entry: Entry | undefined;
   username: string;
+  // The tenant the changes are made in, when it is not the person's own.
+  actingIn: string | null;
   words: PanelWords;
   onDecide: (entry: Entry, approve: boolean) => void;
 }) {
@@ -49,6 +52,7 @@ function Step({
         <ApprovalItem
           entry={entry}
           username={username}
+          actingIn={actingIn}
           step={step.state}
           words={words}
           onDecide={onDecide}
@@ -70,6 +74,7 @@ export function ActivityFeed({
   live,
   entries,
   username,
+  actingIn,
   words,
   onDecide,
 }: {
@@ -78,6 +83,7 @@ export function ActivityFeed({
   live: boolean;
   entries: readonly Entry[];
   username: string;
+  actingIn: string | null;
   words: PanelWords;
   onDecide: (entry: Entry, approve: boolean) => void;
 }) {
@@ -103,6 +109,7 @@ export function ActivityFeed({
             step={line.step}
             entry={line.entry}
             username={username}
+            actingIn={actingIn}
             words={words}
             onDecide={onDecide}
           />

@@ -74,6 +74,20 @@
   font-weight: 600;
 }
 
+.tenant {
+  display: inline-block;
+  max-inline-size: 100%;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  font-weight: 700;
+  color: var(--ink-primary);
+  overflow-wrap: anywhere;
+}
+
 .aside {
   font-size: var(--type-12);
   color: var(--ink-muted);

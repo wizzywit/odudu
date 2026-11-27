@@ -208,7 +208,6 @@ async function authorizeRoute(
     (!agentReaches({
       agent: principal.agent,
       issuerTenantId: principal.issuerTenantId,
-      scopes: principal.scopes,
       pathTenantId: targetTenant.id,
       pathTenantEnabled: targetTenant.enabled,
     }) ||

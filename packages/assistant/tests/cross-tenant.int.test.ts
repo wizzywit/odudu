@@ -14,8 +14,10 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { conversationRepository } from '#/repository/conversations';
+import { limitsFromSettings, type Entitlements } from '#/service/entitlements';
 import { writeSettings } from '#/usecase/settings';
 import type { TurnStart } from '#/service/turn-summary';
+import type { ApprovalPorts } from '#/usecase/chat-deps';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
 
 // A system administrator's conversation in another tenant: its rows belong to
@@ -267,17 +269,89 @@ describe('the conversation of a system administrator in another tenant', () => {
     expect(await chat.load(callerOf(w, 'x', w.other), id)).toBeNull();
     expect(await run(chat, callerOf(w, 'x', w.other), id)).toBe('not_found');
   });
+});
 
-  it('does not start in Act, nor switch to it, until its approvals reach that tenant', async () => {
+// Act in another tenant needs a deployment that can propose a change, and a
+// mode both tenants offer.
+const ACT_DEPS = {
+  approvals: {
+    open: vi.fn(),
+    answer: vi.fn(),
+    write: vi.fn(),
+  } as unknown as ApprovalPorts,
+  approvalSecret: new Uint8Array(32),
+};
+
+function entitled(modesOf: (tenantId: string) => readonly ('ask' | 'act')[]): Entitlements {
+  return {
+    limits: (tenantId) =>
+      Promise.resolve({
+        ...limitsFromSettings(ASSISTANT_SETTING_DEFAULTS),
+        modes: modesOf(tenantId),
+      }),
+  };
+}
+
+describe('Act in another tenant', () => {
+  it('starts in Act and switches to it where both tenants offer it', async () => {
     const w = await world();
-    const { chat } = chatOver(scripted([]));
+    const { chat } = chatOver(scripted([]), ACT_DEPS);
+    const created = await create(chat, callerOf(w, 'x'), 'act');
+    expect(created).toMatchObject({ kind: 'created' });
+    const id = await started(chat, callerOf(w, 'x'));
+    expect(await chat.setMode(callerOf(w, 'x'), id, 'act')).toEqual({ kind: 'set', mode: 'act' });
+    expect(await chat.setMode(callerOf(w, 'x'), id, 'ask')).toEqual({ kind: 'set', mode: 'ask' });
+  });
+
+  it('is refused, with the target as the cause, where the target does not offer Act', async () => {
+    const w = await world();
+    const entitlements = entitled((tenant) => (tenant === w.x ? ['ask'] : ['ask', 'act']));
+    const { chat } = chatOver(scripted([]), { ...ACT_DEPS, entitlements });
     expect(await create(chat, callerOf(w, 'x'), 'act')).toEqual({
       kind: 'access_refused',
-      reason: 'act_not_offered',
+      reason: 'target_act_not_offered',
     });
     expect(await count(w.home, 'assistant_conversations')).toBe(0);
     const id = await started(chat, callerOf(w, 'x'));
+    expect(await chat.setMode(callerOf(w, 'x'), id, 'act')).toEqual({
+      kind: 'not_offered',
+      cause: 'target',
+    });
+    const own = await started(chat, callerOf(w));
+    expect(await chat.setMode(callerOf(w), own, 'act')).toEqual({ kind: 'set', mode: 'act' });
+  });
+
+  it('is refused without a cause where the administrator’s own tenant does not offer it', async () => {
+    const w = await world();
+    const entitlements = entitled((tenant) => (tenant === w.home ? ['ask'] : ['ask', 'act']));
+    const { chat } = chatOver(scripted([]), { ...ACT_DEPS, entitlements });
+    const id = await started(chat, callerOf(w, 'x'));
     expect(await chat.setMode(callerOf(w, 'x'), id, 'act')).toEqual({ kind: 'not_offered' });
+  });
+
+  it('is refused to a caller that does not own the conversation, whatever the tenants offer', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([]), ACT_DEPS);
+    const id = await started(chat, callerOf(w, 'x'));
+    expect(await chat.setMode(callerOf(w, 'x', w.other), id, 'act')).toEqual({
+      kind: 'not_found',
+    });
+    expect(await chat.setMode(callerOf(w, 'y'), id, 'act')).toEqual({ kind: 'not_found' });
+    expect(await chat.setMode(callerOf(w), id, 'act')).toEqual({ kind: 'not_found' });
+  });
+
+  it('runs a turn in Act, and falls back to Ask once the target stops offering it', async () => {
+    const w = await world();
+    let targetModes: readonly ('ask' | 'act')[] = ['ask', 'act'];
+    const entitlements = entitled((tenant) => (tenant === w.x ? targetModes : ['ask', 'act']));
+    const { chat, started: turns } = chatOver(scripted([]), { ...ACT_DEPS, entitlements });
+    const id = await started(chat, callerOf(w, 'x'));
+    await chat.setMode(callerOf(w, 'x'), id, 'act');
+    expect(await run(chat, callerOf(w, 'x'), id)).toBe('stream');
+    expect(turns[0]).toMatchObject({ mode: 'act', targetTenantId: w.x });
+    targetModes = ['ask'];
+    expect(await run(chat, callerOf(w, 'x'), id)).toBe('stream');
+    expect(turns[1]).toMatchObject({ mode: 'ask', targetTenantId: w.x });
   });
 });
 
