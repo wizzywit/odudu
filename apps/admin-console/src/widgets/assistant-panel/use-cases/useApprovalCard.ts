@@ -26,6 +26,7 @@ export interface ApprovalCardState {
 export function useApprovalCard(
   entry: Entry,
   username: string,
+  actingIn: string | null,
   step: StepState,
   answer: (entry: Entry, approve: boolean) => void,
 ): ApprovalCardState {
@@ -34,6 +35,7 @@ export function useApprovalCard(
   const model = cardModel({
     card: entry.card,
     username,
+    tenant: actingIn,
     decision: entry.decision,
     seconds: secondsLeft(entry.card.expires_at, now.getTime(), entry.offsetMs),
     step,

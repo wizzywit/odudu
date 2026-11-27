@@ -9,7 +9,6 @@ const agent = { clientId: 'odudu-assistant', ownerSubjectId: 's', viaEndpoint: t
 const base = {
   agent,
   issuerTenantId: SYSTEM,
-  scopes: ['mcp:read'],
   pathTenantId: X,
   pathTenantEnabled: true,
 };
@@ -39,10 +38,6 @@ describe('where an agent token is admitted', () => {
 
   it('needs an enabled target', () => {
     expect(agentReaches({ ...bound, pathTenantEnabled: false })).toBe(false);
-  });
-
-  it('does not admit a token holding the write scope across tenants', () => {
-    expect(agentReaches({ ...bound, scopes: ['mcp:read', 'mcp:write'] })).toBe(false);
   });
 
   it('never treats a target equal to the issuer as a reach', () => {

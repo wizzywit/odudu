@@ -4,7 +4,8 @@ import {
   CONVERSATION_ENDED_TYPE,
   ChatCallError,
 } from '#/widgets/assistant-panel/services/chatCallError';
-import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
+import { TARGET_ACT_DETAIL } from '#/widgets/assistant-panel/services/modeSwitch';
+import { PANEL_WORDING, targetDeclinesAct } from '#/widgets/assistant-panel/services/wording';
 import type { Failure } from '#/widgets/assistant-panel/types/chat';
 
 // The line the server's stream carries for a turn that failed for a reason
@@ -78,6 +79,9 @@ function causeOf(
   during: ChatCallError['during'],
   actingIn: string | null,
 ): string | undefined {
+  if (status === 409 && problem.detail === TARGET_ACT_DETAIL && actingIn !== null) {
+    return targetDeclinesAct(actingIn);
+  }
   if (status === 409) return conflictOf(during, problem.type, problem.detail);
   const other = actingIn === null ? undefined : otherTenantCause(status, during, actingIn);
   if (other !== undefined) return other;

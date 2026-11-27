@@ -51,6 +51,26 @@ describe('what a failed call is told to the person', () => {
         during,
       );
 
+    it('names the tenant that does not offer Act, when it is the cause', () => {
+      const declined = new ChatCallError(
+        {
+          ok: false,
+          kind: 'problem',
+          problem: {
+            type: 'about:blank',
+            title: 'Conflict',
+            status: 409,
+            detail: 'the tenant this conversation acts in does not offer Act',
+          },
+        },
+        'start',
+      );
+      expect(failureOf(declined, 'demo').cause).toBe(
+        'demo does not offer Act, so this conversation stays in Ask.',
+      );
+      expect(failureOf(declined, null).cause).toContain('still running');
+    });
+
     it('on a message is a turn already running, whatever the server’s words', () => {
       expect(
         failureOf(conflict('messages', 'a turn is already running in this conversation')).cause,

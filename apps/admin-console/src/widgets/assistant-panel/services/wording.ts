@@ -42,12 +42,12 @@ export const PANEL_WORDING = {
     'This answer used the most steps one answer may take, so the assistant stopped. Ask again, with a narrower question, to carry on.',
   waitingNote:
     'A change waits for your decision. The conversation takes no new message until you decide it.',
-  actOtherTenantNote: 'Act is not available in another tenant.',
   modeBusy: 'Wait for the answer to finish before switching the mode.',
   valueEmpty: '(empty)',
   valueAbsent: '(not set)',
   cardLabel: 'Change waiting for your approval',
   cardTarget: 'Target',
+  cardTenant: 'Tenant',
   cardWho: 'Decided by',
   cardWhoNote: 'This is your decision. The assistant cannot answer it.',
   cardBefore: 'Now',
@@ -173,6 +173,31 @@ export function expiresInMinutes(minutes: number): string {
 
 export function expiresInSeconds(seconds: number): string {
   return `Expires in ${String(seconds)} s`;
+}
+
+// What the card says of the tenant a change is made in, where that is not the
+// person's own: the change is theirs to approve, and lands there.
+export function changeInKicker(tenant: string): string {
+  return `Change in ${tenant} waiting for your approval`;
+}
+
+export function changeTenantNote(tenant: string): string {
+  return `${tenant} is not your own tenant. Approving makes the change there.`;
+}
+
+export function removalIn(tenant: string): { title: string; consequence: string } {
+  return {
+    title: `Approve this removal in ${tenant}?`,
+    consequence: `The assistant would remove what this card names in ${tenant}, not in your own tenant. Approving it makes the change straight away.`,
+  };
+}
+
+export function actInNote(tenant: string): string {
+  return `Act makes changes in ${tenant}, not in your own tenant.`;
+}
+
+export function targetDeclinesAct(tenant: string): string {
+  return `${tenant} does not offer Act, so this conversation stays in Ask.`;
 }
 
 export function youAs(username: string): string {

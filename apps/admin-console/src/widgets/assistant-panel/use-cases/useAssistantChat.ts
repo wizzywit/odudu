@@ -122,7 +122,7 @@ export function useAssistantChat(
   const [chosenMode, setChosenMode] = useState<AssistantMode | null>(null);
   const [modeProblem, setModeProblem] = useState<string | null>(null);
   const loaded = storedOf(stored, asked) ?? resumed;
-  const mode = shownMode(chosenMode, modeOf(loaded), env.actingIn);
+  const mode = shownMode(chosenMode, modeOf(loaded));
   const latest = useLatest({ profile, pageContext, mode, onConversation: env.onConversation });
 
   const startConversation = async (): Promise<string> => {
@@ -302,12 +302,12 @@ export function useAssistantChat(
     calls
       .setMode(known.current, next)
       .then((result) => {
-        const outcome = modeAfter(result);
+        const outcome = modeAfter(result, env.actingIn);
         setModeProblem(outcome.problem);
         if (outcome.mode !== null) setChosenMode(outcome.mode);
       })
       .catch(() => {
-        setModeProblem(modeAfter({ ok: false, kind: 'defect' }).problem);
+        setModeProblem(modeAfter({ ok: false, kind: 'defect' }, env.actingIn).problem);
       });
   };
 

@@ -31,6 +31,7 @@ export function PanelHeader({
   modeDisabled,
   modeProblem,
   acting = null,
+  actNote = null,
   meter,
   models,
   words,
@@ -54,8 +55,10 @@ export function PanelHeader({
   // Why the last switch did not go through, or null.
   modeProblem: string | null;
   // What names the tenant the conversation acts in, when it is not the person's
-  // own: shown for as long as the panel is open, and Act is never offered there.
+  // own: shown for as long as the panel is open.
   acting?: string | null;
+  // Where Act makes its changes, said while the conversation is in it in another tenant.
+  actNote?: string | null;
   // Null until the server has said something about the allowance.
   meter: Meter | null;
   // Named only where there is a choice of more than one.
@@ -105,12 +108,7 @@ export function PanelHeader({
           </div>
           <div className={styles.segments}>
             {modes.map((choice) => (
-              <RadioField
-                key={choice}
-                value={choice}
-                isDisabled={choice === 'act' && acting !== null}
-                className={styles.field ?? ''}
-              >
+              <RadioField key={choice} value={choice} className={styles.field ?? ''}>
                 <RadioButton className={styles.segment ?? ''}>
                   {modeWords(words)[choice].label}
                 </RadioButton>
@@ -118,7 +116,7 @@ export function PanelHeader({
             ))}
           </div>
           <p className={styles.modeHint}>{modeWords(words)[mode].hint}</p>
-          {acting === null ? null : <p className={styles.modeHint}>{words.actOtherTenantNote}</p>}
+          {actNote === null ? null : <p className={styles.modeHint}>{actNote}</p>}
           <Problem>{modeProblem}</Problem>
         </RadioGroup>
       ) : (

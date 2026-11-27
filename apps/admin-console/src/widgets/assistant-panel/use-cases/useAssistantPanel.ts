@@ -6,7 +6,7 @@ import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirst
 import { noticeScopeOf, noticeToShow } from '#/widgets/assistant-panel/services/firstRun';
 import { modelsOf, type ModelEntry } from '#/widgets/assistant-panel/services/models';
 import { pageContextOf, pageLabel } from '#/widgets/assistant-panel/services/pageContext';
-import { actingInText, modeChoices } from '#/widgets/assistant-panel/services/crossTenant';
+import { actingInText, actNoteOf } from '#/widgets/assistant-panel/services/crossTenant';
 import { modeOfChoice } from '#/widgets/assistant-panel/services/modeSwitch';
 import { COMPOSER_MAX } from '#/widgets/assistant-panel/services/composer';
 import { contentSize } from '#/widgets/assistant-panel/services/scroll';
@@ -31,6 +31,8 @@ export interface AssistantPanelState {
   // The tenant the conversation acts in when it is not the administrator's own.
   // The words that name it, or null in the administrator's own.
   acting: string | null;
+  // What the switch says of where Act makes its changes, or null.
+  actNote: string | null;
   // The modes the switch draws.
   modeChoices: readonly AssistantMode[];
   // The person picked a mode on the switch; a value that is no mode is ignored.
@@ -94,7 +96,8 @@ export function useAssistantPanel(options: {
     conversations,
     mode: chat.mode,
     acting: actingInText(actingIn),
-    modeChoices: modeChoices(view.modes ?? [], actingIn),
+    actNote: actNoteOf(actingIn, chat.mode),
+    modeChoices: view.modes ?? [],
     chooseMode: (value) => {
       const next = modeOfChoice(value);
       if (next !== null) chat.setMode(next);

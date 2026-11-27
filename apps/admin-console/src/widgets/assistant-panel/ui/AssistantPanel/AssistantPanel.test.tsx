@@ -728,12 +728,11 @@ describe('for a system administrator acting in another tenant', () => {
     ...more,
   });
 
-  it('names the tenant it acts in, and does not offer Act, saying why', async () => {
+  it('names the tenant it acts in and offers Act there', async () => {
     await renderPanel(routes(), { actingIn: 'demo' });
     expect(screen.getByText('Acting in demo')).toBeVisible();
     expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
-    expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
   });
 
   it('keeps the tag while the conversation runs and after it, and draws none in the own tenant', async () => {

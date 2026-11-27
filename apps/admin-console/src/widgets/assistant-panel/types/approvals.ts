@@ -38,6 +38,13 @@ export type CardStatus = 'pending' | 'deciding' | 'approved' | 'refused' | 'expi
 
 export interface CardModel {
   id: string;
+  // The line over the title: the change waits for approval, and where it lands.
+  kicker: string;
+  // The tenant the change is made in, when it is not the person's own.
+  tenant: string | null;
+  tenantNote: string | null;
+  // What the extra question of a removal says.
+  removal: { title: string; consequence: string };
   title: string;
   targetType: string;
   targetName: string | null;

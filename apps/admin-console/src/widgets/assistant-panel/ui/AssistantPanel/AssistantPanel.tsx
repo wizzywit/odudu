@@ -93,6 +93,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             modeDisabled={chat.running || chat.readOnly !== null}
             modeProblem={chat.modeProblem}
             acting={panel.acting}
+            actNote={panel.actNote}
             meter={chat.meter}
             models={panel.models}
             words={panel.words}
@@ -111,6 +112,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             mode={panel.mode}
             entries={chat.approvals.entries}
             username={props.username}
+            actingIn={props.actingIn}
             words={panel.words}
             logRef={panel.logRef}
             onScroll={panel.onScroll}

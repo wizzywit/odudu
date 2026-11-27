@@ -635,10 +635,6 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),
   Ask: widget('assistant-panel/services/wording.ts', "modeAsk: 'Ask'"),
   Act: widget('assistant-panel/services/wording.ts', "modeAct: 'Act'"),
-  'Act is not available in another tenant.': widget(
-    'assistant-panel/services/wording.ts',
-    "actOtherTenantNote: 'Act is not available in another tenant.'",
-  ),
   Mode: widget('assistant-panel/services/wording.ts', "modeLabel: 'Mode'"),
   'Waiting for you': widget(
     'assistant-panel/services/wording.ts',

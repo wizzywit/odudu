@@ -10,7 +10,11 @@ import { conversationView, visibleMessages } from '#/usecase/conversation-view';
 import { runKey } from '#/service/run-key';
 import { PAGE_CONTEXT_PART } from '#/service/page-context';
 import { FREE_CHAT, profileById } from '#/service/profile';
+import { targetOffersAct } from '#/usecase/approvals';
 import type { ChatCaller, ChatDeps } from '#/usecase/chat-deps';
+
+/** The refusal of a conversation started in Act in a tenant that does not offer Act. */
+export const TARGET_ACT_NOT_OFFERED = 'target_act_not_offered';
 
 export type CreateOutcome =
   | { kind: 'created'; conversation: AssistantConversation }
@@ -28,10 +32,8 @@ export async function createConversation(
   const id = deps.newId();
   const now = deps.now();
   const mode = request.mode ?? 'ask';
-  // A conversation in another tenant reads only until its approvals carry that
-  // tenant too, so it is not started in Act.
-  if (mode === 'act' && crossTenant(caller)) {
-    return { kind: 'access_refused', reason: 'act_not_offered' };
+  if (mode === 'act' && !(await targetOffersAct(deps, caller))) {
+    return { kind: 'access_refused', reason: TARGET_ACT_NOT_OFFERED };
   }
   const outcome = await deps.withAccess(caller, { id, mode, now }, async (tx) => {
     const created = await conversationRepository(tx).create({
