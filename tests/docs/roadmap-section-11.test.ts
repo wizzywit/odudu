@@ -120,6 +120,20 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'swapping the provider a configuration change',
   ],
   [
+    'P5c',
+    'In Act mode it covers every change',
+    'every console write',
+    'a registered human-only entry',
+  ],
+  [
+    'P5d',
+    'What the assistant leaves to a person today',
+    'a reveal channel',
+    'an instance-write door',
+    'a delegated-administrator rule',
+    "spares the caller's own session",
+  ],
+  [
     'P5b',
     'The writes the MCP server withholds',
     'the access-changing writes',
