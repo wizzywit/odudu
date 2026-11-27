@@ -686,6 +686,19 @@ is still a breach.
 Domain packages never import protocol packages. Protocol packages never
 import each other.
 
+## Docker disk
+
+Image builds leave BuildKit cache, and one phase of per-increment stacks filled a
+570 GB Docker disk until Docker Desktop would not start (twice: October and
+November 2026). So every `docker build`, `compose --build`, e2e run, screenshot
+capture and try-stack build goes through the shared heavy-job wrapper
+(`.superpowers/sdd/tools/heavy-slot -p e2e -- …`), which caps the cache at 20 GB
+and prunes dangling images after the job. A throwaway stack ends with
+`docker compose -p <project> down -v --rmi local` when it is done, and uses one
+fixed project name per kind so builds replace an image rather than add one.
+Only `odudu-try` and the owner's `local-keycloak` stay running; never remove
+their volumes, never `docker system prune -a`, never force-kill Docker Desktop.
+
 ## Performance and scale
 
 Every increment is designed for one volume: 1,000,000 subjects and 10,000
