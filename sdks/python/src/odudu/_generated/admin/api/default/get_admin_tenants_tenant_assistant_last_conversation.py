@@ -81,9 +81,10 @@ def sync_detailed(
 
      The caller’s most recently active conversation that is not hidden, with its latest messages, or `{
     "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-
-    in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read
-    and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an
-    agent.
+    in. `continuable` is true when a new message would be answered, including after the person signed
+    out or the sign-in lapsed, and false when the sign-in was ended for another reason: the conversation
+    can be read and a new message to it is refused with `409` (`about:blank#conversation-ended`). `404`
+    when no model is configured. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -116,9 +117,10 @@ def sync(
 
      The caller’s most recently active conversation that is not hidden, with its latest messages, or `{
     "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-
-    in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read
-    and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an
-    agent.
+    in. `continuable` is true when a new message would be answered, including after the person signed
+    out or the sign-in lapsed, and false when the sign-in was ended for another reason: the conversation
+    can be read and a new message to it is refused with `409` (`about:blank#conversation-ended`). `404`
+    when no model is configured. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -148,9 +150,10 @@ async def asyncio_detailed(
 
      The caller’s most recently active conversation that is not hidden, with its latest messages, or `{
     "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-
-    in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read
-    and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an
-    agent.
+    in. `continuable` is true when a new message would be answered, including after the person signed
+    out or the sign-in lapsed, and false when the sign-in was ended for another reason: the conversation
+    can be read and a new message to it is refused with `409` (`about:blank#conversation-ended`). `404`
+    when no model is configured. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -181,9 +184,10 @@ async def asyncio(
 
      The caller’s most recently active conversation that is not hidden, with its latest messages, or `{
     "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-
-    in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read
-    and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an
-    agent.
+    in. `continuable` is true when a new message would be answered, including after the person signed
+    out or the sign-in lapsed, and false when the sign-in was ended for another reason: the conversation
+    can be read and a new message to it is refused with `409` (`about:blank#conversation-ended`). `404`
+    when no model is configured. Not offered to an agent.
 
     Args:
         tenant (str):

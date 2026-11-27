@@ -1,4 +1,5 @@
 import {
+  conversationGrantId,
   createChat,
   readSettings,
   toolsFor,
@@ -29,6 +30,8 @@ import {
   grantAssistantAccess,
   MCP_READ_SCOPE,
   mintAgentToken,
+  reattachAssistantAccess,
+  reattachDecisionFor,
   recordAssistantRefusal,
   runInstanceId,
   tenantLookupRepository,
@@ -116,7 +119,8 @@ export function assistantTokenMint(
     // owner ended has its instance revoked in that same transaction, and the
     // refusal is audited in it.
     const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
-      const grant = await tokenGrantRepository(tx).byId(run.conversationId);
+      const grantId = await conversationGrantId(tx, caller, run.conversationId);
+      const grant = grantId === undefined ? null : await tokenGrantRepository(tx).byId(grantId);
       const client = grant === null ? null : await clientRepository(tx).byId(grant.clientId);
       const refused = async (error: AgentTokenRefused): Promise<'lapsed' | AgentTokenRefused> => {
         if (error.reason === 'run_refused') {
@@ -128,7 +132,7 @@ export function assistantTokenMint(
         await auditRefusal(tx, caller, run.conversationId, error.reason);
         return error;
       };
-      if (client?.builtinAssistant !== true) {
+      if (grantId === undefined || client?.builtinAssistant !== true) {
         return refused(new AgentTokenRefused('grant_not_found'));
       }
       try {
@@ -147,7 +151,7 @@ export function assistantTokenMint(
             },
           },
           {
-            subjectGrantId: run.conversationId,
+            subjectGrantId: grantId,
             expectedSubjectId: caller.ownerSubjectId,
             agentClientId: client.clientId,
             audience: ADMIN_API_AUDIENCE,
@@ -193,14 +197,15 @@ export function toolRunner(
   conversationId: string,
   turnId: string,
 ) {
-  let identity: Promise<AssistantIdentity> | undefined;
-  const identityOf = (): Promise<AssistantIdentity> => {
+  let identity: Promise<AssistantIdentity & { grantId: string }> | undefined;
+  const identityOf = (): Promise<AssistantIdentity & { grantId: string }> => {
     identity ??= withTenant(parts.database.db, caller.tenantId, async (tx) => {
-      const grant = await tokenGrantRepository(tx).byId(conversationId);
+      const grantId = await conversationGrantId(tx, caller, conversationId);
+      const grant = grantId === undefined ? null : await tokenGrantRepository(tx).byId(grantId);
       const client = grant === null ? null : await clientRepository(tx).byId(grant.clientId);
-      if (client?.builtinAssistant !== true)
+      if (grantId === undefined || client?.builtinAssistant !== true)
         throw new Error('the conversation has no assistant grant');
-      return { clientId: client.clientId, clientDbId: client.id };
+      return { clientId: client.clientId, clientDbId: client.id, grantId };
     });
     return identity;
   };
@@ -211,18 +216,19 @@ export function toolRunner(
     const tool = toolsFor(TOOLS, caller).find((entry) => entry.name === name);
     if (tool?.access !== 'read') throw new Error('not an assistant tool');
     if (unrecorded !== undefined) return unrecorded;
+    const who = await identityOf();
     const result = await callAsAssistant(
       parts,
       caller,
       {
-        grantId: conversationId,
+        grantId: who.grantId,
         conversationId,
         turnId,
         scope: [MCP_READ_SCOPE],
         budget: NO_WRITES,
         holdsWrite: false,
       },
-      await identityOf(),
+      who,
       accessToken,
       tool,
       input,
@@ -430,27 +436,118 @@ function conversationPorts(parts: AssistantChatParts): ConversationPorts {
         fn(tx, (event) => conversationAuditRow(tx, caller, event)),
       ),
     // The conversation's grant, and the instances rooted at it, end with it.
-    endAccess: async (caller, conversationId, now) => {
-      await withTenantRetrying(parts.database.db, caller.tenantId, (tx) =>
-        tokenGrantRepository(tx).revoke(conversationId, now),
-      );
+    endAccess: async (caller, conversationId, now, grantId) => {
+      await withTenantRetrying(parts.database.db, caller.tenantId, async (tx) => {
+        const grants = tokenGrantRepository(tx);
+        await grants.revoke(conversationId, now);
+        if (grantId !== conversationId) await grants.revoke(grantId, now);
+      });
     },
   };
 }
 
-// A message to a conversation is answered only while its grant is live and was
-// made from the sign-in the caller holds now: a conversation of an earlier
-// sign-in can be read and not continued.
+// Carries a conversation on under the sign-in the request came on: the new grant
+// is derived under every check a first grant meets, from this sign-in alone, and
+// the row that says so is written in the transaction that holds the conversation
+// locked. The tenant and the target are read first, outside it.
+function reattacher(parts: AssistantChatParts): NonNullable<ChatDeps['reattach']> {
+  const lookup = tenantLookupRepository(parts.ownerDatabase.db);
+  return async (caller, step) => {
+    const tenant = await lookup.byName(caller.tenantName);
+    if (tenant?.id !== caller.tenantId) throw new Error('the tenant is not available');
+    const target = await targetFacts(parts, lookup, caller);
+    const deps = {
+      tenantId: tenant.id,
+      lifespans: {
+        ssoSessionIdleSeconds: tenant.ssoSessionIdleSeconds,
+        ssoSessionMaxSeconds: tenant.ssoSessionMaxSeconds,
+        rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
+        rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
+      },
+    };
+    return withTenantRetrying(parts.database.db, tenant.id, (tx) =>
+      step(tx, async (input) => {
+        if (caller.grantId === undefined) {
+          await auditRefusal(tx, caller, input.conversationId, 'grant_not_found');
+          return { kind: 'refused', code: 'grant_not_found' };
+        }
+        try {
+          const outcome = await reattachAssistantAccess(tx, deps, {
+            previousGrantId: input.previousGrantId,
+            newGrantId: input.newGrantId,
+            consoleGrantId: caller.grantId,
+            expectedSubjectId: caller.ownerSubjectId,
+            mode: input.mode,
+            archived: input.archived,
+            now: input.now,
+            ...(target === undefined ? {} : { target }),
+          });
+          if (outcome.kind === 'live') return { kind: 'live' };
+          await recordReattached(
+            tx,
+            caller,
+            input.conversationId,
+            outcome.previousGrantId,
+            outcome.grant.id,
+          );
+          return { kind: 'attached', grantId: outcome.grant.id };
+        } catch (error) {
+          if (!(error instanceof AssistantGrantRefused)) throw error;
+          parts.logger.warn(
+            { reason: error.reason, tenantId: tenant.id },
+            'the assistant could not carry a conversation on',
+          );
+          await auditRefusal(tx, caller, input.conversationId, error.reason);
+          return { kind: 'refused', code: error.reason };
+        }
+      }),
+    );
+  };
+}
+
+// The row that says a conversation was carried on: who, which conversation and
+// the two grants, never any text.
+function recordReattached(
+  tx: Parameters<typeof grantAssistantAccess>[0],
+  caller: ChatCaller,
+  conversationId: string,
+  previousGrantId: string,
+  newGrantId: string,
+): Promise<void> {
+  return auditRepository(tx).record({
+    eventType: 'admin_mutation',
+    action: 'assistant.reattached',
+    outcome: 'allowed',
+    actorTenantId: caller.tenantId,
+    actorSubjectId: caller.ownerSubjectId,
+    resourceType: 'assistant_conversation',
+    resourceId: conversationId,
+    detail: {
+      tenant: caller.tenantId,
+      ...(caller.target === undefined ? {} : { target_tenant: caller.target.id }),
+      subject: caller.ownerSubjectId,
+      conversation: conversationId,
+      previous_grant: previousGrantId,
+      new_grant: newGrantId,
+    },
+  });
+}
+
+// Whether a message to the conversation would be answered under the sign-in the
+// caller holds now, live or after it is carried on; reads only.
 function continuableCheck(parts: AssistantChatParts): NonNullable<ChatDeps['continuable']> {
   return (caller, conversationId) =>
     withTenantRetrying(parts.database.db, caller.tenantId, async (tx) => {
-      const grant = await tokenGrantRepository(tx).byId(conversationId);
-      return (
-        grant !== null &&
-        grant.revokedAt === null &&
-        caller.grantId !== undefined &&
-        grant.exchangedFromGrantId === caller.grantId
-      );
+      if (caller.grantId === undefined) return false;
+      const previousGrantId = await conversationGrantId(tx, caller, conversationId);
+      if (previousGrantId === undefined) return false;
+      const decision = await reattachDecisionFor(tx, {
+        previousGrantId,
+        consoleGrantId: caller.grantId,
+        expectedSubjectId: caller.ownerSubjectId,
+        archived: false,
+      });
+      return decision.kind !== 'refused';
     });
 }
 
@@ -465,6 +562,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
       runInstanceId(caller.tenantId, conversationId, key),
     withAccess: accessGranter(parts),
     conversations: conversationPorts(parts),
+    reattach: reattacher(parts),
     continuable: continuableCheck(parts),
     approvals: approvalPortsFor(parts),
     approvalSecret: deriveApprovalSecret(parts.kek),

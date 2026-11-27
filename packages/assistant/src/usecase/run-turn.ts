@@ -47,6 +47,11 @@ export interface RunTurnDeps {
   readonly model: LanguageModel;
   readonly profile: TaskProfile;
   readonly tenantText: string;
+  /**
+   * The conversation was carried on after a sign-in, so what its tools returned
+   * earlier was read under an earlier one. The model is told, in its instructions.
+   */
+  readonly earlierSignIn?: boolean;
   // The tenant's `assistant_mask_emails`, read for each turn.
   readonly maskEmails?: boolean;
   readonly tools: readonly RegisteredTool[];
@@ -237,7 +242,12 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
           ...(deps.log === undefined ? {} : { log: deps.log }),
           ...(deps.trace === undefined ? {} : { onDecision: deps.trace.onDecision }),
         });
-  const prompt = buildSystemPrompt(deps.profile, masking(deps)(deps.tenantText), mode);
+  const prompt = buildSystemPrompt(
+    deps.profile,
+    masking(deps)(deps.tenantText),
+    mode,
+    deps.earlierSignIn === true,
+  );
   const agent = buildAgent(
     deps,
     tools,

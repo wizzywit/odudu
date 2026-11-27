@@ -108,10 +108,7 @@ export async function lastConversation(
   });
   const row = page.kind === 'ok' ? page.items[0] : undefined;
   if (row === undefined) return null;
-  const conversation = await loadConversation(deps, caller, row.id);
-  if (conversation === null) return null;
-  const continuable = deps.continuable === undefined || (await deps.continuable(caller, row.id));
-  return { ...conversation, archived: false, continuable };
+  return loadConversation(deps, caller, row.id);
 }
 
 export type ArchiveOutcome =
@@ -161,6 +158,8 @@ export async function deleteConversation(
   const ports = deps.conversations;
   if (ports === undefined) return { kind: 'unavailable' };
   const now = deps.now();
+  // The grant the conversation acted under, read before its row is gone.
+  let grantId = id;
   const outcome = await ports.withAudit(caller, async (tx, record): Promise<DeleteOutcome> => {
     // Ownership is settled before the lock, so no one queues behind another person's row.
     const seen = await conversationRepository(tx).byId(id);
@@ -169,6 +168,7 @@ export async function deleteConversation(
     if (row === undefined || !conversationIsCallers(row, caller)) return { kind: 'not_found' };
     if (row.reportedAt !== null) return { kind: 'held' };
     if (await leaseRepository(tx).liveFor(id, now)) return { kind: 'busy' };
+    grantId = row.grantId ?? id;
     const left = await tombstoneRepository(tx).erase(
       row,
       caller.ownerSubjectId,
@@ -187,7 +187,7 @@ export async function deleteConversation(
   });
   if (outcome.kind === 'deleted' && ports.endAccess !== undefined) {
     try {
-      await ports.endAccess(caller, id, now);
+      await ports.endAccess(caller, id, now, grantId);
     } catch (error) {
       deps.log?.('assistant.end_access_failed', {
         conversation: id,

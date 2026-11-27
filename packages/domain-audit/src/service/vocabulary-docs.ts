@@ -215,6 +215,13 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'names the tenant, the conversation, the `format` (`json` or `markdown`), how many messages ' +
     'the document carried and whether it was cut short. It never holds the text. Only the ' +
     'conversation’s owner can export it, so no one else has a row like this for it.',
+  'assistant.reattached':
+    'A person carried on one of their own console assistant conversations after signing in ' +
+    'again: the conversation got a new grant made from the sign-in they hold now, and the grant ' +
+    'of the earlier sign-in ended. `detail` names the tenant, the person, the conversation, ' +
+    '`previous_grant` and `new_grant`, and for a system administrator in another tenant that ' +
+    'tenant as `target_tenant`. It holds no message text, and a conversation whose earlier grant ' +
+    'ended for another reason is refused with an `assistant.access_refused` event instead.',
   'assistant.report':
     'A person reported a conversation of the console assistant, which keeps it, with its trace, ' +
     'past the tenant’s retention. `detail` names the conversation and its owner. Reporting one that ' +

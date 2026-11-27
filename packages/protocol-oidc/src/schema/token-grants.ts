@@ -19,6 +19,9 @@ export const tokenGrants = pgTable('token_grants', {
   audience: text('audience').array().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  // Set with `revokedAt` when the revoking path knows the person ended their own
+  // sign-in; null for any other cause. See migration 0158.
+  revokedCause: text('revoked_cause'),
   // Null means an offline grant: nothing expires it and no logout ends it.
   // The composite foreign key to sessions(tenant_id, id) and its ON DELETE
   // SET NULL (session_id) live only in packages/db/drizzle/ (0026, 0070).
@@ -74,6 +77,7 @@ export interface TokenGrantRecord {
   audience: string[];
   createdAt: Date;
   revokedAt: Date | null;
+  revokedCause: string | null;
   sessionId: string | null;
   actorSubjectId: string | null;
   exchangedFromGrantId: string | null;

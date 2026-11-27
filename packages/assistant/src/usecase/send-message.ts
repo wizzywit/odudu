@@ -17,6 +17,7 @@ import { leaseTtlMs, stopReasonOf, type AssistantLimits, type StopReason } from 
 import { titleOf } from '#/service/conversation-title';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
+import type { EndedReason } from '#/service/reattach-reason';
 import { profileById } from '#/service/profile';
 import { slotDecision } from '#/service/trace-decisions';
 import { startOf, summaryOf } from '#/service/turn-summary';
@@ -36,6 +37,7 @@ import {
   type ChatDeps,
 } from '#/usecase/chat-deps';
 import { openEntitlements } from '#/usecase/entitlements';
+import { attachConversation } from '#/usecase/reattach';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
 import type { TurnApprovals } from '#/usecase/tool-approval';
@@ -52,8 +54,9 @@ export type SendOutcome =
   | { kind: 'busy' }
   | { kind: 'saturated' }
   | { kind: 'limited'; retryAfterSeconds: number }
-  // The sign-in the conversation acts under has ended, so no turn could run in it.
-  | { kind: 'ended' }
+  // The conversation could not be given a grant under the sign-in the caller holds
+  // now, for the reason named, so no turn could run in it.
+  | { kind: 'ended'; reason: EndedReason }
   // A resume while a change still waits for the person, or with none to resume.
   | { kind: 'waiting' }
   | { kind: 'nothing_waiting' };
@@ -350,10 +353,12 @@ async function runConversationTurn(
   const head = await readHead(deps, caller, id);
   const profile = head === null ? undefined : profileById(head.profileId);
   if (head === null || profile === undefined) return { kind: 'not_found' };
-  const prepared = head;
-  if (deps.continuable !== undefined && !(await deps.continuable(caller, id))) {
-    return { kind: 'ended' };
-  }
+  // The conversation acts under a grant of the sign-in this request came on: one
+  // that ended with an earlier sign-in is carried on before anything is stored.
+  const attached = await attachConversation(deps, caller, id);
+  if (attached.kind === 'not_found') return { kind: 'not_found' };
+  if (attached.kind === 'ended') return { kind: 'ended', reason: attached.reason };
+  const prepared: Head = { ...head, generation: attached.generation };
 
   const turn = new AbortController();
   const admitted = registry.begin(id, () => {
@@ -577,6 +582,7 @@ async function runConversationTurn(
         maskEmails: prepared.maskEmails,
         tools: toolsFor(deps.tools, caller),
         mode: prepared.mode,
+        earlierSignIn: attached.carriedOn,
         ...(deps.approvalSecret === undefined ? {} : { approvalSecret: deps.approvalSecret }),
         ...(deps.log === undefined ? {} : { log: deps.log }),
         ...(deps.approvals === undefined

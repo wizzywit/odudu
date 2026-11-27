@@ -17,7 +17,8 @@ export type AssistantGrantRefusal =
   | 'target_unavailable'
   | 'target_assistant_disabled'
   | 'owner_lacks_capability'
-  | 'scope_widened';
+  | 'scope_widened'
+  | ReattachRefusal;
 
 // The most a conversation's grant may hold, which is the most its tokens may
 // ever carry. An Act conversation reads the same way until a write has a
@@ -130,4 +131,83 @@ export function assistantGrantRefusal(
     return 'assistant_unavailable';
   }
   return null;
+}
+
+export type ReattachRefusal =
+  | 'conversation_grant_missing'
+  | 'conversation_grant_not_assistant'
+  | 'conversation_archived'
+  | 'revoked_for_cause';
+
+export interface ReattachGrounds {
+  // The grant behind the verified console token of this request.
+  readonly consoleGrantId: string;
+  readonly expectedSubjectId: string;
+  readonly archived: boolean;
+  // The grant the conversation acted under until now, as stored; null where no
+  // such grant exists any more.
+  readonly previous: {
+    readonly subjectId: string;
+    readonly isAssistantGrant: boolean;
+    readonly revokedAt: Date | null;
+    readonly exchangedFromGrantId: string | null;
+  } | null;
+  // The console grant that one was derived from.
+  readonly parent: {
+    readonly revokedAt: Date | null;
+    readonly revokedCause: string | null;
+  } | null;
+}
+
+export type ReattachDecision =
+  | { readonly kind: 'live' }
+  | { readonly kind: 'reattach' }
+  | { readonly kind: 'refused'; readonly reason: AssistantGrantRefusal };
+
+// Whether a conversation's grant ended with the person's own sign-in and nothing
+// else. Only that is carried on: a grant revoked for any other cause (a reused
+// refresh token, an administrator ending the session, a recovered account) is
+// never made live again by a later sign-in. The console grant must have been
+// revoked as a sign-out, and the conversation's grant at the same instant, which
+// is what the sign-out's own cascade stamps; a conversation grant revoked earlier
+// for another reason keeps that reason's earlier time and does not match.
+function endedWithSignOut(grounds: ReattachGrounds): boolean {
+  const { previous, parent } = grounds;
+  if (previous?.revokedAt == null || parent?.revokedAt == null) return false;
+  return (
+    parent.revokedCause === 'sign_out' &&
+    previous.revokedAt.getTime() === parent.revokedAt.getTime()
+  );
+}
+
+/**
+ * Whether a message to a conversation can be answered under the sign-in the
+ * request came on, and whether that takes a new grant: `live` where the
+ * conversation's grant is live and was made from this very sign-in, `reattach`
+ * where it ended with a sign-in of the owner's (by sign-out, or by lapsing
+ * unrevoked, or while another sign-in still holds it) and a new grant may be made
+ * from this one, and a refusal otherwise. What the new grant may hold is the
+ * grant rules' own, read from this sign-in alone.
+ */
+export function reattachDecision(grounds: ReattachGrounds): ReattachDecision {
+  const { previous, parent } = grounds;
+  const refused = (reason: AssistantGrantRefusal) => ({ kind: 'refused' as const, reason });
+  if (previous === null) return refused('conversation_grant_missing');
+  if (previous.subjectId !== grounds.expectedSubjectId) return refused('subject_mismatch');
+  if (!previous.isAssistantGrant) return refused('conversation_grant_not_assistant');
+  if (previous.revokedAt === null && previous.exchangedFromGrantId === grounds.consoleGrantId) {
+    return { kind: 'live' };
+  }
+  if (grounds.archived) return refused('conversation_archived');
+  if (previous.revokedAt === null) {
+    // Ended without a revocation (the session lapsed) or still held by another
+    // sign-in of the owner; a console grant revoked for cause would have taken
+    // this one with it.
+    const revokedForCause =
+      previous.exchangedFromGrantId === null ||
+      parent === null ||
+      (parent.revokedAt !== null && parent.revokedCause !== 'sign_out');
+    return revokedForCause ? refused('revoked_for_cause') : { kind: 'reattach' };
+  }
+  return endedWithSignOut(grounds) ? { kind: 'reattach' } : refused('revoked_for_cause');
 }

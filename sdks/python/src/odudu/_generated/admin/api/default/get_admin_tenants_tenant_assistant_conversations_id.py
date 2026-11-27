@@ -82,8 +82,9 @@ def sync_detailed(
 ]:
     """Requires the "use-assistant" capability.
 
-     A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does
-    not exist or belongs to another administrator, and when no model is configured.
+     A conversation and its latest messages, oldest first, as the caller’s own, with `archived` and
+    `continuable` (true when a message would be answered under the sign-in held now). `404` for one that
+    does not exist or belongs to another administrator, and when no model is configured.
 
     Args:
         tenant (str):
@@ -117,8 +118,9 @@ def sync(
 ) -> GetAdminTenantsTenantAssistantConversationsIdResponse200 | ProblemDetails | None:
     """Requires the "use-assistant" capability.
 
-     A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does
-    not exist or belongs to another administrator, and when no model is configured.
+     A conversation and its latest messages, oldest first, as the caller’s own, with `archived` and
+    `continuable` (true when a message would be answered under the sign-in held now). `404` for one that
+    does not exist or belongs to another administrator, and when no model is configured.
 
     Args:
         tenant (str):
@@ -149,8 +151,9 @@ async def asyncio_detailed(
 ]:
     """Requires the "use-assistant" capability.
 
-     A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does
-    not exist or belongs to another administrator, and when no model is configured.
+     A conversation and its latest messages, oldest first, as the caller’s own, with `archived` and
+    `continuable` (true when a message would be answered under the sign-in held now). `404` for one that
+    does not exist or belongs to another administrator, and when no model is configured.
 
     Args:
         tenant (str):
@@ -182,8 +185,9 @@ async def asyncio(
 ) -> GetAdminTenantsTenantAssistantConversationsIdResponse200 | ProblemDetails | None:
     """Requires the "use-assistant" capability.
 
-     A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does
-    not exist or belongs to another administrator, and when no model is configured.
+     A conversation and its latest messages, oldest first, as the caller’s own, with `archived` and
+    `continuable` (true when a message would be answered under the sign-in held now). `404` for one that
+    does not exist or belongs to another administrator, and when no model is configured.
 
     Args:
         tenant (str):

@@ -68,7 +68,9 @@ function fakePort(recorded: Recorded): AssistantChatPort {
     },
     load(caller, id) {
       recorded.callers.push(caller);
-      return Promise.resolve(id.startsWith('2') ? null : conversation(id));
+      return Promise.resolve(
+        id.startsWith('2') ? null : { ...conversation(id), archived: false, continuable: true },
+      );
     },
     send(caller, id, _message, signal) {
       recorded.callers.push(caller);

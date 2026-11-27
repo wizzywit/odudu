@@ -847,3 +847,121 @@ describe('what is checked on every call, and never trusted from an earlier one',
     expect(kept[0]?.n).toBeGreaterThan(0);
   });
 });
+
+describe('carrying a conversation in another tenant on after a new sign-in', () => {
+  // The operator signs in again: a new console grant on the same session.
+  async function again(op: World, endFirst: 'sign_out' | 'cause'): Promise<World> {
+    const grantId = newId();
+    await withTenant(s().appDb.db, op.tenantId, async (tx) => {
+      const grants = tokenGrantRepository(tx);
+      if (endFirst === 'sign_out') await grants.revoke(op.grantId, new Date(), 'sign_out');
+      else await grants.revoke(op.grantId, new Date());
+      await grants.create({
+        id: grantId,
+        tenantId: op.tenantId,
+        clientId: op.adminDbId,
+        subjectId: op.subjectId,
+        scope: 'openid',
+        audience: [ADMIN_API_AUDIENCE],
+        sessionId: op.sessionId,
+      });
+    });
+    return { ...op, grantId };
+  }
+
+  async function bindingOf(id: string) {
+    return (
+      await rows<{ grant_id: string | null; run_generation: number }>(
+        sql`select grant_id, run_generation from assistant_conversations where id = ${id}`,
+      )
+    )[0];
+  }
+
+  it('makes the new grant for the same target, and audits it in the administrator’s trail', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    expect(answered((await say(op, x.name, id, 'list_subjects')).body)).toBe(true);
+    const next = await again(op, 'sign_out');
+
+    const carried = await say(next, x.name, id, 'list_subjects');
+    expect(carried.statusCode, carried.body).toBe(200);
+    expect(answered(carried.body)).toBe(true);
+
+    const binding = await bindingOf(id);
+    expect(binding?.run_generation).toBe(1);
+    const grant = await rows<Record<string, string>>(
+      sql`select tenant_id, target_tenant_id, exchanged_from_grant_id, scope
+            from token_grants where id = ${binding?.grant_id ?? null}`,
+    );
+    expect(grant).toEqual([
+      {
+        tenant_id: op.tenantId,
+        target_tenant_id: x.tenantId,
+        exchanged_from_grant_id: next.grantId,
+        scope: 'mcp:read',
+      },
+    ]);
+    const audit = await rows<{ tenant_id: string; detail: Record<string, string> }>(
+      sql`select tenant_id, detail from audit_events
+           where action = 'assistant.reattached' and resource_id = ${id}`,
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0]?.tenant_id).toBe(op.tenantId);
+    expect(audit[0]?.detail).toMatchObject({
+      target_tenant: x.tenantId,
+      previous_grant: id,
+      new_grant: binding?.grant_id,
+    });
+    expect(await auditActions(x.tenantId)).not.toContain('assistant.reattached');
+  });
+
+  it('is refused when the target switched the assistant off, and the conversation stays unbound', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    const next = await again(op, 'sign_out');
+    await withTenant(s().appDb.db, x.tenantId, (tx) =>
+      writeSettings(
+        tx,
+        x.tenantId,
+        { ...ASSISTANT_SETTING_DEFAULTS, assistant_enabled: false },
+        new Date(),
+      ),
+    );
+    expect((await say(next, x.name, id, 'list_subjects')).statusCode).toBe(404);
+    expect((await bindingOf(id))?.grant_id).toBeNull();
+  });
+
+  it('is refused when the operator no longer holds manage-tenants, and binds nothing', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    const next = await again(op, 'sign_out');
+    await withTenant(s().appDb.db, op.tenantId, (tx) =>
+      tx.execute(
+        sql`delete from subject_roles where subject_id = ${op.subjectId} and role_id in
+              (select r.id from roles r where r.name = 'manage-tenants')`,
+      ),
+    );
+    const refused = await say(next, x.name, id, 'list_subjects');
+    expect(refused.statusCode).not.toBe(200);
+    expect((await bindingOf(id))?.grant_id).toBeNull();
+    expect(
+      await rows(
+        sql`select 1 from audit_events where action = 'assistant.reattached' and resource_id = ${id}`,
+      ),
+    ).toEqual([]);
+  });
+
+  it('is refused after a revocation that was not a sign-out', async () => {
+    const op = await operator();
+    const x = await tenantWith();
+    const id = await open(op, x.name);
+    const next = await again(op, 'cause');
+    const refused = await say(next, x.name, id, 'list_subjects');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json()).toMatchObject({ type: 'about:blank#conversation-ended' });
+    expect((await bindingOf(id))?.grant_id).toBeNull();
+  });
+});

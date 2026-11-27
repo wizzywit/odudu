@@ -95,7 +95,10 @@ async function revokeFor(
   // same way `rotateRefreshToken` reads `grant.revokedAt` rather than
   // anything on the presented token itself. A grant a concurrent request
   // revoked first writes no second row.
-  if (!(await tokenGrantRepository(tx).revoke(grant.id, now))) return;
+  // The console revoking its own refresh token is the person's sign-out or a
+  // session lapsing; any other client revoking is not known to be either.
+  const cause = client.builtinAdmin ? 'sign_out' : undefined;
+  if (!(await tokenGrantRepository(tx).revoke(grant.id, now, cause))) return;
   await auditRepository(tx).record({
     eventType: 'token',
     action: 'token.revoke',

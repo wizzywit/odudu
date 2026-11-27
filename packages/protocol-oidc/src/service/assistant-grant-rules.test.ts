@@ -3,6 +3,8 @@ import {
   ASSISTANT_WRITE_CEILING,
   assistantGrantRefusal,
   assistantScopeCeiling,
+  reattachDecision,
+  type ReattachGrounds,
   type AssistantGrantGrounds,
 } from '#/service/assistant-grant-rules';
 
@@ -113,5 +115,115 @@ describe('the ceiling of a grant made for one approved write', () => {
       'scope_widened',
     );
     expect(assistantGrantRefusal({ ...write, scope: ['mcp:read'] })).toBe('scope_widened');
+  });
+});
+
+describe('reattachDecision', () => {
+  const SIGNED_OUT = new Date('2026-11-27T10:00:00.000Z');
+  const held = { subjectId: 's1', isAssistantGrant: true };
+  const liveGrant = { ...held, revokedAt: null, exchangedFromGrantId: 'console-now' };
+  const endedGrant = { ...held, revokedAt: SIGNED_OUT, exchangedFromGrantId: 'console-before' };
+  const live: ReattachGrounds = {
+    consoleGrantId: 'console-now',
+    expectedSubjectId: 's1',
+    archived: false,
+    previous: liveGrant,
+    parent: { revokedAt: null, revokedCause: null },
+  };
+  const afterSignOut: ReattachGrounds = {
+    ...live,
+    previous: endedGrant,
+    parent: { revokedAt: SIGNED_OUT, revokedCause: 'sign_out' },
+  };
+
+  it('leaves a grant that is live and came from this sign-in as it is', () => {
+    expect(reattachDecision(live)).toEqual({ kind: 'live' });
+  });
+
+  it('carries on a conversation whose sign-in the person ended', () => {
+    expect(reattachDecision(afterSignOut)).toEqual({ kind: 'reattach' });
+  });
+
+  it('carries on one whose sign-in lapsed without a revocation, or is held by another sign-in', () => {
+    const lapsed: ReattachGrounds = {
+      ...live,
+      previous: { ...liveGrant, exchangedFromGrantId: 'console-before' },
+      parent: { revokedAt: null, revokedCause: null },
+    };
+    expect(reattachDecision(lapsed)).toEqual({ kind: 'reattach' });
+  });
+
+  it.each([
+    [
+      'no cause recorded, as a reused refresh token or an administrator leaves it',
+      { revokedCause: null },
+    ],
+    ['an unknown cause', { revokedCause: 'admin' }],
+  ])('refuses a sign-in revoked with %s', (_name, parent) => {
+    expect(
+      reattachDecision({
+        ...afterSignOut,
+        parent: { revokedAt: SIGNED_OUT, ...parent },
+      }),
+    ).toEqual({ kind: 'refused', reason: 'revoked_for_cause' });
+  });
+
+  it('refuses a conversation grant revoked at another time than the sign-out', () => {
+    const earlier = new Date(SIGNED_OUT.getTime() - 60_000);
+    expect(
+      reattachDecision({
+        ...afterSignOut,
+        previous: { ...endedGrant, revokedAt: earlier },
+      }),
+    ).toEqual({ kind: 'refused', reason: 'revoked_for_cause' });
+  });
+
+  it('refuses a conversation grant revoked while its sign-in is still live', () => {
+    expect(
+      reattachDecision({
+        ...afterSignOut,
+        parent: { revokedAt: null, revokedCause: null },
+      }),
+    ).toEqual({ kind: 'refused', reason: 'revoked_for_cause' });
+  });
+
+  it('refuses a live grant whose console grant was revoked for cause or is gone', () => {
+    const lapsed = { ...liveGrant, exchangedFromGrantId: 'console-before' };
+    expect(
+      reattachDecision({
+        ...live,
+        previous: lapsed,
+        parent: { revokedAt: SIGNED_OUT, revokedCause: null },
+      }),
+    ).toEqual({ kind: 'refused', reason: 'revoked_for_cause' });
+    expect(reattachDecision({ ...live, previous: lapsed, parent: null })).toEqual({
+      kind: 'refused',
+      reason: 'revoked_for_cause',
+    });
+  });
+
+  it('refuses a grant that is gone, that is not the assistant’s or that is another person’s', () => {
+    expect(reattachDecision({ ...afterSignOut, previous: null })).toEqual({
+      kind: 'refused',
+      reason: 'conversation_grant_missing',
+    });
+    expect(
+      reattachDecision({
+        ...afterSignOut,
+        previous: { ...endedGrant, isAssistantGrant: false },
+      }),
+    ).toEqual({ kind: 'refused', reason: 'conversation_grant_not_assistant' });
+    expect(reattachDecision({ ...afterSignOut, expectedSubjectId: 's2' })).toEqual({
+      kind: 'refused',
+      reason: 'subject_mismatch',
+    });
+  });
+
+  it('refuses a hidden conversation that would otherwise be carried on, and only then', () => {
+    expect(reattachDecision({ ...afterSignOut, archived: true })).toEqual({
+      kind: 'refused',
+      reason: 'conversation_archived',
+    });
+    expect(reattachDecision({ ...live, archived: true })).toEqual({ kind: 'live' });
   });
 });

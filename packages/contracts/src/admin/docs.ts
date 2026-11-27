@@ -1354,7 +1354,7 @@ describeFields(assistantResumedConversationSchema, {
     'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
   archived: 'True while the person has hidden it from their list.',
   continuable:
-    'False when the sign-in the conversation acts under has ended, so a new message would be refused: the messages can be read, and a new conversation is the way to carry on.',
+    'True when a new message would be answered, which includes a conversation whose earlier sign-in ended by signing out or lapsing: the message gets a new grant from the current sign-in. False when its sign-in was ended for another reason, so the message would be refused: the messages can be read, and a new conversation is the way to carry on.',
 });
 describeFields(lastAssistantConversationResponseSchema, {
   conversation:

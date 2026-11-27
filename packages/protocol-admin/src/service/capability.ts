@@ -111,6 +111,7 @@ import {
   assistantApprovalListSchema,
   assistantConversationExportSchema,
   assistantConversationSchema,
+  assistantResumedConversationSchema,
   lastAssistantConversationResponseSchema,
   listAssistantConversationsQuerySchema,
   listAssistantConversationsResponseSchema,
@@ -2194,9 +2195,11 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'The caller\u2019s most recently active conversation that is not hidden, with its latest ' +
       'messages, or `{ "conversation": null }` when they have none, so the console can reopen ' +
-      'it after a reload or a sign-in. `continuable` is false when the sign-in the conversation ' +
-      'acts under has ended: it can be read and a new message to it is refused with `409`. ' +
-      '`404` when no model is configured. Not offered to an agent.',
+      'it after a reload or a sign-in. `continuable` is true when a new message would be ' +
+      'answered, including after the person signed out or the sign-in lapsed, and false when ' +
+      'the sign-in was ended for another reason: the conversation can be read and a new message ' +
+      'to it is refused with `409` (`about:blank#conversation-ended`). `404` when no model is ' +
+      'configured. Not offered to an agent.',
   },
   {
     method: 'PUT',
@@ -2255,9 +2258,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     method: 'GET',
     pattern: '/admin/tenants/:tenant/assistant/conversations/:id',
     capability: 'use-assistant',
-    responseSchema: assistantConversationSchema,
+    responseSchema: assistantResumedConversationSchema,
     description:
-      'A conversation and its latest messages, oldest first, as the caller\u2019s own. `404` for ' +
+      'A conversation and its latest messages, oldest first, as the caller\u2019s own, with `archived` and `continuable` (true when a message would be answered under the sign-in held now). `404` for ' +
       'one that does not exist or belongs to another administrator, and when no model is configured.',
   },
   {
@@ -2281,7 +2284,14 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'a turn of this conversation is running on this server. `429` with a `Retry-After` when ' +
       'this server is running as many turns as it admits, or when the tenant already has as many ' +
       'in progress, on any server, as its settings allow. `404` for a conversation that is not ' +
-      'the caller\u2019s.',
+      'the caller\u2019s. A conversation whose grant ended with an earlier sign-in of the caller\u2019s ' +
+      '(signing out, or a session that lapsed) is carried on first: a new grant is made from ' +
+      'the sign-in the request came on, under the checks a first grant meets, and the old one ' +
+      'ends, audited as `assistant.reattached`. Where that is refused nothing is stored and ' +
+      'the answer is `409` with a problem type of its own: `about:blank#conversation-ended` ' +
+      '(the sign-in ended for another reason), `about:blank#conversation-archived` (restore it ' +
+      'first) or `about:blank#conversation-access-refused` (the sign-in held now may not carry ' +
+      'it on).',
   },
   {
     method: 'POST',

@@ -101,6 +101,7 @@ function build(
           audience: [mcpAudienceOfIssuer(ISSUER)],
           createdAt: new Date(0),
           revokedAt: null,
+          revokedCause: null,
           sessionId: 'session-1',
           actorSubjectId: null,
           exchangedFromGrantId: null,

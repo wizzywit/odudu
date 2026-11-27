@@ -149,7 +149,7 @@ export interface AssistantChatPort {
     | { kind: 'unknown_profile' }
     | { kind: 'access_refused'; reason: string }
   >;
-  load(caller: AssistantCaller, id: string): Promise<AssistantConversation | null>;
+  load(caller: AssistantCaller, id: string): Promise<AssistantResumedConversation | null>;
   /** One page of the caller's own conversations; `after` is where the last page ended. */
   list(
     caller: AssistantCaller,
@@ -194,7 +194,7 @@ export interface AssistantChatPort {
     | { kind: 'busy' }
     | { kind: 'saturated' }
     | { kind: 'limited'; retryAfterSeconds: number }
-    | { kind: 'ended' }
+    | { kind: 'ended'; reason: EndedReason }
   >;
   stop(caller: AssistantCaller, id: string): Promise<'stopped' | 'idle' | 'not_found'>;
   approvals(caller: AssistantCaller, id: string): Promise<AssistantApprovalCard[] | null>;
@@ -218,7 +218,7 @@ export interface AssistantChatPort {
     | { kind: 'busy' }
     | { kind: 'saturated' }
     | { kind: 'limited'; retryAfterSeconds: number }
-    | { kind: 'ended' }
+    | { kind: 'ended'; reason: EndedReason }
     | { kind: 'waiting' }
     | { kind: 'nothing_waiting' }
   >;
@@ -384,6 +384,28 @@ function abortWhenClosed(reply: FastifyReply): AbortSignal {
   return gone.signal;
 }
 
+// Why a conversation could not be given a grant under the caller's sign-in.
+type EndedReason = 'archived' | 'revoked' | 'not_allowed';
+
+// What a conversation that could not be given a grant answers: its own problem
+// type for each reason a person acts on differently.
+const ENDED_PROBLEMS: Readonly<Record<EndedReason, { type: string; detail: string }>> = {
+  archived: {
+    type: 'conversation-archived',
+    detail: 'the conversation is hidden from your list; restore it, then send the message again',
+  },
+  revoked: {
+    type: 'conversation-ended',
+    detail:
+      'the sign-in this conversation acted under was ended for a reason other than signing out, so it is not carried on; start a new conversation',
+  },
+  not_allowed: {
+    type: 'conversation-access-refused',
+    detail:
+      'the sign-in you hold now may not carry this conversation on: the assistant, your capabilities or the tenant it acts in no longer allow it',
+  },
+};
+
 // What a refused turn answers, for a message and a resume alike.
 function refusedTurn(
   outcome:
@@ -391,21 +413,17 @@ function refusedTurn(
     | { kind: 'busy' }
     | { kind: 'saturated' }
     | { kind: 'limited'; retryAfterSeconds: number }
-    | { kind: 'ended' },
+    | { kind: 'ended'; reason: EndedReason },
   request: AdminRequest,
   reply: FastifyReply,
 ): FastifyReply {
   if (outcome.kind === 'not_found') return notFound(request, reply);
   if (outcome.kind === 'ended') {
+    const refusal = ENDED_PROBLEMS[outcome.reason];
     return sendProblem(
       reply,
       request,
-      problem(
-        409,
-        'about:blank#conversation-ended',
-        'Conflict',
-        'the sign-in this conversation acts under has ended; start a new conversation',
-      ),
+      problem(409, `about:blank#${refusal.type}`, 'Conflict', refusal.detail),
     );
   }
   if (outcome.kind === 'busy') {

@@ -10003,7 +10003,7 @@ export interface paths {
         };
         /**
          * Requires the "use-assistant" capability.
-         * @description The caller’s most recently active conversation that is not hidden, with its latest messages, or `{ "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-in. `continuable` is false when the sign-in the conversation acts under has ended: it can be read and a new message to it is refused with `409`. `404` when no model is configured. Not offered to an agent.
+         * @description The caller’s most recently active conversation that is not hidden, with its latest messages, or `{ "conversation": null }` when they have none, so the console can reopen it after a reload or a sign-in. `continuable` is true when a new message would be answered, including after the person signed out or the sign-in lapsed, and false when the sign-in was ended for another reason: the conversation can be read and a new message to it is refused with `409` (`about:blank#conversation-ended`). `404` when no model is configured. Not offered to an agent.
          */
         get: {
             parameters: {
@@ -10045,7 +10045,7 @@ export interface paths {
                                 messages: components["schemas"]["AssistantConversationsPostResponseMessagesItem"][];
                                 /** @description True while the person has hidden it from their list. */
                                 archived: boolean;
-                                /** @description False when the sign-in the conversation acts under has ended, so a new message would be refused: the messages can be read, and a new conversation is the way to carry on. */
+                                /** @description True when a new message would be answered, which includes a conversation whose earlier sign-in ended by signing out or lapsing: the message gets a new grant from the current sign-in. False when its sign-in was ended for another reason, so the message would be refused: the messages can be read, and a new conversation is the way to carry on. */
                                 continuable: boolean;
                             } | null;
                         };
@@ -10130,7 +10130,7 @@ export interface paths {
         };
         /**
          * Requires the "use-assistant" capability.
-         * @description A conversation and its latest messages, oldest first, as the caller’s own. `404` for one that does not exist or belongs to another administrator, and when no model is configured.
+         * @description A conversation and its latest messages, oldest first, as the caller’s own, with `archived` and `continuable` (true when a message would be answered under the sign-in held now). `404` for one that does not exist or belongs to another administrator, and when no model is configured.
          */
         get: {
             parameters: {
@@ -10170,6 +10170,10 @@ export interface paths {
                             last_active_at: string;
                             /** @description The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them. */
                             messages: components["schemas"]["AssistantConversationsPostResponseMessagesItem"][];
+                            /** @description True while the person has hidden it from their list. */
+                            archived: boolean;
+                            /** @description True when a new message would be answered, which includes a conversation whose earlier sign-in ended by signing out or lapsing: the message gets a new grant from the current sign-in. False when its sign-in was ended for another reason, so the message would be refused: the messages can be read, and a new conversation is the way to carry on. */
+                            continuable: boolean;
                         };
                     };
                 };
@@ -10353,7 +10357,7 @@ export interface paths {
         put?: never;
         /**
          * Requires the "use-assistant" capability.
-         * @description Sends the caller’s message and streams the turn as server-sent events of AI SDK UI message chunks. The message is stored before the model is called and each step is stored as it ends. Closing the connection ends the turn. Each model call is reserved against the tenant’s token limits first, and a limit that refuses ends the turn with an error part that names the level and who can change it, never moving to a cheaper model. A `data-budget_warning` part says a level has passed 80 percent, and the last part, `data-turn_end`, carries a `stopReason`: `done`, `step_cap`, `budget_turn`, `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of this conversation is running on this server. `429` with a `Retry-After` when this server is running as many turns as it admits, or when the tenant already has as many in progress, on any server, as its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
+         * @description Sends the caller’s message and streams the turn as server-sent events of AI SDK UI message chunks. The message is stored before the model is called and each step is stored as it ends. Closing the connection ends the turn. Each model call is reserved against the tenant’s token limits first, and a limit that refuses ends the turn with an error part that names the level and who can change it, never moving to a cheaper model. A `data-budget_warning` part says a level has passed 80 percent, and the last part, `data-turn_end`, carries a `stopReason`: `done`, `step_cap`, `budget_turn`, `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of this conversation is running on this server. `429` with a `Retry-After` when this server is running as many turns as it admits, or when the tenant already has as many in progress, on any server, as its settings allow. `404` for a conversation that is not the caller’s. A conversation whose grant ended with an earlier sign-in of the caller’s (signing out, or a session that lapsed) is carried on first: a new grant is made from the sign-in the request came on, under the checks a first grant meets, and the old one ends, audited as `assistant.reattached`. Where that is refused nothing is stored and the answer is `409` with a problem type of its own: `about:blank#conversation-ended` (the sign-in ended for another reason), `about:blank#conversation-archived` (restore it first) or `about:blank#conversation-access-refused` (the sign-in held now may not carry it on). Takes no `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record cannot cover without holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-external-io`) and nothing is applied.
          */
         post: {
             parameters: {

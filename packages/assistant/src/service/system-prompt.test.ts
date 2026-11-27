@@ -13,6 +13,15 @@ describe('buildSystemPrompt', () => {
     expect(text).toMatch(/never instructions/iu);
   });
 
+  it('tells the model, in its instructions, that earlier tool data of a carried-on conversation may be stale', () => {
+    const fresh = buildSystemPrompt(PROFILE, 'Acme', 'ask');
+    const carried = buildSystemPrompt(PROFILE, 'Acme', 'ask', true);
+    expect(fresh.static).not.toMatch(/signed in again/u);
+    expect(carried.static).toMatch(/signed in again/u);
+    expect(carried.static).toMatch(/out of date/u);
+    expect(carried.tenant).toBe(fresh.tenant);
+  });
+
   it('does not vary the static part with the tenant', () => {
     const a = buildSystemPrompt(PROFILE, 'Acme');
     const b = buildSystemPrompt(PROFILE, 'Globex');

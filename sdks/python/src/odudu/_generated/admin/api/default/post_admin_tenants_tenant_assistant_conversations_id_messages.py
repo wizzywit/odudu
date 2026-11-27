@@ -96,10 +96,16 @@ def sync_detailed(
     `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of
     this conversation is running on this server. `429` with a `Retry-After` when this server is running
     as many turns as it admits, or when the tenant already has as many in progress, on any server, as
-    its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`:
-    the call waits on another server (mail or DNS) while it runs, which a record cannot cover without
-    holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-
-    external-io`) and nothing is applied.
+    its settings allow. `404` for a conversation that is not the caller’s. A conversation whose grant
+    ended with an earlier sign-in of the caller’s (signing out, or a session that lapsed) is carried on
+    first: a new grant is made from the sign-in the request came on, under the checks a first grant
+    meets, and the old one ends, audited as `assistant.reattached`. Where that is refused nothing is
+    stored and the answer is `409` with a problem type of its own: `about:blank#conversation-ended` (the
+    sign-in ended for another reason), `about:blank#conversation-archived` (restore it first) or
+    `about:blank#conversation-access-refused` (the sign-in held now may not carry it on). Takes no
+    `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record
+    cannot cover without holding the call open, so a request naming one is refused with `400`
+    (`about:blank#idempotency-external-io`) and nothing is applied.
 
     Args:
         tenant (str):
@@ -145,10 +151,16 @@ def sync(
     `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of
     this conversation is running on this server. `429` with a `Retry-After` when this server is running
     as many turns as it admits, or when the tenant already has as many in progress, on any server, as
-    its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`:
-    the call waits on another server (mail or DNS) while it runs, which a record cannot cover without
-    holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-
-    external-io`) and nothing is applied.
+    its settings allow. `404` for a conversation that is not the caller’s. A conversation whose grant
+    ended with an earlier sign-in of the caller’s (signing out, or a session that lapsed) is carried on
+    first: a new grant is made from the sign-in the request came on, under the checks a first grant
+    meets, and the old one ends, audited as `assistant.reattached`. Where that is refused nothing is
+    stored and the answer is `409` with a problem type of its own: `about:blank#conversation-ended` (the
+    sign-in ended for another reason), `about:blank#conversation-archived` (restore it first) or
+    `about:blank#conversation-access-refused` (the sign-in held now may not carry it on). Takes no
+    `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record
+    cannot cover without holding the call open, so a request naming one is refused with `400`
+    (`about:blank#idempotency-external-io`) and nothing is applied.
 
     Args:
         tenant (str):
@@ -189,10 +201,16 @@ async def asyncio_detailed(
     `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of
     this conversation is running on this server. `429` with a `Retry-After` when this server is running
     as many turns as it admits, or when the tenant already has as many in progress, on any server, as
-    its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`:
-    the call waits on another server (mail or DNS) while it runs, which a record cannot cover without
-    holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-
-    external-io`) and nothing is applied.
+    its settings allow. `404` for a conversation that is not the caller’s. A conversation whose grant
+    ended with an earlier sign-in of the caller’s (signing out, or a session that lapsed) is carried on
+    first: a new grant is made from the sign-in the request came on, under the checks a first grant
+    meets, and the old one ends, audited as `assistant.reattached`. Where that is refused nothing is
+    stored and the answer is `409` with a problem type of its own: `about:blank#conversation-ended` (the
+    sign-in ended for another reason), `about:blank#conversation-archived` (restore it first) or
+    `about:blank#conversation-access-refused` (the sign-in held now may not carry it on). Takes no
+    `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record
+    cannot cover without holding the call open, so a request naming one is refused with `400`
+    (`about:blank#idempotency-external-io`) and nothing is applied.
 
     Args:
         tenant (str):
@@ -236,10 +254,16 @@ async def asyncio(
     `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while a turn of
     this conversation is running on this server. `429` with a `Retry-After` when this server is running
     as many turns as it admits, or when the tenant already has as many in progress, on any server, as
-    its settings allow. `404` for a conversation that is not the caller’s. Takes no `Idempotency-Key`:
-    the call waits on another server (mail or DNS) while it runs, which a record cannot cover without
-    holding the call open, so a request naming one is refused with `400` (`about:blank#idempotency-
-    external-io`) and nothing is applied.
+    its settings allow. `404` for a conversation that is not the caller’s. A conversation whose grant
+    ended with an earlier sign-in of the caller’s (signing out, or a session that lapsed) is carried on
+    first: a new grant is made from the sign-in the request came on, under the checks a first grant
+    meets, and the old one ends, audited as `assistant.reattached`. Where that is refused nothing is
+    stored and the answer is `409` with a problem type of its own: `about:blank#conversation-ended` (the
+    sign-in ended for another reason), `about:blank#conversation-archived` (restore it first) or
+    `about:blank#conversation-access-refused` (the sign-in held now may not carry it on). Takes no
+    `Idempotency-Key`: the call waits on another server (mail or DNS) while it runs, which a record
+    cannot cover without holding the call open, so a request naming one is refused with `400`
+    (`about:blank#idempotency-external-io`) and nothing is applied.
 
     Args:
         tenant (str):

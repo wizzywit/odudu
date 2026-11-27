@@ -49,6 +49,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         audience: [RESOURCE],
         createdAt: new Date(0),
         revokedAt: f.grantRevoked === true ? new Date(1) : null,
+        revokedCause: null,
         sessionId: 'session-1',
         actorSubjectId: null,
         exchangedFromGrantId: null,

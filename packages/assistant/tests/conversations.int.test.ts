@@ -14,6 +14,8 @@ import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/test
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { conversationRepository, type NewConversation } from '#/repository/conversations';
+import type { ChatCaller } from '#/usecase/chat-deps';
+import { conversationGrantId } from '#/usecase/conversation-grant';
 import {
   ConversationNotFoundError,
   ConversationTailChangedError,
@@ -117,6 +119,18 @@ async function seedConversation(tx: TenantScopedDatabase, tenantId: string): Pro
   return { tenantId, subjectId, conversationId: created.id };
 }
 
+function callerOf(tenantId: string, ownerSubjectId: string): ChatCaller {
+  return {
+    tenantId,
+    tenantName: 'assistant',
+    issuer: 'https://idp.test',
+    ownerSubjectId,
+    grantId: undefined,
+    requestId: 'req',
+    ip: '127.0.0.1',
+  };
+}
+
 async function verifySeeded(tx: TenantScopedDatabase, seeded: Seeded): Promise<void> {
   const found = await conversationRepository(tx).byId(seeded.conversationId);
   expect(found?.mode).toBe('ask');
@@ -206,6 +220,83 @@ describe('every method refuses a foreign tenant', () => {
       verifyTenantAUnaffected: async (tx, seeded) => {
         expect((await conversationRepository(tx).byId(seeded.conversationId))?.mode).toBe('ask');
       },
+    });
+  });
+
+  it('rebind', async () => {
+    const grantId = newId();
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedConversation,
+      verifySeeded,
+      attempt: async (tx, seeded) =>
+        conversationRepository(tx).rebind(
+          seeded.conversationId,
+          { grantId, generation: 1, instanceId: newId() },
+          0,
+        ),
+      expectBlocked: (result) => {
+        expect(result).toBe(false);
+      },
+      verifyTenantAUnaffected: async (tx, seeded) => {
+        const found = await conversationRepository(tx).byId(seeded.conversationId);
+        expect(found?.grantId).toBeNull();
+        expect(found?.runGeneration).toBe(0);
+      },
+    });
+  });
+
+  it('lock', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedConversation,
+      verifySeeded,
+      attempt: async (tx, seeded) => conversationRepository(tx).lock(seeded.conversationId),
+      expectBlocked: (result) => {
+        expect(result).toBeUndefined();
+      },
+    });
+  });
+
+  it('conversationGrantId reads no row of another tenant', async () => {
+    await expectCrossTenantMethodProbe(app.db, {
+      seed: seedConversation,
+      verifySeeded,
+      attempt: async (tx, seeded) =>
+        (await conversationGrantId(
+          tx,
+          callerOf(seeded.tenantId, seeded.subjectId),
+          seeded.conversationId,
+        )) === seeded.conversationId,
+      expectBlocked: (result) => {
+        expect(result).toBe(true);
+      },
+    });
+  });
+
+  it('rebinds once from the generation it was told, and names the grant afterwards', async () => {
+    const tenantId = newId();
+    const grantId = newId();
+    const instanceId = newId();
+    await withTenant(app.db, tenantId, async (tx) => {
+      const subjectId = await seedTenant(tx, tenantId);
+      const created = await conversationRepository(tx).create(conversation(tenantId, subjectId));
+      const caller = callerOf(tenantId, subjectId);
+      expect(await conversationGrantId(tx, caller, created.id)).toBe(created.id);
+      expect(
+        await conversationGrantId(tx, callerOf(tenantId, newId()), created.id),
+      ).toBeUndefined();
+      const repository = conversationRepository(tx);
+      expect(await repository.rebind(created.id, { grantId, generation: 1, instanceId }, 5)).toBe(
+        false,
+      );
+      expect(await repository.rebind(created.id, { grantId, generation: 1, instanceId }, 0)).toBe(
+        true,
+      );
+      expect(await repository.rebind(created.id, { grantId, generation: 2, instanceId }, 0)).toBe(
+        false,
+      );
+      const found = await repository.byId(created.id);
+      expect(found).toMatchObject({ grantId, runGeneration: 1, instanceId });
+      expect(await conversationGrantId(tx, caller, created.id)).toBe(grantId);
     });
   });
 

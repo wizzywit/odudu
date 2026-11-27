@@ -1,12 +1,12 @@
 import type {
   AssistantApprovalCard,
-  AssistantConversation,
   AssistantMode,
   AssistantResumedConversation,
   CreateConversationRequest,
   SendMessageRequest,
 } from '@odudu/contracts/admin';
 import { createUIMessageStreamResponse } from 'ai';
+import type { EndedReason } from '#/service/reattach-reason';
 import { createTurnRegistry } from '#/service/turn-registry';
 import { decideCard, listApprovals, setConversationMode } from '#/usecase/approvals';
 import type { SetModeOutcome } from '#/usecase/approvals';
@@ -51,8 +51,8 @@ export type SendResult =
   | { kind: 'busy' }
   | { kind: 'saturated' }
   | { kind: 'limited'; retryAfterSeconds: number }
-  // The sign-in the conversation acts under has ended: it can be read, not continued.
-  | { kind: 'ended' };
+  // The conversation could not be given a grant under this sign-in, for the reason named.
+  | { kind: 'ended'; reason: EndedReason };
 
 /** A resume adds two answers: a change still waits, or nothing does. */
 export type ResumeResult = SendResult | { kind: 'waiting' } | { kind: 'nothing_waiting' };
@@ -65,7 +65,7 @@ export type ResumeResult = SendResult | { kind: 'waiting' } | { kind: 'nothing_w
  */
 export interface Chat {
   create(caller: ChatCaller, body: CreateConversationRequest): Promise<CreateOutcome>;
-  load(caller: ChatCaller, id: string): Promise<AssistantConversation | null>;
+  load(caller: ChatCaller, id: string): Promise<AssistantResumedConversation | null>;
   /** One page of the caller's own conversations, newest activity first. */
   list(caller: ChatCaller, input: ListInput): Promise<ListOutcome>;
   /** The caller's latest conversation that is not hidden, with its messages, or null. */

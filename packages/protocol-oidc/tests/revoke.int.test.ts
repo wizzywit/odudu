@@ -13,10 +13,12 @@ import { provisionTenant } from '@odudu/authn-flows';
 import { clients, provisionClientDefaults } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { createAppRole, startTestDatabase, type TestDatabase } from '@odudu/testkit';
+import { sql } from 'drizzle-orm';
 import formbody from '@fastify/formbody';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { oidcRoutes } from '#/index';
+import { hashRefreshToken } from '#/service/refresh';
 import { clientOidcConfigRepository } from '#/repository/client-oidc-config';
 import { NO_CLIENT_KEY_FETCHER } from '#/repository/client-keys';
 import { UNLIMITED_CLIENT_SECRET_LIMITER } from '#/service/client-secret-throttle';
@@ -350,6 +352,68 @@ describe('[RFC7009-2.1-02] a refresh token names the grant it revokes', () => {
     expect((await redeemRefresh(refreshToken)).json<{ error: string }>().error).toBe(
       'invalid_grant',
     );
+  });
+});
+
+describe('why a grant was revoked is recorded only for the console signing its own person out', () => {
+  async function causeOf(token: string): Promise<string | null | undefined> {
+    const rows = (await owner.db.execute(
+      sql`select g.revoked_cause from token_grants g join refresh_tokens r on r.grant_id = g.id
+           where g.tenant_id = ${TENANT_ID} and r.token_hash = ${hashRefreshToken(token)}`,
+    )) as unknown as { revoked_cause: string | null }[];
+    return rows[0]?.revoked_cause;
+  }
+
+  it('leaves the cause empty when an ordinary client revokes', async () => {
+    const { refreshToken } = await completeAuthorizationCodeFlow();
+    expect((await revoke({ token: refreshToken, auth: client })).statusCode).toBe(200);
+    expect(await causeOf(refreshToken)).toBeNull();
+  });
+
+  it('records a sign-out when the built-in admin client revokes', async () => {
+    const { refreshToken } = await completeAuthorizationCodeFlow();
+    await owner.db.execute(
+      sql`update clients set builtin_admin = true where tenant_id = ${TENANT_ID} and client_id = ${CLIENT_ID}`,
+    );
+    try {
+      expect((await revoke({ token: refreshToken, auth: client })).statusCode).toBe(200);
+      expect(await causeOf(refreshToken)).toBe('sign_out');
+    } finally {
+      await owner.db.execute(
+        sql`update clients set builtin_admin = false where tenant_id = ${TENANT_ID} and client_id = ${CLIENT_ID}`,
+      );
+    }
+  });
+});
+
+describe('why a grant was revoked is recorded only for the console signing its own person out', () => {
+  async function causeOf(token: string): Promise<string | null | undefined> {
+    const rows = (await owner.db.execute(
+      sql`select g.revoked_cause from token_grants g join refresh_tokens r on r.grant_id = g.id
+           where g.tenant_id = ${TENANT_ID} and r.token_hash = ${hashRefreshToken(token)}`,
+    )) as unknown as { revoked_cause: string | null }[];
+    return rows[0]?.revoked_cause;
+  }
+
+  it('leaves the cause empty when an ordinary client revokes', async () => {
+    const { refreshToken } = await completeAuthorizationCodeFlow();
+    expect((await revoke({ token: refreshToken, auth: client })).statusCode).toBe(200);
+    expect(await causeOf(refreshToken)).toBeNull();
+  });
+
+  it('records a sign-out when the built-in admin client revokes', async () => {
+    const { refreshToken } = await completeAuthorizationCodeFlow();
+    await owner.db.execute(
+      sql`update clients set builtin_admin = true where tenant_id = ${TENANT_ID} and client_id = ${CLIENT_ID}`,
+    );
+    try {
+      expect((await revoke({ token: refreshToken, auth: client })).statusCode).toBe(200);
+      expect(await causeOf(refreshToken)).toBe('sign_out');
+    } finally {
+      await owner.db.execute(
+        sql`update clients set builtin_admin = false where tenant_id = ${TENANT_ID} and client_id = ${CLIENT_ID}`,
+      );
+    }
   });
 });
 

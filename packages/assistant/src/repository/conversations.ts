@@ -113,6 +113,31 @@ export function conversationRepository(tx: AssistantTx) {
       return row;
     },
 
+    // Points the conversation at the grant a new sign-in made and at the run that
+    // grant's instance belongs to. The generation must be the one the caller read
+    // under the row lock, so a stale caller changes nothing.
+    async rebind(
+      id: string,
+      change: { grantId: string; generation: number; instanceId: string },
+      observed: number,
+    ): Promise<boolean> {
+      const rows = await tx
+        .update(assistantConversations)
+        .set({
+          grantId: change.grantId,
+          runGeneration: change.generation,
+          instanceId: change.instanceId,
+        })
+        .where(
+          and(
+            eq(assistantConversations.id, id),
+            eq(assistantConversations.runGeneration, observed),
+          ),
+        )
+        .returning({ id: assistantConversations.id });
+      return rows.length > 0;
+    },
+
     // One person's conversations in one of their two lists, newest activity
     // first, served by the partial index of that list. The limit is bounded at
     // MAX_LIMIT whatever the caller passes; one extra row says whether a further
@@ -167,7 +192,8 @@ export function conversationRepository(tx: AssistantTx) {
     },
 
     // Takes the row's lock, which every write to the conversation takes, so a
-    // delete waits for a write in flight and a write waits for the delete.
+    // delete waits for a write in flight and a write waits for the delete, and
+    // two messages at once that find the grant ended make one new grant between them.
     async lock(id: string): Promise<ConversationRecord | undefined> {
       const [row] = await tx
         .select()

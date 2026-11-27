@@ -402,7 +402,7 @@ describe('the roadmap and section 11 of the design spec agree', () => {
       'work inside P5c, whose console assistant row already places the assistant screens',
     ],
     [
-      'Carrying an old conversation on',
+      'Two owner decisions of 2026-11-26',
       ['P5c'],
       'work inside P5c, whose console assistant row already places the conversation list',
     ],

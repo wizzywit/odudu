@@ -14,6 +14,8 @@ import { tenantEnabledRepository } from '#/repository/tenant-enabled';
 import {
   ASSISTANT_WRITE_CEILING,
   assistantGrantRefusal,
+  reattachDecision,
+  type ReattachDecision,
   assistantScopeCeiling,
   type AssistantTargetFacts,
   type AssistantGrantRefusal,
@@ -178,4 +180,88 @@ async function deriveAssistantGrant(
 async function capabilitiesOf(tx: TenantScopedDatabase, subjectId: string): Promise<string[]> {
   const roles = await effectiveRoles(tx, subjectId);
   return roles.filter((role) => role.clientKey === ADMIN_CLIENT_ID).map((role) => role.name);
+}
+
+export interface ReattachAssistantAccessInput extends Omit<
+  GrantAssistantAccessInput,
+  'newGrantId' | 'scope'
+> {
+  // The grant the conversation acted under until now.
+  readonly previousGrantId: string;
+  readonly newGrantId: string;
+  readonly archived: boolean;
+}
+
+export type ReattachedAccess =
+  | { readonly kind: 'live' }
+  | {
+      readonly kind: 'reattached';
+      readonly grant: TokenGrantRecord;
+      readonly previousGrantId: string;
+    };
+
+/**
+ * What a message to a conversation needs under the console sign-in it arrived
+ * on: nothing where its grant is live from this sign-in, otherwise a new grant
+ * derived from this sign-in under every check `grantAssistantAccess` makes, with
+ * the old grant ended so nothing it held carries over and the conversation never
+ * holds two. A refusal throws `AssistantGrantRefused` and writes nothing. The
+ * caller locks the conversation's row, so two messages at once make one grant.
+ */
+export async function reattachAssistantAccess(
+  tx: TenantScopedDatabase,
+  deps: GrantAssistantAccessDeps,
+  input: ReattachAssistantAccessInput,
+): Promise<ReattachedAccess> {
+  const grants = tokenGrantRepository(tx);
+  const decision = await reattachDecisionFor(tx, input);
+  if (decision.kind === 'live') return { kind: 'live' };
+  if (decision.kind === 'refused') throw new AssistantGrantRefused(decision.reason);
+  const grant = await grantAssistantAccess(tx, deps, {
+    newGrantId: input.newGrantId,
+    consoleGrantId: input.consoleGrantId,
+    expectedSubjectId: input.expectedSubjectId,
+    mode: input.mode,
+    now: input.now,
+    ...(input.target === undefined ? {} : { target: input.target }),
+  });
+  await grants.revoke(input.previousGrantId, input.now, 'reattached');
+  return { kind: 'reattached', grant, previousGrantId: input.previousGrantId };
+}
+
+/**
+ * The decision `reattachAssistantAccess` would act on, made without changing
+ * anything: whether a message to the conversation would be answered, which the
+ * conversation reopened after a sign-in reports as `continuable`.
+ */
+export async function reattachDecisionFor(
+  tx: TenantScopedDatabase,
+  input: Pick<
+    ReattachAssistantAccessInput,
+    'previousGrantId' | 'consoleGrantId' | 'expectedSubjectId' | 'archived'
+  >,
+): Promise<ReattachDecision> {
+  const grants = tokenGrantRepository(tx);
+  const previous = await grants.byId(input.previousGrantId);
+  const parent =
+    previous?.exchangedFromGrantId == null
+      ? null
+      : await grants.byId(previous.exchangedFromGrantId);
+  const assistant = await clientRepository(tx).byClientId(ASSISTANT_CLIENT_ID);
+  return reattachDecision({
+    consoleGrantId: input.consoleGrantId,
+    expectedSubjectId: input.expectedSubjectId,
+    archived: input.archived,
+    previous:
+      previous === null
+        ? null
+        : {
+            subjectId: previous.subjectId,
+            isAssistantGrant: assistant !== null && previous.clientId === assistant.id,
+            revokedAt: previous.revokedAt,
+            exchangedFromGrantId: previous.exchangedFromGrantId,
+          },
+    parent:
+      parent === null ? null : { revokedAt: parent.revokedAt, revokedCause: parent.revokedCause },
+  });
 }

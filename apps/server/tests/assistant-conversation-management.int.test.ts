@@ -282,7 +282,7 @@ describe('a person’s own conversations through the admin API', () => {
     expect((await call(w, token, 'GET', `/conversations/${id}`)).statusCode).toBe(200);
   });
 
-  it('reopens read-only after a new sign-in, and refuses a message to it before any turn', async () => {
+  it('reports a conversation as continuable after a new sign-in, and read-only when its sign-in was revoked for cause', async () => {
     const w = await s().world(['use-assistant'], 'openid');
     const first = await signIn(w);
     const id = await started(w, first);
@@ -291,6 +291,14 @@ describe('a person’s own conversations through the admin API', () => {
     });
 
     const second = await signIn(w);
+    expect((await call(w, second, 'GET', '/last-conversation')).json()).toMatchObject({
+      conversation: { id, continuable: true },
+    });
+
+    // The conversation's own grant ended without the person signing out.
+    await withTenant(s().appDb.db, w.tenantId, (tx) =>
+      tokenGrantRepository(tx).revoke(id, new Date()),
+    );
     const reopened = await call(w, second, 'GET', '/last-conversation');
     expect(reopened.json()).toMatchObject({ conversation: { id, continuable: false } });
 

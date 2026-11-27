@@ -13,6 +13,7 @@ export {
   type CapRefusal,
 } from '#/service/approval-limits';
 export type { RunTurnDeps, StreamResult, TurnInput } from '#/usecase/run-turn';
+export { conversationGrantId } from '#/usecase/conversation-grant';
 export { createChat } from '#/view/chat-route';
 export type {
   Chat,
@@ -30,7 +31,11 @@ export type {
   SendResult,
   SetModeOutcome,
 } from '#/view/chat-route';
+export type { EndedReason } from '#/service/reattach-reason';
 export type {
+  ReattachInput,
+  ReattachResult,
+  Reattacher,
   ApprovalPorts,
   ConversationAuditEvent,
   ConversationPorts,

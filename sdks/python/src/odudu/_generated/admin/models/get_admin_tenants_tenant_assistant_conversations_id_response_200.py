@@ -33,6 +33,11 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
         last_active_at (str): When it last took a message.
         messages (list[AssistantConversationsPostResponseMessagesItem]): The latest messages, oldest first, never more
             than 100; the page context the conversation started with is not among them.
+        archived (bool): True while the person has hidden it from their list.
+        continuable (bool): True when a new message would be answered, which includes a conversation whose earlier sign-
+            in ended by signing out or lapsing: the message gets a new grant from the current sign-in. False when its sign-
+            in was ended for another reason, so the message would be refused: the messages can be read, and a new
+            conversation is the way to carry on.
     """
 
     id: str
@@ -42,6 +47,8 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
     created_at: str
     last_active_at: str
     messages: list[AssistantConversationsPostResponseMessagesItem]
+    archived: bool
+    continuable: bool
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -62,6 +69,10 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
             messages_item = messages_item_data.to_dict()
             messages.append(messages_item)
 
+        archived = self.archived
+
+        continuable = self.continuable
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -73,6 +84,8 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
                 "created_at": created_at,
                 "last_active_at": last_active_at,
                 "messages": messages,
+                "archived": archived,
+                "continuable": continuable,
             }
         )
 
@@ -113,6 +126,10 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
 
             messages.append(messages_item)
 
+        archived = d.pop("archived")
+
+        continuable = d.pop("continuable")
+
         get_admin_tenants_tenant_assistant_conversations_id_response_200 = cls(
             id=id,
             profile=profile,
@@ -121,6 +138,8 @@ class GetAdminTenantsTenantAssistantConversationsIdResponse200:
             created_at=created_at,
             last_active_at=last_active_at,
             messages=messages,
+            archived=archived,
+            continuable=continuable,
         )
 
         return get_admin_tenants_tenant_assistant_conversations_id_response_200

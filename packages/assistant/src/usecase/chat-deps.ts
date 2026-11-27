@@ -167,8 +167,37 @@ export interface ConversationPorts {
    * conversation is deleted. A failure is logged and changes nothing the person saw:
    * the grant holds no text and ends with the sign-in it came from.
    */
-  readonly endAccess?: (caller: ChatCaller, conversationId: string, now: Date) => Promise<void>;
+  readonly endAccess?: (
+    caller: ChatCaller,
+    conversationId: string,
+    now: Date,
+    grantId: string,
+  ) => Promise<void>;
 }
+
+/** What a conversation's grant is replaced under: its old grant and what the new one may hold. */
+export interface ReattachInput {
+  readonly conversationId: string;
+  readonly previousGrantId: string;
+  readonly newGrantId: string;
+  readonly mode: ConversationMode;
+  readonly archived: boolean;
+  readonly now: Date;
+}
+
+/**
+ * `live`: the conversation's grant is live and came from the caller's sign-in.
+ * `attached`: a new grant was made from it and the old one ended, and the
+ * `assistant.reattached` row was written, all in the transaction given.
+ * `refused`: a fixed code, with an `assistant.access_refused` row and nothing else written.
+ */
+export type ReattachResult =
+  | { readonly kind: 'live' }
+  | { readonly kind: 'attached'; readonly grantId: string }
+  | { readonly kind: 'refused'; readonly code: string };
+
+/** Replaces a conversation's grant in the transaction that `ChatBase.reattach` opened. */
+export type Reattacher = (input: ReattachInput) => Promise<ReattachResult>;
 
 interface ChatBase {
   /** Runs `fn` in one short transaction bound to the tenant. */
@@ -214,9 +243,19 @@ interface ChatBase {
   /** Deleting and exporting a person's own conversations; see `ConversationPorts`. */
   readonly conversations?: ConversationPorts;
   /**
-   * Whether the conversation's own grant is live and was made from the sign-in the
-   * caller holds now, so a message to it would be answered. Absent, every
-   * conversation counts as continuable.
+   * Carries a conversation on under the sign-in the caller holds now. Reads what
+   * the new grant's checks need (the tenant, the target), then runs `step` in one
+   * transaction bound to the tenant with the means to replace the conversation's
+   * grant in that same transaction. Absent, every conversation keeps the grant it has.
+   */
+  readonly reattach?: <T>(
+    caller: ChatCaller,
+    step: (tx: AssistantTx, reattach: Reattacher) => Promise<T>,
+  ) => Promise<T>;
+  /**
+   * Whether a message to the conversation would be answered under the sign-in the
+   * caller holds now, live or after it is carried on, without changing anything.
+   * Absent, every conversation counts as continuable.
    */
   readonly continuable?: (caller: ChatCaller, conversationId: string) => Promise<boolean>;
   /** What a tenant may use; the open implementation reads the tenant's settings. */

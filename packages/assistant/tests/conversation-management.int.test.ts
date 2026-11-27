@@ -133,6 +133,17 @@ function harness(): Harness {
         value: await fn(tx),
       })),
     continuable: () => Promise.resolve(continuable.value),
+    // A grant that cannot be carried on is refused as one revoked for cause.
+    reattach: (caller, step) =>
+      withTenant(app.db, caller.tenantId, (tx) =>
+        step(tx, () =>
+          Promise.resolve(
+            continuable.value
+              ? { kind: 'live' as const }
+              : { kind: 'refused' as const, code: 'revoked_for_cause' },
+          ),
+        ),
+      ),
     conversations: {
       digestKey: KEY,
       withAudit: (caller, fn) =>
@@ -326,7 +337,7 @@ describe('reopening the latest conversation', () => {
       { id: newId(), role: 'user', parts: [{ type: 'text', text: 'again' }] },
       new AbortController().signal,
     );
-    expect(sent.kind).toBe('ended');
+    expect(sent).toEqual({ kind: 'ended', reason: 'revoked' });
     const stored = await withTenant(app.db, w.tenantId, (tx) =>
       messageRepository(tx).load(id, 100),
     );

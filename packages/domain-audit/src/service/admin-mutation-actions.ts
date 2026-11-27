@@ -8,6 +8,7 @@ export const ADMIN_MUTATION_ACTIONS = [
   'assistant.config',
   'assistant.conversation_deleted',
   'assistant.conversation_exported',
+  'assistant.reattached',
   'assistant.report',
   'assistant.text_read',
   'assistant.turn',
