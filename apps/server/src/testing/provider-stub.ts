@@ -2,7 +2,7 @@
 // console assistant: it answers `/v1/chat/completions` with a streamed reply
 // replayed from a fixture, chosen by what the person last wrote and how many tool
 // results have come back since. It calls no model and keeps no state, and it has
-// no imports of this repository's, so `node provider-stub-main.ts` runs it as it is.
+// no imports of this repository's, so node runs it as it is (e2e/run.sh imports it).
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 interface Reply {
