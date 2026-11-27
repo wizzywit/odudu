@@ -28,7 +28,7 @@ Open **Assistant activity**. Each row is one conversation: its title, the profil
 
 Narrow it with the filters above the table:
 
-- **Kind of conversation** shows only those that proposed a change, those where a budget refused an answer, or those where a tool failed.
+- **Kind of conversation** shows only those that proposed a change, those where a budget refused an answer, or those where a tool failed; All conversations takes the filter off.
 - **Last outcome** shows only those whose latest answer ended one way: answered, waiting for a decision, stopped at its step limit, stopped by a budget, ended early or failed.
 - **Tool** shows those that called one tool, named as the assistant's tool list spells it, such as `list_clients`.
 - **Person (id)** and **Conversation (id)** take an id. The easy way to a person's conversations is **Only this person** on one of their rows, which fills **Person (id)** for you. The person's name links to their record when you may read subjects.
@@ -49,7 +49,7 @@ Each answer is a card with how it ended and when it started. The latest is open.
 
 - **Why it stopped**, in words: the model finished, the answer reached its step limit, a named budget had no room for the next call, a change waited for the person's decision, or the answer failed.
 - **Why this model**, once for each model the answer chose: the slot, the model and the reason the choice was made.
-- **Decisions**, the things the server weighed before and between model calls: which tools it narrowed to, whether a budget reserved or refused the next call, and what the approval policy did with a change.
+- **Decisions**, the things the server weighed before and between model calls: which tools it narrowed to (the entry reads Narrowed the tools, with the mode and the number of reads and writes it kept), whether a budget reserved or refused the next call, whether the history was cut down to fit (Trimmed the history), and what the approval policy did with a change. A turn that kept more than the trace holds ends its entries with The rest of the turn was not kept and says how many were dropped.
 - **Steps**, one for each model call, with the model, the tokens in and out and how long it took. Under each step are what it did, in order: the tool it called with the arguments it was given, what the tool returned, and what the assistant said.
 
 An answer shows the first hundred of its entries, and a button under them draws the next hundred. A long input or result is cut and says so. The changes the assistant proposed are listed above the answers with the tool, what each was aimed at, whether it was approved, denied, expired or consumed, and when it was decided.

@@ -19,6 +19,10 @@ export function tokenBreakdown(tokens: SlotTokens): string {
   return `Fast ${groupedNumber(tokens.fast)}, standard ${groupedNumber(tokens.standard)}, deep ${groupedNumber(tokens.deep)}`;
 }
 
+export function tokensText(tokens: SlotTokens): string {
+  return `${groupedNumber(tokenTotal(tokens))} tokens`;
+}
+
 export function answersText(conversation: ActivityConversation): string {
   return `${counted(conversation.turns, 'answer', 'answers')}, ${counted(conversation.steps, 'model call', 'model calls')}`;
 }

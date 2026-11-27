@@ -14,7 +14,6 @@ import { SelectField, TextField } from '#/shared/ui/Field';
 import { ResourceListPage } from '#/shared/ui/ResourceListPage';
 import { StatusTag } from '#/shared/ui/StatusTag';
 import { Timestamp } from '#/shared/ui/Timestamp';
-import { groupedNumber } from '#/shared/lib/services/format';
 import styles from '#/pages/assistant-activity/ui/AssistantActivityPage/AssistantActivityPage.module.css';
 
 const AREA = areaAt('assistant-activity');
@@ -98,7 +97,7 @@ function columns(page: Page): readonly Column<ActivityConversation>[] {
       cell: (row) => (
         <span className={styles.stack}>
           <span>{page.say.answers(row)}</span>
-          <span>{groupedNumber(page.say.total(row.tokens))} tokens</span>
+          <span>{page.say.tokens(row.tokens)}</span>
           <span className={styles.muted}>{page.say.breakdown(row.tokens)}</span>
           <span className={styles.muted}>{page.say.tools(row.tools)}</span>
         </span>
