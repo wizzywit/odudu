@@ -38,8 +38,8 @@ one product. That combination is the claim this phase makes true.
 6. Two records of everything it does (ADR 0058) and a screen to investigate them.
 7. Off, silently, when no provider is configured.
 
-**Non-goals.** No tool beyond P5a's 64 reads and 12 writes (P5b widens them for the
-MCP endpoint and the assistant together). No web, fetch or outbound tools. No
+**Non-goals.** No tool beyond the 64 reads and, for writes, the surface section 5.3a fixes
+(P5b widens the MCP endpoint's separately). No web, fetch or outbound tools. No
 proactive, scheduled or whole-tenant review, anomaly detection or policy
 suggestion: that is the paid managed assistant (ADR 0055). No voice, files or
 images in. No memory across conversations in the first scope. No agent gallery.
@@ -199,7 +199,7 @@ Our code lives in the SDK's hooks:
   are automatic; a write in Ask mode is denied with a reason the model sees; a write
   in Act mode is `user-approval`, which stores an `agent_approvals` row (P5) and
   surfaces the card. The decision arrives from the person's authenticated request,
-  never from the agent's token. A write outside the 12 is not in the tool list.
+  never from the agent's token. A write outside section 5.3a's surface is not in the tool list.
   **Resuming:** the conversation's messages, including the pending
   `tool-approval-request`, are stored in PostgreSQL. On a decision any server instance
   loads them, appends the `tool-approval-response` and calls the agent again, which is
@@ -216,9 +216,48 @@ Our code lives in the SDK's hooks:
   carries conversation and turn ids. If the row cannot be written the call does not
   run.
 
-Anything the model can do beyond the 12 writes it does by preparing, not performing:
+Anything the model can do beyond the surface below it does by preparing, not performing:
 "prepare a client for my app" returns a structured draft that opens the console's
 existing creation form pre-filled, and the person submits it.
+
+### 5.3a The write surface (owner ruling of 2026-11-27, amends the first scope's 12 writes)
+
+Act covers every console write except the human-only list below. The reasoning, the
+tiers and the guard are [ADR 0061](../../adr/0061-the-assistants-write-surface-tiers-human-only-operations-and-the-coverage-guard.md);
+the increments are [the plan](../plans/2026-11-27-p5c-act-surface.md). Tiers: **A** an
+approved card; **B** a card plus a confirmation of the removal; **C** a card, a set-diff
+where a list is replaced, and the target's name typed in the decision; **X** human-only.
+Every write stays approved by the person, audited, and never `auto`. A tier rises by
+target on the server: a target that reaches an administrator capability, the owner, a
+built-in client or the conversation's own grant is X.
+
+**Human-only, one line each** (owner may overturn: marked "yes" with what it waits for):
+
+- Secret-returning creates: a confidential client, a client secret, a registration token and
+  a subject's one-time password. The model would carry the secret into stored messages, trace
+  and provider. The assistant prefills the console form and the person submits. Yes, with a
+  reveal channel.
+- The mail relay (`PUT ~/smtp`): its password would arrive through chat. Prefilled form. Yes.
+- Anything reaching an administrator capability, decided per target on the server: role,
+  group, composite, default and group-role changes, subject roles and groups, and a change to
+  or deletion of an administrator or the owner. Yes, once a delegated-administrator rule exists.
+- `DELETE ~/sessions` for the tenant: it has no "except mine", so it ends the approver's own
+  session and the run. Yes, once the route can exclude the caller.
+- The assistant's own settings and evidence: its mode, budget and allowance, the built-in
+  clients, `audit_retention_days`, its own agent lineage. No.
+- The nine conversation routes: the approval decision must not be reachable by the model. No.
+- `PATCH ~` with `enabled` and `DELETE ~`: a disable ends the conversation's session, a delete
+  loses the tenant. No.
+- `POST /admin/tenants` and `POST /admin/tenant-imports`: no tenant to bind a grant to, and
+  the import returns fresh secrets. Placed on the next phase. Yes, with an instance-write door.
+- `POST ~/theme/assets` (a raw image body) and the two verified-claim fields of a subject's
+  profile (only the mail flow sets them). No.
+
+Bulk subject creation (`POST ~/subjects/bulk`) is a tier C tool with a batch bound; the owner
+may overturn. The reads are accounted for the same way: every one is a tool or a registered
+exclusion with a reason, three gain a tool (registration tokens without the token, a subject's
+credential types, a masked mail relay status) and the assistant's own exclusions are a list
+(ADR 0061).
 
 ### 5.4 Modes, slots, sub-agents, routing
 
@@ -468,15 +507,19 @@ applies.
 2. Engine over `ToolLoopAgent` with the read tools, conversations in PostgreSQL, the
    streaming route, mock-model tests.
 3. Budget ledger, limits, entitlements interface, settings.
-4. Act mode: approvals, the card's server side, the 12 writes.
+4. Act mode: approvals, the card's server side, the first 12 writes.
 5. Trace recorder, audit rows, reaper, activity API.
 6. Console panel: chat, activity feed, meter, modes, ⌘K.
 7. Task profiles and AI buttons, prefilled drafts.
 8. Activity screen, report control, promptfoo export.
 9. Sub-agent tool and routing with escalation.
 10. Evals, injection suite, golden tasks in CI; documentation; closing pass.
+11. The write surface of section 5.3a and the reads' accounting, in the plan
+    `2026-11-27-p5c-act-surface.md`: W0 to W6 (door, tiers, the tools), R1a and R1b (reads,
+    assistant exclusions, injection coverage) and F1 (prefilled drafts of the human-only
+    creates). 66 hours.
 
-Estimate 120 to 160 hours.
+Estimate 190 to 230 hours.
 
 ## 8. Exit criteria
 
@@ -494,7 +537,9 @@ configuration change proven by running the golden tasks on two hosted providers 
 one self-hosted model; every turn
 leaves an audit row and a trace that the activity screen replays, and if the row
 cannot be written the action does not run; the injection suite passes against a real
-model; every new table is probed with a foreign tenant; documentation, transcripts,
+model; every console write is an assistant tool of a tier or a registered human-only entry
+with a reason and a decision, and every read is a tool or a registered exclusion, both held by
+`tests/lint/mcp-tool-coverage.test.ts`; every new table is probed with a foreign tenant; documentation, transcripts,
 screenshots and `CHANGELOG.md` are current.
 
 ## 9. Residual risk stated
@@ -524,6 +569,8 @@ target's administrators see the actions in their own audit trail and not the tex
 
 ## 11. What stays for other phases
 
-More tools and the confirmation step for the withheld classes: P5b. The managed
+More tools and the confirmation step for the withheld classes on the MCP endpoint: P5b. The
+assistant's secret reveal channel, tenant creation and import, the delegated-administrator
+rule for admin-reach changes and sessions without the caller: P5d. The managed
 assistant, tiers, proactive work: the paid layer (ADR 0055). Memory across
 conversations, voice, files: not scheduled.
