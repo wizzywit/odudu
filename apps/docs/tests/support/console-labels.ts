@@ -639,7 +639,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "button: 'Review with the assistant'",
   ),
   'Ask the assistant': entity('assistant/services/wording.ts', "openButton: 'Ask the assistant'"),
-  Close: entity('assistant/services/wording.ts', "closeButton: 'Close'"),
+  Close: widget('assistant-panel/services/wording.ts', "closeButton: 'Close'"),
   'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),
   Ask: widget('assistant-panel/services/wording.ts', "modeAsk: 'Ask'"),
   Act: widget('assistant-panel/services/wording.ts', "modeAct: 'Act'"),
