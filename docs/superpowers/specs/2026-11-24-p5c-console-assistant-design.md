@@ -379,15 +379,32 @@ owner's decision of 2026-11-26, and states 5.9's retention once. What is built i
   conversation kept. Content retention and audit retention are independent: a delete or
   an expiry never touches an audit row. The default of `assistant_auditor_visible` is off
   (migration 0156), so auditors see metadata and read text only where a tenant allows it.
-- **Reopening after a sign-in is read-only for now.** A conversation's grant is derived from
-  the console grant that was live when it began and ends with it. `last-conversation`
-  therefore says `continuable: false` once that sign-in has ended, and a message to such a
-  conversation is refused `409` before any turn. Carrying one on needs a new grant for the
-  old conversation: a `grant_id` column on the conversation beside `run_generation`, a new
-  derived grant made from the new console grant under the same checks as
-  `grantAssistantAccess`, and the next run key. Updating the revoked grant in place was
-  rejected: it would revive a grant someone revoked on purpose and break the budget lineage
-  its instances hang from. It is recorded in `docs/NEXT.md`.
+- **Reopening after a sign-in carries the conversation on** (owner ruling of 2026-11-27, ADR 0060's
+  amendment). A conversation's grant is derived from the console grant that was live when it began
+  and ends with it. A message to a conversation the caller owns that is not archived, whose grant is
+  not live from the sign-in the request came on, is answered under a **new** grant made from the
+  current console grant by the same derivation as `grantAssistantAccess` (current capabilities only,
+  nothing from the old grant; across tenants the caller must still hold `manage-tenants` and
+  `use-assistant` and the target must still offer the assistant). The conversation row holds the new
+  grant in `grant_id` (null: the grant stored under its id), moves to the next `run_generation` (a new
+  agent instance; the lapse retry is unchanged) and the old grant ends, all in one transaction under
+  the conversation's row lock, with an `assistant.reattached` row (`admin_mutation`, like
+  `assistant.turn`) naming both grant ids, the conversation, the tenant, the target and the actor.
+  The model is told in its system instructions that earlier tool data was read under an earlier
+  sign-in and may be stale. Budgets and limits count by tenant, person and conversation and are
+  unchanged. Updating the revoked grant in place was rejected: it would revive a grant someone
+  revoked on purpose and break the budget lineage its instances hang from.
+  **The rule for a grant revoked for cause.** `token_grants.revoked_cause` is `sign_out` only where
+  the revoking path knows the person ended their own sign-in (the console revoking its own refresh
+  token, an RP-initiated logout, a person ending their own sessions); every other revocation leaves it
+  null. A conversation is carried on when its grant is live, or ended with the console grant it was
+  derived from, which carries `sign_out`, at the same instant (the sign-out's cascade stamps one
+  time); a sign-in that lapsed without a revocation is carried on too. Anything else, a grant
+  revoked earlier or for another reason, a missing grant or one of another subject, is refused `409`
+  `conversation-ended`, with an `assistant.access_refused` row. An archived conversation is refused
+  `409` `conversation-archived`, a sign-in that may not hold the new grant `409`
+  `conversation-access-refused`; a different owner, a deleted conversation and another tenant's path
+  are `404`. `last-conversation`'s `continuable` is true when a message would be answered.
 - **Bounds at 1,000,000 subjects and 100,000,000 audit events.** A list page is one read
   by `(tenant_id, owner_subject_id, last_active_at, id)` of at most 201 rows. Reopening is
   one list row and one message read of at most 100. Hiding, titling and a delete's lookup

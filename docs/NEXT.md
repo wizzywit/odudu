@@ -327,11 +327,11 @@ a phase note.
   another person is audited as `assistant.text_read` with the owner named, so the reads can be listed for the owner, but the console notice and
   the mail, and an owner-scoped list of reads, belong to the conversation-list increment of **P5c**. The report cap (100) has no release: a
   route that un-reports belongs to the activity screen of **P5c**. Until then a holder of `read-assistant-activity` can report others' conversations without reading their text and so fill a tenant's 100 places, after which owners are refused with `409` for their own: reporting is audited as `assistant.report`, which is how it is found.
-- **Carrying an old conversation on after a new sign-in, and three owner decisions of 2026-11-26 the conversation list leaves open** (2026-11-26):
-  a conversation is `continuable: false` once the console sign-in it was derived from has ended (spec 5.9a has the design: a `grant_id` column and a new
-  derived grant, not a revived one); a reported conversation of an erased person is still deleted with them, where the decision keeps it under a
-  tombstoned owner until release; and the keyed digest the decision adds to `assistant.turn` rows is not written yet, only the tombstone's. All three belong to the
-  next conversation increment of **P5c**.
+- **Two owner decisions of 2026-11-26 the conversation list leaves open** (2026-11-26): a reported conversation of an erased person is still
+  deleted with them, where the decision keeps it under a tombstoned owner until release; and the keyed digest the decision adds to
+  `assistant.turn` rows is not written yet, only the tombstone's. Both belong to the next conversation increment of **P5c**. Carrying an old
+  conversation on after a new sign-in is built (spec 5.9a, ADR 0060's amendment); a conversation whose sign-in ended before `revoked_cause`
+  existed is not carried on.
 - **Twelve administrative capabilities a gap audit against mature identity
   providers found the server lacking** (2026-09-29): more required actions,
   several sign-in flows, per-step authenticator settings and a

@@ -25,7 +25,7 @@ The caller's own conversations, newest activity first, each with `id`, `title`, 
 GET /admin/tenants/{tenant}/assistant/last-conversation
 ```
 
-`{ "conversation": ... }` with the caller's most recently active conversation that is not hidden, its latest messages included, or `{ "conversation": null }` when there is none. `continuable` is `false` when the sign-in the conversation acts under has ended: the messages can be read, and a message sent to it is refused `409` (`about:blank#conversation-ended`) before any turn starts. The way to carry on is a new conversation.
+`{ "conversation": ... }` with the caller's most recently active conversation that is not hidden, its latest messages included, or `{ "conversation": null }` when there is none. `continuable` is `true` when a message sent to the conversation would be answered. That includes one whose earlier sign-in ended because the person signed out or the sign-in lapsed: the message is answered under a new grant made from the sign-in the request came on. It is `false` when the sign-in was ended for another reason (a reused refresh token, an administrator ending the session): the messages can be read, and a message sent to it is refused `409` (`about:blank#conversation-ended`) before any turn starts. The way to carry on is a new conversation.
 
 ## Hiding and bringing back
 

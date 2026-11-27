@@ -130,3 +130,31 @@ sync, not by the door); **the console token as the agent's** (no ceiling, no ins
 audit names `odudu-admin`). The design and the failing paths it replaces are in
 `docs/phases/p5c-spikes.md`, "P5c spike: the assistant for a system administrator in another
 tenant".
+
+## Amendment: a conversation is carried on after a new sign-in
+
+A conversation's grant ends with the sign-in it was derived from, and the owner has ruled
+that a person may carry an old conversation on after signing in again. A message to a
+conversation of the caller's that is not archived, whose grant is not live from the sign-in
+the request came on, gets a new grant made from that sign-in alone, under every check a first
+grant meets, so the current capabilities apply and nothing the old grant held carries over.
+The conversation row records the new grant in `grant_id` (null still means the grant stored
+under its id), moves to the next `run_generation` so its agent instance is a new one, and the
+old grant ends in the same transaction, with an `assistant.reattached` row. The row is locked
+for the step, so two messages at once make one grant. Updating the revoked grant in place was
+rejected: it would revive a grant someone revoked on purpose and break the budget lineage its
+instances hang from.
+
+The rule that decides it is the cause of the old grant's end. `token_grants.revoked_cause` is
+set to `sign_out` only where the path knows the person ended their own sign-in: the console
+revoking its own refresh token, an RP-initiated logout, and a person ending their own
+sessions. Every other revocation leaves it empty (a reused refresh token, an administrator
+ending a session, a recovered account, a removed client, a revocation of the conversation's
+own grant), and a conversation under one is never carried on: it is refused `409`
+(`about:blank#conversation-ended`) with an `assistant.access_refused` row. The conversation's
+grant must also have ended at the same instant as the console grant did, which is what a
+sign-out's cascade stamps; a grant that ended earlier for another reason does not match. A
+sign-in that lapsed without a revocation, or one still held by another sign-in of the owner,
+is carried on, and the old grant is ended as superseded. Default deny: a grant revoked before
+the column existed has no cause and is not carried on. The server tells the model, in its
+instructions and not in user text, that what its tools returned earlier may be out of date.
