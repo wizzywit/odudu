@@ -1,3 +1,4 @@
+import { effectiveMode } from '#/service/profiles';
 import type { AssistantConversation } from '@odudu/contracts/admin';
 import type { UIMessage } from 'ai';
 import type { ConversationRecord } from '#/repository/conversations';
@@ -33,7 +34,7 @@ export function conversationView(
   return {
     id: record.id,
     profile: record.profile,
-    mode: record.mode === 'act' ? 'act' : 'ask',
+    mode: effectiveMode(record.profile, record.mode),
     title: record.title,
     created_at: record.createdAt.toISOString(),
     last_active_at: record.lastActiveAt.toISOString(),

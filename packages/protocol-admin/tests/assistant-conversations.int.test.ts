@@ -65,9 +65,9 @@ function fakePort(recorded: Recorded): AssistantChatPort {
               : body.profile === 'wrong-mode'
                 ? { kind: 'access_refused' as const, reason: 'profile_mode_refused' }
                 : {
-                kind: 'created' as const,
-                conversation: conversation('11111111-1111-4111-8111-111111111111'),
-              },
+                    kind: 'created' as const,
+                    conversation: conversation('11111111-1111-4111-8111-111111111111'),
+                  },
       );
     },
     load(caller, id) {
@@ -134,6 +134,7 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       recorded.modes.push({ id, mode });
       if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
       if (id.startsWith('3')) return Promise.resolve({ kind: 'not_offered' as const });
+      if (id.startsWith('4')) return Promise.resolve({ kind: 'profile_refused' as const });
       return Promise.resolve({ kind: 'set' as const, mode });
     },
     list(caller, input) {
@@ -758,6 +759,13 @@ describe('the approval routes', () => {
       payload: { mode: 'act' },
     });
     expect(refused.statusCode).toBe(409);
+    const askOnly = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/4aaaaaaa-1111-4111-8111-111111111111/mode`,
+      headers,
+      payload: { mode: 'act' },
+    });
+    expect(askOnly.statusCode).toBe(400);
     const bad = await fx().http.inject({
       method: 'PUT',
       url: `${BASE(tenant)}/${ID}/mode`,

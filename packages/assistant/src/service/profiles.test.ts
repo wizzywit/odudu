@@ -2,6 +2,7 @@ import { TOOLS } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
 import {
   activeToolsFor,
+  effectiveMode,
   FREE_CHAT,
   modeForProfile,
   profileById,
@@ -93,5 +94,18 @@ describe('modeForProfile', () => {
   it('starts an Act-only profile in Act and refuses Ask for it', () => {
     expect(modeForProfile(actOnly, undefined)).toBe('act');
     expect(modeForProfile(actOnly, 'ask')).toBeNull();
+  });
+});
+
+describe('effectiveMode', () => {
+  it('is the stored mode for a profile that runs in either, and for one this server does not know', () => {
+    expect(effectiveMode('free-chat', 'act')).toBe('act');
+    expect(effectiveMode('free-chat', 'ask')).toBe('ask');
+    expect(effectiveMode('nonesuch', 'act')).toBe('act');
+  });
+
+  it('is Ask for an Ask profile, whatever was stored', () => {
+    expect(effectiveMode('review-client', 'act')).toBe('ask');
+    expect(effectiveMode('why-cant-sign-in', 'act')).toBe('ask');
   });
 });

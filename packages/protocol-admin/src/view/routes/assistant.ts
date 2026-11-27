@@ -229,6 +229,7 @@ export interface AssistantChatPort {
   ): Promise<
     | { kind: 'set'; mode: AssistantMode }
     | { kind: 'not_found' }
+    | { kind: 'profile_refused' }
     | { kind: 'not_offered'; cause?: 'target' }
   >;
 }
@@ -566,6 +567,13 @@ export function setConversationModeHandler(deps: AssistantChatRouteDeps): AdminR
     const body = request.body as SetConversationModeRequest;
     const outcome = await chat.setMode(caller, id, body.mode);
     if (outcome.kind === 'not_found') return notFound(request, reply);
+    if (outcome.kind === 'profile_refused') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'the profile does not run in this mode'),
+      );
+    }
     if (outcome.kind === 'not_offered') {
       return sendProblem(
         reply,

@@ -273,6 +273,41 @@ describe('create and load', () => {
     ).toEqual({ kind: 'access_refused', reason: 'profile_mode_refused' });
   });
 
+  it('refuses a switch to Act for an Ask profile, and reads a stored Act on one as Ask', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]));
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { profile: 'review-client', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    const { id } = created.conversation;
+    expect(await chat.setMode(caller, id, 'act')).toEqual({ kind: 'profile_refused' });
+    expect(await chat.load(caller, id)).toMatchObject({ mode: 'ask' });
+
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`update assistant_conversations set mode = 'act' where id = ${id}`),
+    );
+    expect(await chat.load(caller, id)).toMatchObject({ mode: 'ask' });
+    expect(await chat.setMode(caller, id, 'ask')).toEqual({ kind: 'set', mode: 'ask' });
+  });
+
+  it('runs a turn of an Ask profile under the Ask rules though Act was stored', async () => {
+    const w = await world();
+    const seen: Seen[] = [];
+    const { chat } = chatOver(scripted([answer('hi')], seen));
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { profile: 'review-client', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    const { id } = created.conversation;
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`update assistant_conversations set mode = 'act' where id = ${id}`),
+    );
+    const response = await streamOf(chat, caller, id, 'review it');
+    await response.text();
+    const prompt = JSON.stringify(seen[0]?.prompt);
+    expect(prompt).toContain('This conversation is in Ask mode');
+    expect(prompt).not.toContain('This conversation is in Act mode');
+  });
+
   it('refuses Act in a tenant whose modes lack it, and writes nothing', async () => {
     const w = await world();
     const { chat } = chatOver(scripted([answer('hi')]), {

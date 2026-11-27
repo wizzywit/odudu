@@ -475,6 +475,33 @@ describe('the conversation routes in the running server', () => {
     expect(loaded.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
   });
 
+  it('keeps an Ask profile in Ask: the mode route refuses Act, and a stored Act is read as Ask', async () => {
+    const w = await s().world(['use-assistant'], 'openid');
+    const token = await adminToken(w);
+    const created = await post(on(), w, '/conversations', token, {
+      profile: 'review-client',
+      page_context: CONTEXT,
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const { id } = created.json<{ id: string }>();
+    const url = `/admin/tenants/${w.name}/assistant/conversations/${id}/mode`;
+    const headers = {
+      host: HOST,
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    };
+    const act = await on().inject({ method: 'PUT', url, headers, payload: { mode: 'act' } });
+    expect(act.statusCode, act.body).toBe(400);
+
+    await s().owner.db.execute(
+      sql`update assistant_conversations set mode = 'act' where id = ${id}`,
+    );
+    const loaded = await get(on(), w, `/conversations/${id}`, token);
+    expect(loaded.json()).toMatchObject({ profile: 'review-client', mode: 'ask' });
+    const ask = await on().inject({ method: 'PUT', url, headers, payload: { mode: 'ask' } });
+    expect(ask.statusCode, ask.body).toBe(200);
+  });
+
   it('answers 404 for a conversation in another tenant’s path, and with no model configured', async () => {
     const w = await s().world(['use-assistant'], 'openid');
     const token = await adminToken(w);

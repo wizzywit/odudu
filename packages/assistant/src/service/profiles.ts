@@ -124,3 +124,12 @@ export function activeToolsFor(
       (named === undefined || named.has(tool.name)),
   );
 }
+
+/**
+ * The mode a stored conversation runs in. A profile that is Ask only never runs
+ * in Act, so a stored `act` on one does not apply anywhere the mode is read.
+ */
+export function effectiveMode(profileId: string, stored: string): AssistantMode {
+  if (profileById(profileId)?.mode === 'ask') return 'ask';
+  return stored === 'act' ? 'act' : 'ask';
+}

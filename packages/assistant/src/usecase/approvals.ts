@@ -3,6 +3,7 @@ import { approvalCardRepository, type ApprovalCardRow } from '#/repository/appro
 import { conversationRepository } from '#/repository/conversations';
 import { messageRepository } from '#/repository/messages';
 import { actsInTenantOf, conversationIsCallers, crossTenant } from '#/service/conversation-access';
+import { modeForProfile, profileById } from '#/service/profiles';
 import { modeOffered } from '#/service/proposal-rules';
 import { settleParts } from '#/service/settle-approvals';
 import type { ChatCaller, ChatDeps, DecideResult, WithdrawReason } from '#/usecase/chat-deps';
@@ -139,6 +140,8 @@ export async function settleLastMessage(
 export type SetModeOutcome =
   | { kind: 'set'; mode: AssistantMode }
   | { kind: 'not_found' }
+  // The conversation's profile does not run in the mode asked for.
+  | { kind: 'profile_refused' }
   // `cause` says the tenant the conversation acts in is the one that does not
   // offer the mode, not the caller's own.
   | { kind: 'not_offered'; cause?: 'target' };
@@ -159,6 +162,9 @@ export async function setConversationMode(
   const checked = await deps.transact(caller.tenantId, async (tx) => {
     const record = await conversationRepository(tx).byId(conversationId);
     if (record === undefined || !conversationIsCallers(record, caller)) return 'not_found' as const;
+    const task = profileById(record.profile);
+    if (task !== undefined && modeForProfile(task, mode) === null)
+      return 'profile_refused' as const;
     if (mode === 'act') {
       const limits = await (deps.entitlements ?? openEntitlements(tx)).limits(caller.tenantId);
       if (!modeOffered({ mode, canPropose: deps.approvals !== undefined, modes: limits.modes })) {
