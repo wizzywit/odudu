@@ -4,7 +4,7 @@ import { focusedElement, listenToKeys, returnFocusTo } from '#/shared/lib/platfo
 import { shortcutName, shortcutOutcome } from '#/entities/assistant/services/shortcut';
 import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 import { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
-import { useTaskRequest } from '#/entities/assistant/use-cases/useTaskRequest';
+import { useGateAttached, useTaskRequest } from '#/entities/assistant/use-cases/useTaskRequest';
 import type { TaskRequest } from '#/entities/assistant/types/taskRequest';
 import { conversationFor, type AssistantView } from '#/entities/assistant/services/gate';
 import { requestFor } from '#/entities/assistant/services/taskRequest';
@@ -80,6 +80,7 @@ export function useAssistantEntry(
   // forgets the conversation it was on, and left as it is when it is already
   // open. The request is adjusted to while drawing, which is what keeps it from
   // being taken up twice, and cleared from the store once it has been.
+  useGateAttached(tenant);
   const { request, take } = useTaskRequest(tenant);
   const [applied, setApplied] = useState<TaskRequest | null>(null);
   if (request !== null && request.seq !== applied?.seq) {

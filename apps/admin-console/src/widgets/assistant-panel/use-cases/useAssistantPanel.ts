@@ -1,6 +1,6 @@
 import { useLocation } from '@tanstack/react-router';
-import { useState, type RefObject } from 'react';
-import type { AssistantView, TaskRequest } from '#/entities/assistant';
+import { useEffect, useState, type RefObject } from 'react';
+import { useTaskCarry, type AssistantView, type TaskRequest } from '#/entities/assistant';
 import { isReadTask, taskTitleOf } from '#/features/assistant-actions';
 import { useDocked } from '#/widgets/assistant-panel/repository/useDocked';
 import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirstRunNotice';
@@ -11,6 +11,7 @@ import { actingInText, actNoteOf } from '#/widgets/assistant-panel/services/cros
 import { modeOfChoice } from '#/widgets/assistant-panel/services/modeSwitch';
 import { COMPOSER_MAX } from '#/widgets/assistant-panel/services/composer';
 import { contentSize } from '#/widgets/assistant-panel/services/scroll';
+import { handoverNote, startingDraft } from '#/widgets/assistant-panel/services/taskHandover';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode } from '#/widgets/assistant-panel/types/chat';
 import type { FirstRunNotice } from '#/widgets/assistant-panel/types/firstRun';
@@ -42,6 +43,8 @@ export interface AssistantPanelState {
   where: string;
   // The task the conversation is for, in words, or null for free chat.
   task: string | null;
+  // What was left by the panel this one replaced, in words, or null.
+  handover: string | null;
   // Every task reads and explains: the mode switch is of no use in one.
   modeFixed: boolean;
   // The notice to show above the conversation, or null once it has been read.
@@ -89,7 +92,15 @@ export function useAssistantPanel(options: {
   const read = useFirstRunNotice(noticeScopeOf(actingIn));
   const scroll = usePinnedScroll(contentSize(chat.messages, chat.approvals.entries), options.open);
   const docked = useDocked();
-  const [draft, setDraft] = useState(options.task?.draft ?? '');
+  const { carried, hand } = useTaskCarry(tenant);
+  // What the panel this one replaced left is read once, as this one is made:
+  // the panel keeps its state where the next one can read it, since it is gone
+  // by the time the next one draws.
+  const [left] = useState(carried);
+  const [draft, setDraft] = useState(startingDraft(options.task, left));
+  useEffect(() => {
+    hand({ tenant, draft, stopped: chat.running });
+  }, [hand, tenant, draft, chat.running]);
   // A message the server took back is written into the field again, once, so
   // nothing typed is lost whether or not the field is showing at the time.
   const [taken, setTaken] = useState<string | null>(null);
@@ -110,6 +121,7 @@ export function useAssistantPanel(options: {
     },
     where: pageLabel(pageContext),
     task: taskTitleOf(chat.profile),
+    handover: handoverNote(options.task, left),
     modeFixed: isReadTask(chat.profile),
     notice: noticeToShow(read.unread, view.provider, actingIn),
     dismissNotice: read.dismiss,

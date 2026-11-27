@@ -17,6 +17,10 @@ export const PANEL_WORDING = {
   modelsNote: 'The model each slot is set to run.',
   contextLabel: 'This page',
   taskLabel: 'Task',
+  handoverStopped:
+    'The answer being written in your last conversation was stopped. It is saved under Conversations.',
+  handoverDraftKept:
+    'The message you had not sent is kept, so the task’s question is not filled in.',
   emptyTitle: 'Ask about this tenant',
   emptyText:
     'The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.',

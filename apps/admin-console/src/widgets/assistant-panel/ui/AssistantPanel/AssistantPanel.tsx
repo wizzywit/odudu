@@ -2,6 +2,7 @@ import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject }
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import type { AssistantPanelSlot } from '#/entities/assistant';
 import { useAssistantPanel } from '#/widgets/assistant-panel/use-cases/useAssistantPanel';
+import { Note } from '#/shared/ui/Note';
 import { ChatLog } from '#/widgets/assistant-panel/ui/ChatLog';
 import { Composer } from '#/widgets/assistant-panel/ui/Composer';
 import { ConversationsView } from '#/widgets/assistant-panel/ui/ConversationsView';
@@ -119,6 +120,9 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             onScroll={panel.onScroll}
             onDecide={chat.approvals.answer}
           />
+          {panel.handover === null || chat.messages.length > 0 ? null : (
+            <Note>{panel.handover}</Note>
+          )}
           <PanelNotices
             state={chat.status}
             statusText={chat.statusText}
