@@ -63,5 +63,23 @@ The conversation with the assistant, docked beside the page or laid over it.
   the number the shell's stylesheet asks about). Over the page it is a dialog:
   the page behind is out of reach, Tab stays inside, Escape closes.
 
-Approval cards, the activity feed and the profiles are later; a change that
-waits for a decision is said to wait, and nothing is approved from here yet.
+- **Act and the approval card.** The mode switch is the person's, kept for a
+  conversation about to start and sent to the server for one that has
+  (`setMode`). A change that waits is read from the server's list while the
+  conversation waits (`repository/useApprovals`), and the card is drawn from
+  that stored change, never from the model's words (`ui/ApprovalCard`,
+  `ui/ChangeDiff`). The countdown is the server's clock, taken from the
+  `Date` of the answer that listed the card (`adapter/approvals`), so a wrong
+  browser clock does not stretch or shorten the time. A decision is sent once,
+  and the answer is carried on by the stream's resume route only when it was
+  accepted. A card the person acted on is kept here, with its change, so the
+  outcome can still be drawn after the server stops listing it; a later visit
+  has the step's own state only. Nothing approves by expiry, by a default
+  focus or by a timer.
+- **The activity feed** (`ui/ActivityFeed`, `services/activity-lines`) words a
+  step from a phrase table with a fallback from the tool's name; a test over
+  the assistant's whole tool list holds every tool to a phrase. A step's time is
+  what the stream said (`adapter/watchSteps`), so a step the panel never saw
+  begin has none.
+
+The profiles are later.

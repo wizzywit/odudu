@@ -1,6 +1,6 @@
 ---
 title: The assistant in the console
-description: Ask the assistant about your tenant or, as a system administrator, another one; stop it; reopen, archive, export or delete your conversations.
+description: Ask the assistant about a tenant, approve or refuse the changes it proposes, and reopen, archive, export or delete your conversations.
 sidebar_position: 18
 ---
 
@@ -14,7 +14,7 @@ The button is **Ask the assistant**, in the menu and, on a narrow screen, in the
 
 <ConsoleShot
   name="assistant-panel"
-  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
+  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act beside it and a sentence about what Act leaves to you, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
   caption="The panel opens beside the page, with a notice the first time it is used."
 />
 
@@ -40,7 +40,23 @@ The conversation starts with your first message, not when the panel opens, so op
 
 ## 3. Ask and Act
 
-**Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, each waiting for your approval, and needs the approval card, which arrives next. Until then the **Mode** switch shows Act dimmed with a sentence that says so, and every conversation starts in Ask, whatever the tenant's setting says. A conversation that was already in Act, such as one made through the API, shows **Waiting for you** and takes no new message here.
+**Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, and it never makes one on its own. Each change it wants to make appears as a card in the answer, and nothing is changed until you approve it.
+
+Every conversation starts in Ask, whatever the tenant's own setting says. Choose **Act** on the **Mode** switch before you send the first message, or switch a conversation that has already started. The switch is still while an answer is being written, and a conversation that cannot take a message, such as an archived one, cannot be switched. Where the tenant does not offer Act the switch is not drawn, and in another tenant Act is dimmed ([section 4](#4-in-another-tenant)).
+
+The card is built from what the server stored of the change when the assistant proposed it, not from the assistant's own words about it. It shows, in this order:
+
+- what the change is, in plain words, such as "Create a group";
+- what it touches: the kind and the name, and the id, which you can copy;
+- exactly what would change, field by field, with each value now beside its value after. Whether a field is added, removed or changed is written on its row as well as drawn, and on a narrow panel the two values stack, now above after;
+- who decides: **You, as** and your username, with a note that this is your decision and the assistant cannot answer it;
+- the time left, counted by the server's clock and not your computer's. A screen reader is told once when a minute is left and once at expiry, and never every second.
+
+**Approve** and **Refuse** are the only two ways to answer, and neither one has the focus when the card appears. A new card is announced once in the status line as **Approval needed:** with its title, and does not take the focus; **Jump to approval**, under the conversation, moves you to it when you want. While a change waits, the message field is held, since a new message would withdraw the change.
+
+Approving makes the change as you, with your own access, and the assistant carries on with its answer. Refusing changes nothing: the card says so, and the assistant is told you refused. Either way the buttons give way to what was decided, and the card stays in the answer as the record of it. When the time runs out the card says **Expired** and its buttons go; waiting never approves anything. If the server says the change was already decided or has expired, the card says that in an alert and offers no second try, and the same goes for a sign-in that may not decide it, since only your own console sign-in can. A change that removes something asks once more before the approval is sent.
+
+A card appears once for each change, and several changes in one answer are decided one at a time, never together. There is no way to approve ahead of a change or to let the assistant make a kind of change without asking. Reopen the conversation later and each change shows what became of it, approved or not approved, without the field-by-field detail, which the server hands out only while the change waits. Every decision is recorded in the audit trail ([Consent and audit](../concepts/consent-and-audit.mdx)).
 
 ## 4. In another tenant
 
@@ -64,7 +80,7 @@ If the assistant cannot be used there, the panel says why in plain words. The te
 
 ## 5. Watch it work
 
-Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped** or **Finished**. A failure is shown in a notice of its own, not on that line. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer with what became of it.
+Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped** or **Finished**. A failure is shown in a notice of its own, not on that line. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer as a short phrase, such as **Listing clients** or "Checking lockout state", with what became of it (running, done, failed, waiting for you or refused) and, once the panel has watched it finish, how long it took. A step the panel did not watch, such as one in a conversation you reopen, shows no time. The list is open while the answer is being written or waits for you, and is put away once the answer is finished: **Show steps** brings it back and **Hide steps** puts it away again. A step that failed or was refused stays in view when the list is put away. **Show the call** on a step opens the call as it was sent, the tool and the arguments the assistant gave it and the error it ended in, so you can see what it asked for. The result is not shown there, since it is the tenant's data and the answer says what it found.
 
 **Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Stop is the only thing that ends an answer: putting the panel away does not, and leaving the console does.
 
@@ -118,8 +134,8 @@ A conversation is removed after it has had no new message for the number of days
 
 ## Things that cannot be undone
 
-**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names. Deleting it yourself, from **Conversations**, removes its text for good; archiving only hides it.
+**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads, and a change you approved in Act is made and recorded, and is undone only by changing it back. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names. Deleting it yourself, from **Conversations**, removes its text for good; archiving only hides it.
 
 ## Do the same through the API
 
-The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The list, the latest conversation, hiding, exporting and deleting are routes of your own conversations that answer for you and for nobody else, and the panel's **Conversations** uses them. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.
+The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The changes waiting for your decision are listed with `GET .../approvals`, one is decided with `POST .../approvals/<id>` (only your own console sign-in may decide, and an agent's token is refused), and `POST .../resume` carries the answer on once it is decided. The list, the latest conversation, hiding, exporting and deleting are routes of your own conversations that answer for you and for nobody else, and the panel's **Conversations** uses them. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.

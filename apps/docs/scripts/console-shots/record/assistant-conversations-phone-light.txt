@@ -115,7 +115,7 @@ Mode
 Ask
 Act
 Ask reads and explains. It changes nothing.
-Act needs the approval card, which arrives next.
+In Act, each change it proposes waits for your approval and nothing else is changed.
 Ask about this tenant
 The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.
 In Ask mode it never changes anything.
