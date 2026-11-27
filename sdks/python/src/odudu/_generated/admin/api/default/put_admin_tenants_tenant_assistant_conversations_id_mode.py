@@ -98,8 +98,8 @@ def sync_detailed(
 
      Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still
     waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the
-    tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not
-    offered to an agent.
+    tenant’s limits do not allow the mode, or, for a system administrator in another tenant, that tenant
+    does not offer it. `404` for a conversation that is not the caller’s. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -140,8 +140,8 @@ def sync(
 
      Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still
     waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the
-    tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not
-    offered to an agent.
+    tenant’s limits do not allow the mode, or, for a system administrator in another tenant, that tenant
+    does not offer it. `404` for a conversation that is not the caller’s. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -177,8 +177,8 @@ async def asyncio_detailed(
 
      Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still
     waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the
-    tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not
-    offered to an agent.
+    tenant’s limits do not allow the mode, or, for a system administrator in another tenant, that tenant
+    does not offer it. `404` for a conversation that is not the caller’s. Not offered to an agent.
 
     Args:
         tenant (str):
@@ -217,8 +217,8 @@ async def asyncio(
 
      Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still
     waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the
-    tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not
-    offered to an agent.
+    tenant’s limits do not allow the mode, or, for a system administrator in another tenant, that tenant
+    does not offer it. `404` for a conversation that is not the caller’s. Not offered to an agent.
 
     Args:
         tenant (str):

@@ -95,10 +95,10 @@ def sync_detailed(
      Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the
     administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`,
     each a short identifier and never free text. `400` for a profile this server does not offer. `404`
-    when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the
-    transaction a record of the call would share, so a request naming one is refused with `400`
-    (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already
-    happened is answered `409`.
+    when no model is configured. `409` for `act` in another tenant that does not offer it. Takes no
+    `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share,
+    so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is
+    applied. A repeat of a create that already happened is answered `409`.
 
     Args:
         tenant (str):
@@ -135,10 +135,10 @@ def sync(
      Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the
     administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`,
     each a short identifier and never free text. `400` for a profile this server does not offer. `404`
-    when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the
-    transaction a record of the call would share, so a request naming one is refused with `400`
-    (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already
-    happened is answered `409`.
+    when no model is configured. `409` for `act` in another tenant that does not offer it. Takes no
+    `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share,
+    so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is
+    applied. A repeat of a create that already happened is answered `409`.
 
     Args:
         tenant (str):
@@ -170,10 +170,10 @@ async def asyncio_detailed(
      Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the
     administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`,
     each a short identifier and never free text. `400` for a profile this server does not offer. `404`
-    when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the
-    transaction a record of the call would share, so a request naming one is refused with `400`
-    (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already
-    happened is answered `409`.
+    when no model is configured. `409` for `act` in another tenant that does not offer it. Takes no
+    `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share,
+    so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is
+    applied. A repeat of a create that already happened is answered `409`.
 
     Args:
         tenant (str):
@@ -208,10 +208,10 @@ async def asyncio(
      Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the
     administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`,
     each a short identifier and never free text. `400` for a profile this server does not offer. `404`
-    when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the
-    transaction a record of the call would share, so a request naming one is refused with `400`
-    (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already
-    happened is answered `409`.
+    when no model is configured. `409` for `act` in another tenant that does not offer it. Takes no
+    `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share,
+    so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is
+    applied. A repeat of a create that already happened is answered `409`.
 
     Args:
         tenant (str):

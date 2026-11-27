@@ -98,8 +98,9 @@ token is issued by the system tenant, for the administrator, with the instance a
 The admin API's rule that an agent acts only in the tenant its token names gains one
 exception, and only one (`agentReaches`, `@odudu/protocol-admin`): an agent token whose grant
 is the built-in assistant client's, whose grant names a target, that carries the endpoint
-marker, whose issuer is the system tenant and holds no write scope, is admitted at the path of
-that target, which must be enabled, and at no other tenant, the system tenant included. The
+marker and whose issuer is the system tenant, is admitted at the path of that target, which
+must be enabled, and at no other tenant, the system tenant included. It was first admitted for
+`mcp:read` alone; the amendment below admits the write grant of one approved change too. The
 administrator's `manage-tenants` and the route's capability are then checked on every call, as
 for the console, so a role removed mid-conversation takes effect on the next call. The
 binding is a database row read from the grant, not a claim in the token, so a leaked
@@ -114,8 +115,7 @@ administrator's own included. Where a system administrator uses the assistant in
 tenant, that tenant's switch, email masking and Act setting apply as well as their own tenant's
 and the stricter wins; the token limits and the four budget levels are the administrator's
 tenant's, which pays. Trace retention and auditor visibility follow the administrator's
-tenant, where the text lives, until the trace pass applies the shorter retention of the two. A conversation in another tenant is Ask only until approvals carry the
-target.
+tenant, where the text lives, until the trace pass applies the shorter retention of the two.
 
 A tool call's `agent.tool_call` row is written in the target's trail with the administrator as
 actor and the system tenant as actor tenant, so the target's own administrators can see that an
@@ -130,6 +130,41 @@ sync, not by the door); **the console token as the agent's** (no ceiling, no ins
 audit names `odudu-admin`). The design and the failing paths it replaces are in
 `docs/phases/p5c-spikes.md`, "P5c spike: the assistant for a system administrator in another
 tenant".
+
+## Amendment: an approved change in another tenant
+
+Decided by the owner on 2026-11-27: a system administrator who may Ask in another tenant may
+also Act there, with the same approval card. The rules of the amendments above do not move; what
+follows is the one place each now reaches across.
+
+`grantAssistantWrite` takes the same `target` as `grantAssistantAccess` and passes it to the
+same checks, so the write grant of one approved change is stored under the administrator's
+tenant, names the target in `token_grants.target_tenant_id` and is refused unless the target
+exists, is enabled and offers the assistant and the owner still holds `manage-tenants` and
+`use-assistant`. That column is what lets the door admit the write: `agentReaches` no longer
+refuses the write scope for the assistant's target grant, and the route's own capability is
+checked as for any call. Every other agent token, and a grant without a target, keep the
+tenant of the token. The approval, its card, the decision and the budget stay rows of the
+administrator's tenant, decided only by the administrator's own console sign-in as before.
+
+The approval's digest gains the target tenant when there is one, so an approval cannot be
+spent for a call at another tenant; an own-tenant digest is unchanged. `assistant.approval`
+carries `target_tenant`, and an approved decision is also written to the target's trail (the
+administrator as actor, the system tenant as actor tenant, the approval, the tool and the
+state, never the conversation or any text), because it authorises a change there. Where the
+write of that row fails the decision stands and the failure is logged, as for a tool call's own
+row.
+
+Act is offered in another tenant only where both tenants offer it: `setConversationMode` and
+`createConversation` read the target's limits in a transaction of its own, and a refusal for
+the target's sake is `409` with the detail "the tenant this conversation acts in does not
+offer Act", so the console can say which tenant. `readHead` applies the same stricter-of-two
+rule on every turn, so a tenant that stops offering Act turns an Act conversation into Ask at
+its next message.
+
+Rejected: **a second write path with its own door rule** (the grant row is already the
+binding, and a second rule would have to be kept equal to it); **approvals stored in the
+target** (it gives up the single transaction and the single writer, as the conversation does).
 
 ## Amendment: a conversation is carried on after a new sign-in
 

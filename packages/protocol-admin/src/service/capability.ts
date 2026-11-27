@@ -2170,7 +2170,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page ' +
       'the administrator has open as `page_context`: a `route` and, optionally, an `objectType` ' +
       'and `objectId`, each a short identifier and never free text. `400` for a profile this ' +
-      'server does not offer. `404` when no model is configured.',
+      'server does not offer. `404` when no model is configured. `409` for `act` in another ' +
+      'tenant that does not offer it.',
   },
   {
     method: 'GET',
@@ -2353,7 +2354,8 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes ' +
       'still waiting, as refused. `409` where `act` is not offered: the deployment cannot ' +
-      'propose changes, or the tenant\u2019s limits do not allow the mode. `404` for a ' +
+      'propose changes, or the tenant\u2019s limits do not allow the mode, or, for a system ' +
+      'administrator in another tenant, that tenant does not offer it. `404` for a ' +
       'conversation that is not the caller\u2019s. Not offered to an agent.',
   },
   {

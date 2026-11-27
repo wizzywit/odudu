@@ -9921,7 +9921,7 @@ export interface paths {
         put?: never;
         /**
          * Requires the "use-assistant" capability.
-         * @description Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`, each a short identifier and never free text. `400` for a profile this server does not offer. `404` when no model is configured. Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share, so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already happened is answered `409`.
+         * @description Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page the administrator has open as `page_context`: a `route` and, optionally, an `objectType` and `objectId`, each a short identifier and never free text. `400` for a profile this server does not offer. `404` when no model is configured. `409` for `act` in another tenant that does not offer it. Takes no `Idempotency-Key`: the tenant is created outside the transaction a record of the call would share, so a request naming one is refused with `400` (`about:blank#idempotency-not-atomic`) and nothing is applied. A repeat of a create that already happened is answered `409`.
          */
         post: {
             parameters: {
@@ -10664,7 +10664,7 @@ export interface paths {
         get?: never;
         /**
          * Requires the "use-assistant" capability.
-         * @description Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the tenant’s limits do not allow the mode. `404` for a conversation that is not the caller’s. Not offered to an agent.
+         * @description Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes still waiting, as refused. `409` where `act` is not offered: the deployment cannot propose changes, or the tenant’s limits do not allow the mode, or, for a system administrator in another tenant, that tenant does not offer it. `404` for a conversation that is not the caller’s. Not offered to an agent.
          */
         put: {
             parameters: {

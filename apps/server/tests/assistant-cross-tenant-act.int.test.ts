@@ -287,7 +287,26 @@ describe('an approved change in another tenant', () => {
       sql`select action, actor_tenant_id from audit_events
            where tenant_id = ${target.tenantId} and actor_subject_id = ${operator.subjectId}`,
     );
-    expect(inTarget.map((row) => row.action)).toContain('agent.tool_call');
+    expect(inTarget.map((row) => row.action)).toEqual(
+      expect.arrayContaining(['agent.tool_call', 'assistant.approval']),
+    );
+    // Which tool was approved, and never the conversation or what it said.
+    const approvedInTarget = await rows<{ detail: Record<string, unknown> }>(
+      sql`select detail from audit_events
+           where tenant_id = ${target.tenantId} and action = 'assistant.approval'`,
+    );
+    expect(approvedInTarget).toHaveLength(1);
+    expect(approvedInTarget[0]?.detail).toMatchObject({
+      tenant: operator.tenantId,
+      target_tenant: target.tenantId,
+      approval: card?.approval_id,
+      tool: 'update_role_description',
+      state: 'approved',
+    });
+    expect(JSON.stringify(approvedInTarget)).not.toContain(id);
+    expect(JSON.stringify(approvedInTarget)).not.toContain('New text');
+    // The turns are the administrator's own record and are not copied there.
+    expect(inTarget.map((row) => row.action)).not.toContain('assistant.turn');
     expect(inTarget.length).toBeGreaterThan(1);
     expect(new Set(inTarget.map((row) => row.actor_tenant_id))).toEqual(
       new Set([operator.tenantId]),

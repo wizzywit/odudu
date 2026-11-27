@@ -34,9 +34,11 @@ The conversation with the assistant, docked beside the page or laid over it.
   warning and a refusal are kept across turns until one ends well.
 - **Another tenant.** For a system administrator acting in another tenant
   (`AssistantPanelSlot.actingIn`) the panel names the tenant for as long as it is
-  open, draws Act disabled with the reason, and starts every conversation in
-  Ask. The server binds the conversation to the tenant of the address, so the
-  panel sends nothing more. Its first-run notice is its own, and is remembered
+  open and offers Act as the status of that tenant gives it, saying where its
+  changes land; each card and removal question names the tenant too. A
+  conversation starts in Ask. The server binds the conversation to the tenant
+  of the address, so the panel sends nothing more, and a refusal because that
+  tenant does not offer Act is worded from the server's detail. Its first-run notice is its own, and is remembered
   apart from the one for the administrator's own tenant.
 - **The person's own conversations.** A panel opened with none remembered asks
   the server for the latest one that is not archived and shows it

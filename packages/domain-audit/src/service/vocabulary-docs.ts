@@ -191,7 +191,9 @@ export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
     'A person decided a change the console assistant proposed, or sending a new message or stopping ' +
     'withdrew it. `detail` names the tenant, the person, the conversation, the approval, the tool ' +
     'and the state (`approved` or `denied`), and for a withdrawal the reason. It holds neither the ' +
-    'change nor any message text.',
+    'change nor any message text. For a system administrator\u2019s conversation in another tenant it ' +
+    'also names that tenant as `target_tenant`, and an approved decision is written to that ' +
+    'tenant\u2019s trail as well, without the conversation.',
   'assistant.budget':
     'The console assistant stopped a turn because a token limit was reached, or a model provider ' +
     'charged more than was reserved for a call. `detail` names the level (`tenant_month`, ' +

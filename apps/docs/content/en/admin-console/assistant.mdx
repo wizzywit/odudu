@@ -42,7 +42,7 @@ The conversation starts with your first message, not when the panel opens, so op
 
 **Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, and it never makes one on its own. Each change it wants to make appears as a card in the answer, and nothing is changed until you approve it.
 
-Every conversation starts in Ask, whatever the tenant's own setting says. Choose **Act** on the **Mode** switch before you send the first message, or switch a conversation that has already started. The switch is still while an answer is being written, and a conversation that cannot take a message, such as an archived one, cannot be switched. Where the tenant does not offer Act the switch is not drawn, and in another tenant Act is dimmed ([section 4](#4-in-another-tenant)).
+Every conversation starts in Ask, whatever the tenant's own setting says. Choose **Act** on the **Mode** switch before you send the first message, or switch a conversation that has already started. The switch is still while an answer is being written, and a conversation that cannot take a message, such as an archived one, cannot be switched. Where the tenant does not offer Act the switch is not drawn, and in another tenant Act is offered only where both tenants offer it ([section 4](#4-in-another-tenant)).
 
 The card is built from what the server stored of the change when the assistant proposed it, not from the assistant's own words about it. It shows, in this order:
 
@@ -64,11 +64,13 @@ A system administrator who has opened another tenant, such as `demo` while signe
 
 <ConsoleShot
   name="assistant-panel-other-tenant"
-  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
-  caption="In another tenant the panel names it, and Act is not available."
+  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act available, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
+  caption="In another tenant the panel names it, and Act makes its changes there."
 />
 
-The panel says where it acts for as long as it is open, in a tag at the top: `Acting in demo`. The assistant reads what you can read in that tenant, with your own authority, which the server checks on every call, so a role removed from you in the middle of a conversation takes effect on the next step. It makes no change: **Act** is dimmed with **Act is not available in another tenant.**, and every conversation starts in Ask.
+The panel says where it acts for as long as it is open, in a tag at the top: `Acting in demo`. The assistant reads what you can read in that tenant, with your own authority, which the server checks on every call, so a role removed from you in the middle of a conversation takes effect on the next step. Every conversation starts in Ask.
+
+Choose **Act** and the panel says where it will make changes: “Act makes changes in demo, not in your own tenant. Each one waits for your approval.” Each card then names the tenant in its first line, “Change in demo waiting for your approval”, and in a **Tenant** row at the top, so you see where a change lands before you approve it. A change that removes something asks once more, and that question names the tenant too. Approving is still your decision alone, from your own sign-in, and the change is made as you in `demo`, with the access the server checks there. If `demo` does not offer Act, the switch says so (“demo does not offer Act, so this conversation stays in Ask.”) and the conversation stays in Ask; a conversation already in Act drops back to Ask at its next message if `demo` stops offering it. The decision is in your audit trail and, once approved, in `demo`'s too, naming you, the tool and the approval and never the conversation.
 
 A few things differ from your own tenant, and the first-run notice for another tenant, which is remembered apart from the other one, says them.
 

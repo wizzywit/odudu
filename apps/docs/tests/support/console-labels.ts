@@ -634,10 +634,6 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),
   Ask: widget('assistant-panel/services/wording.ts', "modeAsk: 'Ask'"),
   Act: widget('assistant-panel/services/wording.ts', "modeAct: 'Act'"),
-  'Act is not available in another tenant.': widget(
-    'assistant-panel/services/wording.ts',
-    "actOtherTenantNote: 'Act is not available in another tenant.'",
-  ),
   Mode: widget('assistant-panel/services/wording.ts', "modeLabel: 'Mode'"),
   'Waiting for you': widget(
     'assistant-panel/services/wording.ts',
@@ -657,7 +653,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Show steps': widget('assistant-panel/services/wording.ts', "feedShow: 'Show steps'"),
   'Hide steps': widget('assistant-panel/services/wording.ts', "feedHide: 'Hide steps'"),
   'Show the call': widget('assistant-panel/services/wording.ts', "stepRaw: 'Show the call'"),
-  'You, as': widget('assistant-panel/services/approval.ts', 'who: `You, as ${username}`'),
+  'You, as': widget('assistant-panel/services/wording.ts', 'return `You, as ${username}`'),
   Stopped: widget('assistant-panel/services/wording.ts', "statusStopped: 'Stopped'"),
   Finished: widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
   'Finished.': widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),

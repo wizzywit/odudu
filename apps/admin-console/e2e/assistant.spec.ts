@@ -94,6 +94,32 @@ test('refusing a write changes nothing, and the assistant is told', async ({ pag
   expect(groupsNamed('e2e-refused')).toBe(0);
 });
 
+test('a system administrator approves a change in another tenant, and it is made there', async ({
+  page,
+}) => {
+  await signIn(page, accounts.cross);
+  await page.goto(`/console/${TENANT}`);
+  await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
+  const panel = page.getByRole('complementary', { name: 'Assistant panel' });
+  await expect(panel.getByText(`Acting in ${TENANT}`)).toBeVisible();
+  await chooseAct(panel);
+  await expect(
+    panel.getByText(`Act makes changes in ${TENANT}, not in your own tenant.`, { exact: false }),
+  ).toBeVisible();
+  await say(page, 'Please approve me elsewhere');
+  const card = panel.getByRole('region', { name: 'Create a group' });
+  await expect(card).toBeVisible();
+  await expect(card.getByText(`Change in ${TENANT} waiting for your approval`)).toBeVisible();
+  await expect(card.getByText(TENANT, { exact: true })).toBeVisible();
+  expect(groupsNamed('e2e-approved-elsewhere')).toBe(0);
+  await expectAccessible(page);
+
+  await card.getByRole('button', { name: 'Approve' }).click();
+  await expect(card.getByText('Approved by you. The change was made.')).toBeVisible();
+  await expect(panel.getByText('The group e2e-approved-elsewhere was created.')).toBeVisible();
+  expect(groupsNamed('e2e-approved-elsewhere')).toBe(1);
+});
+
 test('the card fits a phone, with the change stacked and the buttons reachable', async ({
   page,
 }) => {

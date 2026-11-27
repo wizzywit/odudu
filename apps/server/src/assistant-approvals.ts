@@ -93,6 +93,46 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
     rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
   });
 
+  // An approval authorises a change in another tenant, so that tenant's trail
+  // holds the decision too: who approved which tool, never the conversation. The
+  // decision itself is already committed, so a row that cannot be written is
+  // logged and never undoes it.
+  const recordApprovalInTarget = async (
+    targetTenantId: string,
+    caller: ChatCaller,
+    homeTenantId: string,
+    approvalId: string,
+    tool: string,
+  ): Promise<void> => {
+    try {
+      await withTenantRetrying(parts.database.db, targetTenantId, (tx) =>
+        auditRepository(tx).record({
+          eventType: 'admin_mutation',
+          action: 'assistant.approval',
+          outcome: 'allowed',
+          actorTenantId: homeTenantId,
+          actorSubjectId: caller.ownerSubjectId,
+          resourceType: 'agent_approval',
+          resourceId: approvalId,
+          detail: {
+            tenant: homeTenantId,
+            target_tenant: targetTenantId,
+            subject: caller.ownerSubjectId,
+            approval: approvalId,
+            tool,
+            state: 'approved',
+            via: 'console',
+          },
+        }),
+      );
+    } catch (error) {
+      parts.logger.error(
+        { error: error instanceof Error ? error.name : 'unknown', tenantId: targetTenantId },
+        'the decision of a change in another tenant was not recorded in its trail',
+      );
+    }
+  };
+
   return {
     async open(caller, input, store) {
       const tenant = await tenantOf(caller);
@@ -153,7 +193,8 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
 
     async answer(caller, input, load) {
       const tenant = await tenantOf(caller);
-      return withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
+      let approvedTool: string | undefined;
+      const outcome = await withTenantRetrying(parts.database.db, tenant.id, async (tx) => {
         // Only a person's own console sign-in decides: a token of another kind,
         // one that acts for an agent included, is refused before anything is read.
         const grant =
@@ -203,8 +244,14 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             ...(input.withdrawn === undefined ? {} : { withdrawn: input.withdrawn }),
           },
         });
+        if (state === 'approved') approvedTool = target.tool;
         return { kind: 'decided' as const, state };
       });
+      const landsIn = targetOf(caller);
+      if (landsIn !== undefined && approvedTool !== undefined) {
+        await recordApprovalInTarget(landsIn, caller, tenant.id, input.approvalId, approvedTool);
+      }
+      return outcome;
     },
 
     async write(caller, input, find) {
