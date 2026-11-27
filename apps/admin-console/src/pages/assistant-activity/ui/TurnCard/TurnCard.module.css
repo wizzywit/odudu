@@ -91,12 +91,6 @@
   overflow-wrap: anywhere;
 }
 
-.time {
-  margin-inline-start: auto;
-  font-size: var(--type-12);
-  color: var(--ink-muted);
-}
-
 .body {
   margin: 0;
   padding: var(--space-2) var(--space-3);

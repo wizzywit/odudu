@@ -1,4 +1,4 @@
-import { formatAbsolute, groupedNumber } from '#/shared/lib/services/format';
+import { groupedNumber } from '#/shared/lib/services/format';
 import { stopWord } from '#/pages/assistant-activity/services/outcome';
 import type {
   ReplayEvent,
@@ -23,8 +23,6 @@ export interface EventView {
   body: string | null;
   // The body was longer than is shown.
   cut: boolean;
-  // When it happened, to the second.
-  time: string;
 }
 
 export interface StepView {
@@ -146,11 +144,6 @@ function said(event: ReplayEvent): Said {
   }
 }
 
-function timeOf(iso: string): string {
-  const instant = new Date(iso);
-  return Number.isNaN(instant.getTime()) ? iso : formatAbsolute(instant);
-}
-
 export function eventView(event: ReplayEvent): EventView {
   const { label, detail, body } = said(event);
   return {
@@ -158,7 +151,6 @@ export function eventView(event: ReplayEvent): EventView {
     kind: event.kind,
     label,
     detail,
-    time: timeOf(event.at),
     ...bodyOf(body),
   };
 }

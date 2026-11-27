@@ -12,7 +12,6 @@ function Entry({ event, inPart }: { event: EventView; inPart: string }) {
       <span className={styles.entryHead}>
         <strong>{event.label}</strong>
         {event.detail === null ? null : <span className={styles.muted}>{event.detail}</span>}
-        <span className={styles.time}>{event.time}</span>
       </span>
       {event.body === null ? null : <pre className={styles.body}>{event.body}</pre>}
       {event.cut ? <span className={styles.muted}>{inPart}</span> : null}

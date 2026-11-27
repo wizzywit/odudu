@@ -97,18 +97,14 @@ standard: anthropic.messages/claude-model-for-screenshots because profile
 Decisions
 Chose the standard model
 reason profile · profile free-chat · model id claude-model-for-screenshots · provider anthropic.messages
-2026-03-02 09:41:00 UTC
 Narrowed the tools
 mode ask · reads 62 · writes 12
-2026-03-02 09:41:00 UTC
 Budget reserved
 slot standard · tokens 55715 · fixed bytes 90125 · messages bytes 88
-2026-03-02 09:41:00 UTC
 The turn failed: AI_APICallError
-2026-03-02 09:41:00 UTC
 [text not visible to auditors in this tenant]
 Steps
 Step 1
 standard · anthropic.messages/claude-model-for-screenshots
 — in · — out
-195 ms
+190 ms
