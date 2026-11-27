@@ -1,5 +1,5 @@
-import { readSettings, type ChatDeps } from '@odudu/assistant';
-import { type DatabaseHandle, withTenant } from '@odudu/db';
+import { readSettings, type ChatCaller, type ChatDeps } from '@odudu/assistant';
+import { type DatabaseHandle, withTenant, withTenantRetrying } from '@odudu/db';
 import {
   callMcpTool,
   createInProcessCaller,
@@ -9,10 +9,14 @@ import {
   type WriteBudget,
 } from '@odudu/mcp';
 import { recordAgentToolCall } from '@odudu/protocol-admin';
-import { AGENT_TOKEN_MAX_TTL_SECONDS, type mintAgentToken } from '@odudu/protocol-oidc';
+import {
+  AGENT_TOKEN_MAX_TTL_SECONDS,
+  type AssistantTargetFacts,
+  type mintAgentToken,
+  type tenantLookupRepository,
+} from '@odudu/protocol-oidc';
 import { type FastifyInstance } from 'fastify';
 import { type Logger as PinoLogger } from 'pino';
-import { type ChatCaller } from '@odudu/assistant';
 import { TOOL_DEADLINE_MS } from '#/mcp-deps';
 
 export interface AssistantChatParts {
@@ -28,6 +32,26 @@ export interface AssistantChatParts {
   /** Secrets the server holds, such as the provider's keys, kept out of the trace. */
   readonly knownSecrets?: readonly string[];
   readonly now?: () => Date;
+}
+
+// What the tenant a system administrator names looks like from outside their
+// own: whether it exists and is enabled, and whether it offers the assistant.
+// Read in a transaction of its own, because the one that makes a grant is bound
+// to the administrator's tenant and cannot see another's rows. The grant's own
+// checks then stand on these facts, and the door re-reads the tenant on every
+// call. Undefined for a conversation in the caller's own tenant.
+export async function targetFactsOf(
+  parts: AssistantChatParts,
+  lookup: ReturnType<typeof tenantLookupRepository>,
+  caller: ChatCaller,
+): Promise<AssistantTargetFacts | null | undefined> {
+  if (caller.target === undefined) return undefined;
+  const found = await lookup.byName(caller.target.name);
+  if (found?.id !== caller.target.id) return null;
+  const settings = await withTenantRetrying(parts.database.db, found.id, (tx) =>
+    readSettings(tx, found.id),
+  );
+  return { id: found.id, enabled: found.enabled, assistantEnabled: settings.assistant_enabled };
 }
 
 export interface AssistantIdentity {

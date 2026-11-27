@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import { expect, it, vi } from 'vitest';
 import { axeInBothThemes } from '#/testing/axeInBothThemes';
-import { actingInText } from '#/widgets/assistant-panel/services/crossTenant';
+import { actingInText, actNoteOf } from '#/widgets/assistant-panel/services/crossTenant';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode, Meter } from '#/widgets/assistant-panel/types/chat';
 import { PanelHeader } from '#/widgets/assistant-panel/ui/PanelHeader';
@@ -26,6 +26,7 @@ function header(
     onModeChange?: (value: string) => void;
     modeDisabled?: boolean;
     modeProblem?: string | null;
+    mode?: 'ask' | 'act';
   } = {},
 ) {
   return (
@@ -38,12 +39,13 @@ function header(
       onStartNew={options.onStartNew ?? vi.fn<() => void>()}
       onShowConversations={options.onShowConversations ?? vi.fn<() => void>()}
       conversationsRef={createRef<HTMLButtonElement>()}
-      mode="ask"
+      mode={options.mode ?? 'ask'}
       modes={options.modes ?? ['ask', 'act']}
       onModeChange={options.onModeChange ?? vi.fn<(value: string) => void>()}
       modeDisabled={options.modeDisabled ?? false}
       modeProblem={options.modeProblem ?? null}
       acting={actingInText(options.actingIn ?? null)}
+      actNote={actNoteOf(options.actingIn ?? null, options.mode ?? 'ask')}
       meter={options.meter ?? null}
       models={options.models ?? null}
       words={PANEL_WORDING}
@@ -69,15 +71,10 @@ it('reports the mode the person picks, and says why a switch did not go through'
   expect(screen.getByRole('alert')).toHaveTextContent('could not be changed');
 });
 
-it('keeps the switch still while an answer runs, and never offers Act in another tenant', () => {
-  const running = render(header({ modeDisabled: true }));
+it('keeps the switch still while an answer runs', () => {
+  render(header({ modeDisabled: true }));
   expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeDisabled();
-  running.unmount();
-  render(header({ actingIn: 'demo' }));
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
-  expect(screen.getByRole('radio', { name: 'Ask' })).toBeEnabled();
-  expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
 });
 
 it('offers no switch where one mode is offered', () => {
@@ -131,13 +128,17 @@ it.each([
   });
 });
 
-it('names the tenant it acts in and says Act is not available there, in a tag no screen reader misses', () => {
+it('names the tenant it acts in and offers Act there, in a tag no screen reader misses', () => {
   render(header({ actingIn: 'demo' }));
   expect(screen.getByText('Acting in demo')).toBeVisible();
   expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
-  expect(screen.getByRole('radio', { name: 'Act' })).toBeDisabled();
-  expect(screen.getByText('Act is not available in another tenant.')).toBeInTheDocument();
-  expect(screen.queryByText(/approval card/u)).toBeNull();
+  expect(screen.getByRole('radio', { name: 'Act' })).toBeEnabled();
+  expect(screen.queryByText(/not in your own tenant/u)).toBeNull();
+});
+
+it('says where Act makes its changes once the conversation is in it in another tenant', () => {
+  render(header({ actingIn: 'demo', mode: 'act' }));
+  expect(screen.getByText('Act makes changes in demo, not in your own tenant.')).toBeVisible();
 });
 
 it('names no tenant in the administrator’s own', () => {

@@ -21,6 +21,7 @@ function log(options: { messages?: PanelMessage[]; loading?: boolean; running?: 
       mode="ask"
       entries={[]}
       username="ada"
+      actingIn={null}
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
       logRef={createRef<HTMLDivElement>()}

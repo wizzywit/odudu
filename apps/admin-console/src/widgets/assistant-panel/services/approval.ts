@@ -2,6 +2,9 @@ import type { StepState } from '#/widgets/assistant-panel/types/chat';
 import type { GatewayFailure } from '#/shared/lib/services/result';
 import {
   PANEL_WORDING,
+  changeInKicker,
+  changeTenantNote,
+  removalIn,
   expiresInMinutes,
   expiresInSeconds,
   copyIdLabel,
@@ -181,15 +184,24 @@ function remainingText(status: CardStatus, seconds: number): string {
 export function cardModel(input: {
   card: ApprovalCard;
   username: string;
+  // The tenant the change is made in when it is not the person's own.
+  tenant: string | null;
   decision: Decision | undefined;
   seconds: number;
   // How the step that proposed the change stands, which says whether it was made.
   step?: StepState | undefined;
 }): CardModel {
-  const { card, username, decision, seconds, step } = input;
+  const { card, username, tenant, decision, seconds, step } = input;
   const status = statusOf(decision, seconds);
   return {
     id: card.approval_id,
+    kicker: tenant === null ? PANEL_WORDING.cardLabel : changeInKicker(tenant),
+    tenant,
+    tenantNote: tenant === null ? null : changeTenantNote(tenant),
+    removal:
+      tenant === null
+        ? { title: PANEL_WORDING.removeTitle, consequence: PANEL_WORDING.removeConsequence }
+        : removalIn(tenant),
     title: card.title,
     targetType: card.target.type,
     targetName: card.target.name ?? null,

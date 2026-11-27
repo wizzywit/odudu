@@ -27,6 +27,7 @@ function feed(steps: StepLine[], live: boolean) {
       live={live}
       entries={[]}
       username="ada"
+      actingIn={null}
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
     />

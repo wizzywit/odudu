@@ -28,7 +28,7 @@ import {
   turnEndChunk,
 } from '#/service/stream-parts';
 import type { TurnRegistry } from '#/service/turn-registry';
-import { cardView, settleLastMessage, withdrawPending } from '#/usecase/approvals';
+import { actStillOffered, cardView, settleLastMessage, withdrawPending } from '#/usecase/approvals';
 import { createTurnBudget } from '#/usecase/budget-hooks';
 import {
   DEFAULT_TURN_DEADLINE_MS,
@@ -40,6 +40,7 @@ import { openEntitlements } from '#/usecase/entitlements';
 import { attachConversation } from '#/usecase/reattach';
 import { startTurn } from '#/usecase/run-turn';
 import { readSettings } from '#/usecase/settings';
+import { targetSide } from '#/usecase/target-side';
 import type { TurnApprovals } from '#/usecase/tool-approval';
 import { traceRecorder } from '#/usecase/trace-recorder';
 
@@ -110,23 +111,13 @@ async function readHead(deps: ChatDeps, caller: ChatCaller, id: string): Promise
     maskEmails: side.maskEmails,
     limits,
     titled: record.title !== null,
-    // Act only where the deployment can propose a change, every tenant involved
-    // allows it, and the conversation is in the caller's own tenant.
+    // Act only where the deployment can propose a change and every tenant
+    // involved allows it.
     mode:
-      record.mode === 'act' &&
-      deps.approvals !== undefined &&
-      side.modes.includes('act') &&
-      !crossTenant(caller)
+      record.mode === 'act' && deps.approvals !== undefined && side.modes.includes('act')
         ? 'act'
         : 'ask',
   };
-}
-
-async function targetSide(deps: ChatDeps, tenantId: string) {
-  return deps.transact(tenantId, async (tx) => {
-    const settings = await readSettings(tx, tenantId);
-    return sideOf(settings, await (deps.entitlements ?? openEntitlements(tx)).limits(tenantId));
-  });
 }
 
 interface Loaded {
@@ -312,8 +303,9 @@ function turnApprovals(
         }),
       };
     },
-    write: (tool, input, context) =>
-      ports.write(
+    write: async (tool, input, context) => {
+      if (!(await actStillOffered(deps, caller))) return { kind: 'not_approved' };
+      return ports.write(
         caller,
         {
           conversationId: id,
@@ -338,7 +330,8 @@ function turnApprovals(
           const card = await approvalCardRepository(tx).byCall(id, context.toolCallId);
           return card?.tool === tool ? card.approvalId : undefined;
         },
-      ),
+      );
+    },
   };
 }
 

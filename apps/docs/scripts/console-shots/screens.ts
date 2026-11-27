@@ -578,8 +578,8 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'assistant-panel-other-tenant',
-    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
-    caption: 'In another tenant the panel names it, and Act is not available.',
+    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act available, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
+    caption: 'In another tenant the panel names it, and Act makes its changes there.',
     signedIn: true,
     viewport: PANEL_VIEW,
     expect: [

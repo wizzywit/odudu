@@ -37,11 +37,12 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function item(onDecide = vi.fn<() => void>(), tool?: string) {
+function item(onDecide = vi.fn<() => void>(), tool?: string, actingIn: string | null = null) {
   return (
     <ApprovalItem
       entry={entry(tool)}
       username="ada"
+      actingIn={actingIn}
       step="waiting"
       words={PANEL_WORDING}
       onDecide={onDecide}
@@ -74,6 +75,7 @@ it('decides with the entry it was given', async () => {
     <ApprovalItem
       entry={entry()}
       username="ada"
+      actingIn={null}
       step="waiting"
       words={PANEL_WORDING}
       onDecide={onDecide}
@@ -92,6 +94,7 @@ it('asks once more before approving a change that removes something, and not bef
     <ApprovalItem
       entry={entry('clear_message_override')}
       username="ada"
+      actingIn={null}
       step="waiting"
       words={PANEL_WORDING}
       onDecide={onDecide}
@@ -121,6 +124,7 @@ it('closes the extra question when the card expires, so approval is not offered 
     <ApprovalItem
       entry={entry('clear_message_override')}
       username="ada"
+      actingIn={null}
       step="waiting"
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
@@ -133,4 +137,16 @@ it('closes the extra question when the card expires, so approval is not offered 
   });
   expect(screen.queryByRole('alertdialog')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Approve removal' })).toBeNull();
+});
+
+it('names the tenant in the question a removal asks, where the change is made in another one', async () => {
+  const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+  const onDecide = vi.fn<() => void>();
+  render(item(onDecide, 'clear_message_override', 'demo'));
+  await user.click(screen.getByRole('button', { name: 'Approve' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Approve this removal in demo?' });
+  expect(dialog).toHaveTextContent('in demo, not in your own tenant');
+  expect(onDecide).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'Approve removal' }));
+  expect(onDecide).toHaveBeenCalledWith(expect.anything(), true);
 });

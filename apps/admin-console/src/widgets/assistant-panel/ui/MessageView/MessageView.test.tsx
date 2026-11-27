@@ -19,6 +19,7 @@ it('draws a person’s words as typed and labels the message by who wrote it', (
       busy={false}
       entries={[]}
       username="ada"
+      actingIn={null}
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
     />,
@@ -34,6 +35,7 @@ it('draws an answer’s steps and text in order, put away once finished unless o
       busy={false}
       entries={[]}
       username="ada"
+      actingIn={null}
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
     />,
@@ -53,6 +55,7 @@ it('says an answer is still being written by its state, not its words', () => {
       busy
       entries={[]}
       username="ada"
+      actingIn={null}
       words={PANEL_WORDING}
       onDecide={vi.fn<() => void>()}
     />,
@@ -68,6 +71,7 @@ it('passes axe in both themes', async () => {
         busy={false}
         entries={[]}
         username="ada"
+        actingIn={null}
         words={PANEL_WORDING}
         onDecide={vi.fn<() => void>()}
       />

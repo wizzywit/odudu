@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { json, problem } from '#/testing/fakeTransport';
 import {
   CONVERSATION,
@@ -226,4 +226,52 @@ it('passes axe in both themes with a card waiting', async () => {
       },
     ),
   ).toEqual({ light: [], dark: [] });
+});
+
+describe('in another tenant', () => {
+  const DEMO = `/console/api/admin/tenants/demo/assistant/conversations`;
+  const DEMO_MESSAGES = `${DEMO}/c1/messages`;
+  const DEMO_APPROVALS = `${DEMO}/c1/approvals`;
+
+  it('starts a conversation in Act at the target’s path and says where its changes land', async () => {
+    const user = userEvent.setup();
+    const { sent } = await renderPanel(
+      {
+        [`POST ${DEMO}`]: json(CONVERSATION, 201),
+        [`POST ${DEMO_MESSAGES}`]: PROPOSAL,
+        [`GET ${DEMO_APPROVALS}`]: json({ items: [CARD] }, 200, {
+          date: 'Thu, 26 Nov 2026 05:40:00 GMT',
+        }),
+      },
+      { actingIn: 'demo' },
+    );
+    await user.click(screen.getByRole('radio', { name: 'Act' }));
+    expect(screen.getByRole('radio', { name: 'Act' })).toBeChecked();
+    expect(
+      screen.getByText('Act makes changes in demo, not in your own tenant.'),
+    ).toBeInTheDocument();
+    await ask(user);
+    const card = await screen.findByRole('region', { name: CARD.title });
+    expect(sent.find((request) => request.path === DEMO)?.body).toMatchObject({ mode: 'act' });
+    expect(within(card).getByText('Change in demo waiting for your approval')).toBeInTheDocument();
+    expect(within(card).getByText('demo')).toBeInTheDocument();
+  });
+
+  it('says the target does not offer Act when the switch is refused for that, and stays in Ask', async () => {
+    const user = userEvent.setup();
+    await renderPanel(
+      {
+        [`GET ${DEMO}/c1`]: json(CONVERSATION),
+        [`PUT ${DEMO}/c1/mode`]: problem(409, 'about:blank', 'Conflict', {
+          detail: 'the tenant this conversation acts in does not offer Act',
+        }),
+      },
+      { conversationId: 'c1', actingIn: 'demo' },
+    );
+    await user.click(await screen.findByRole('radio', { name: 'Act' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'demo does not offer Act, so this conversation stays in Ask.',
+    );
+    expect(screen.getByRole('radio', { name: 'Ask' })).toBeChecked();
+  });
 });

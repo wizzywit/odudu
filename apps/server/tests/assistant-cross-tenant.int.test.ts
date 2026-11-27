@@ -369,16 +369,17 @@ describe('creating the conversation', () => {
     expect(await nGrants(op.tenantId, op.subjectId)).toBe(0);
   });
 
-  it('answers 404 for a target that does not exist, and refuses Act with nothing written', async () => {
+  it('answers 401 for a target that does not exist, and starts in Act where the target offers it', async () => {
     const op = await operator();
     const x = await tenantWith();
     expect(
       (await call(op, `nobody-${newId()}`, 'POST', '', { page_context: CONTEXT })).statusCode,
     ).toBe(401);
     const act = await call(op, x.name, 'POST', '', { page_context: CONTEXT, mode: 'act' });
-    expect(act.statusCode).toBe(403);
-    expect(await nConversations(op.tenantId, op.subjectId)).toBe(0);
-    expect(await nGrants(op.tenantId, op.subjectId)).toBe(0);
+    expect(act.statusCode, act.body).toBe(201);
+    expect(act.json<{ mode: string }>().mode).toBe('act');
+    expect(await nConversations(op.tenantId, op.subjectId)).toBe(1);
+    expect(await nGrants(op.tenantId, op.subjectId)).toBe(1);
   });
 });
 

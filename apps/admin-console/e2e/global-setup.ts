@@ -502,6 +502,7 @@ export default function globalSetup(): void {
     refuse: { tenant: `${run}-i`, username: 'lamport', password: password() },
     phone: { tenant: `${run}-i`, username: 'shamir', password: password() },
     shots: { tenant: `${run}-i`, username: 'diffie', password: password() },
+    cross: { tenant: 'system', username: `cross-${run}`, password: password() },
   };
   const clients = {
     admin: { tenant: `${run}-k`, username: 'gauss', password: password() },
@@ -743,7 +744,9 @@ export default function globalSetup(): void {
   ]);
   seedConfig(config);
   seed(['tenant', '--name', assistant.read.tenant]);
-  for (const account of Object.values(assistant)) administrator(account);
+  for (const [name, account] of Object.entries(assistant)) {
+    if (name !== 'cross') administrator(account);
+  }
   seedGroupsRoles(groupsRoles.admin.tenant);
   administrator(groupsRoles.admin);
   subject(groupsRoles.limited);
@@ -765,6 +768,7 @@ export default function globalSetup(): void {
   seed(['admin', '--username', `boot-${run}`]);
   administrator(system);
   administrator(resumer);
+  administrator(assistant.cross);
   audit.clientId = seedAuditTrail(audit);
   subject(systemAdmins.candidate);
   administrator(systemAdmins.revokee);

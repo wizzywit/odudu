@@ -83,12 +83,16 @@ export interface GrantAssistantWriteInput {
   readonly consoleGrantId: string;
   readonly expectedSubjectId: string;
   readonly now: Date;
+  // The tenant the conversation acts in, as `GrantAssistantAccessInput.target`
+  // takes it: the write grant names it, so the door admits the write there alone.
+  readonly target?: AssistantTargetFacts | null;
 }
 
 // The grant one approved write acts on: the console sign-in's subject and
 // session, exchanged from it, holding `mcp:write` alone. It is made when the
 // approval is spent and ended when the write returns, so the conversation's own
-// read-only grant is never widened.
+// read-only grant is never widened. Where the conversation acts in another
+// tenant it is made under every check that tenant's read grant meets.
 export function grantAssistantWrite(
   tx: TenantScopedDatabase,
   deps: GrantAssistantAccessDeps,
@@ -102,6 +106,7 @@ export function grantAssistantWrite(
     scope: ASSISTANT_WRITE_CEILING,
     ceiling: ASSISTANT_WRITE_CEILING,
     now: input.now,
+    ...(input.target === undefined ? {} : { target: input.target }),
   });
 }
 

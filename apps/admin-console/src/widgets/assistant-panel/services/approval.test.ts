@@ -76,7 +76,13 @@ it('words the time left, and announces it only at one minute and at expiry', () 
 });
 
 it('puts the outcome where the buttons were, and never approves by expiry', () => {
-  const open = cardModel({ card: CARD, username: 'ada', decision: undefined, seconds: 300 });
+  const open = cardModel({
+    card: CARD,
+    username: 'ada',
+    tenant: null,
+    decision: undefined,
+    seconds: 300,
+  });
   expect(open).toMatchObject({
     status: 'pending',
     who: 'You, as ada',
@@ -87,17 +93,18 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     creating: false,
     risky: false,
   });
-  expect(cardModel({ card: CARD, username: 'ada', decision: undefined, seconds: 0 })).toMatchObject(
-    {
-      status: 'expired',
-      outcome: 'Expired. Nothing was changed.',
-      announcement: 'The approval expired',
-    },
-  );
+  expect(
+    cardModel({ card: CARD, username: 'ada', tenant: null, decision: undefined, seconds: 0 }),
+  ).toMatchObject({
+    status: 'expired',
+    outcome: 'Expired. Nothing was changed.',
+    announcement: 'The approval expired',
+  });
   expect(
     cardModel({
       card: CARD,
       username: 'ada',
+      tenant: null,
       decision: { kind: 'decided', state: 'denied' },
       seconds: 100,
     }),
@@ -106,6 +113,7 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     cardModel({
       card: CARD,
       username: 'ada',
+      tenant: null,
       decision: { kind: 'decided', state: 'approved' },
       seconds: 0,
     }).status,
@@ -114,6 +122,7 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     cardModel({
       card: CARD,
       username: 'ada',
+      tenant: null,
       decision: { kind: 'deciding', approve: true },
       seconds: 100,
     }).status,
@@ -122,6 +131,7 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     cardModel({
       card: CARD,
       username: 'ada',
+      tenant: null,
       decision: { kind: 'failed', problem: 'Nope', final: false },
       seconds: 100,
     }),
@@ -130,6 +140,7 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     cardModel({
       card: CARD,
       username: 'ada',
+      tenant: null,
       decision: { kind: 'failed', problem: 'Gone', final: true },
       seconds: 100,
     }),
@@ -173,7 +184,8 @@ it('says what a finished write step became, and nothing of a read', () => {
 it('says an approval was applied only once its step is done', () => {
   const approved = { kind: 'decided', state: 'approved' } as const;
   const outcome = (step?: 'waiting' | 'running' | 'done' | 'failed' | 'denied') =>
-    cardModel({ card: CARD, username: 'ada', decision: approved, seconds: 100, step }).outcome;
+    cardModel({ card: CARD, username: 'ada', tenant: null, decision: approved, seconds: 100, step })
+      .outcome;
   expect(outcome()).toBe('Approved. Applying the change…');
   expect(outcome('waiting')).toBe('Approved. Applying the change…');
   expect(outcome('running')).toBe('Approved. Applying the change…');
@@ -202,4 +214,36 @@ it('answers a card once, and never again after the server took a decision', () =
   expect(confirmOpen(true, 'expired')).toBe(false);
   expect(resumes({ kind: 'decided', state: 'denied' })).toBe(true);
   expect(resumes({ kind: 'failed', problem: 'x', final: true })).toBe(false);
+});
+
+it('names the tenant a change lands in, on the card and in the removal question, only when it is not the own', () => {
+  const own = cardModel({
+    card: CARD,
+    username: 'ada',
+    tenant: null,
+    decision: undefined,
+    seconds: 300,
+  });
+  expect(own).toMatchObject({
+    kicker: 'Change waiting for your approval',
+    tenant: null,
+    tenantNote: null,
+    removal: { title: 'Approve this removal?' },
+  });
+  const away = cardModel({
+    card: CARD,
+    username: 'ada',
+    tenant: 'demo',
+    decision: undefined,
+    seconds: 300,
+  });
+  expect(away).toMatchObject({
+    kicker: 'Change in demo waiting for your approval',
+    tenant: 'demo',
+    tenantNote: 'demo is not your own tenant. Approving makes the change there.',
+    removal: {
+      title: 'Approve this removal in demo?',
+      consequence: expect.stringContaining('in demo, not in your own tenant') as string,
+    },
+  });
 });

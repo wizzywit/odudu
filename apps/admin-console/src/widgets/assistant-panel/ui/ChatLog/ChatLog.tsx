@@ -28,6 +28,7 @@ export function ChatLog({
   mode,
   entries,
   username,
+  actingIn,
   words,
   logRef,
   onScroll,
@@ -41,6 +42,7 @@ export function ChatLog({
   // The changes the conversation waits on, and who decides them.
   entries: readonly Entry[];
   username: string;
+  actingIn: string | null;
   words: PanelWords;
   logRef: RefObject<HTMLDivElement | null>;
   onScroll: () => void;
@@ -72,6 +74,7 @@ export function ChatLog({
                 busy={running && message.id === last?.id && message.role === 'assistant'}
                 entries={entries}
                 username={username}
+                actingIn={actingIn}
                 words={words}
                 onDecide={onDecide}
               />

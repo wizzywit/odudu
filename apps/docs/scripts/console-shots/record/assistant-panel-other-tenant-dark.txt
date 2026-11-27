@@ -140,7 +140,6 @@ Acting in demo
 Ask
 Act
 Ask reads and explains. It changes nothing.
-Act is not available in another tenant.
 Before you start
 Your messages, and the tenant data the assistant reads to answer them, are sent to Anthropic.
 You can read it again later. People who can read your own tenant’s audit trail can read it too, unless an administrator there has turned that off in Settings.

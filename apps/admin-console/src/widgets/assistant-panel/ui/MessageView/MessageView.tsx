@@ -14,6 +14,7 @@ export function MessageView({
   busy,
   entries,
   username,
+  actingIn,
   words,
   onDecide,
 }: {
@@ -23,6 +24,7 @@ export function MessageView({
   // drawn under the step that proposed them.
   entries: readonly Entry[];
   username: string;
+  actingIn: string | null;
   words: PanelWords;
   onDecide: (entry: Entry, approve: boolean) => void;
 }) {
@@ -56,6 +58,7 @@ export function MessageView({
                 live={busy || block.steps.some((step) => step.state === 'waiting')}
                 entries={entries}
                 username={username}
+                actingIn={actingIn}
                 words={words}
                 onDecide={onDecide}
               />

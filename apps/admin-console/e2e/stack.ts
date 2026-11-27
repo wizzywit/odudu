@@ -177,6 +177,8 @@ const seededSchema = z.object({
     refuse: account,
     phone: account,
     shots: account,
+    // A system administrator, who acts in the assistant tenant above.
+    cross: account,
   }),
   // A tenant of its own for the Groups and Roles tests.
   groupsRoles: z.object({

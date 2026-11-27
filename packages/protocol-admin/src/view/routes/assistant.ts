@@ -227,9 +227,17 @@ export interface AssistantChatPort {
     id: string,
     mode: AssistantMode,
   ): Promise<
-    { kind: 'set'; mode: AssistantMode } | { kind: 'not_found' } | { kind: 'not_offered' }
+    | { kind: 'set'; mode: AssistantMode }
+    | { kind: 'not_found' }
+    | { kind: 'not_offered'; cause?: 'target' }
   >;
 }
+
+// What a conversation started or switched to Act in another tenant is refused
+// with when that tenant does not offer Act; the console matches the sentence.
+const TARGET_ACT_DETAIL = 'the tenant this conversation acts in does not offer Act';
+// The code the chat layer gives that refusal when the conversation is created.
+const TARGET_ACT_NOT_OFFERED = 'target_act_not_offered';
 
 export interface AssistantChatRouteDeps {
   readonly chat: AssistantChatPort | undefined;
@@ -345,6 +353,13 @@ export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRo
         reply,
         request,
         problem(400, 'about:blank', 'Bad Request', 'the profile is not one this server offers'),
+      );
+    }
+    if (outcome.kind === 'access_refused' && outcome.reason === TARGET_ACT_NOT_OFFERED) {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', TARGET_ACT_DETAIL),
       );
     }
     if (outcome.kind === 'access_refused') {
@@ -539,7 +554,12 @@ export function setConversationModeHandler(deps: AssistantChatRouteDeps): AdminR
       return sendProblem(
         reply,
         request,
-        problem(409, 'about:blank', 'Conflict', 'this mode is not offered here'),
+        problem(
+          409,
+          'about:blank',
+          'Conflict',
+          outcome.cause === 'target' ? TARGET_ACT_DETAIL : 'this mode is not offered here',
+        ),
       );
     }
     return reply.code(200).send({ mode: outcome.mode });

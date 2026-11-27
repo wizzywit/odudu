@@ -11,18 +11,20 @@ import { ApprovalCard } from '#/widgets/assistant-panel/ui/ApprovalCard';
 export function ApprovalItem({
   entry,
   username,
+  actingIn,
   step,
   words,
   onDecide,
 }: {
   entry: Entry;
   username: string;
+  actingIn: string | null;
   // How the step that proposed the change stands.
   step: StepState;
   words: PanelWords;
   onDecide: (entry: Entry, approve: boolean) => void;
 }) {
-  const card = useApprovalCard(entry, username, step, onDecide);
+  const card = useApprovalCard(entry, username, actingIn, step, onDecide);
   return (
     <>
       <ApprovalCard
@@ -33,8 +35,8 @@ export function ApprovalItem({
       />
       <ConfirmDialog
         isOpen={card.confirming}
-        title={words.removeTitle}
-        consequence={words.removeConsequence}
+        title={card.model.removal.title}
+        consequence={card.model.removal.consequence}
         confirmLabel={words.removeConfirm}
         tone="danger"
         onConfirm={card.confirm}

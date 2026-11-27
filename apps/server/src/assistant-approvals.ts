@@ -19,7 +19,7 @@ import {
   tokenGrantRepository,
 } from '@odudu/protocol-oidc';
 import { sql } from 'drizzle-orm';
-import { callAsAssistant, type AssistantChatParts } from '#/assistant-call';
+import { callAsAssistant, targetFactsOf, type AssistantChatParts } from '#/assistant-call';
 import { grantWriteBudget } from '#/mcp-deps';
 
 // The kind an approval for one of the assistant's changes carries, apart from
@@ -28,8 +28,10 @@ export const ASSISTANT_WRITE_KIND = 'assistant_write';
 
 /**
  * What an approval is a digest of: the tool, every argument as the call carries
- * it, the conversation and the person it is for. The arguments are taken as
- * the JSON they are, so a member the model left undefined is one it never sent.
+ * it, the conversation, the person it is for and, in another tenant, that
+ * tenant. The arguments are taken as the JSON they are, so a member the model
+ * left undefined is one it never sent. An own-tenant digest has no target
+ * member, so it is what it was before a conversation could act elsewhere.
  */
 export function writeDigest(
   tenantId: string,
@@ -37,17 +39,26 @@ export function writeDigest(
   conversationId: string,
   tool: string,
   input: unknown,
+  targetTenantId?: string,
 ): string {
   return approvalDigest({
     name: tool,
     input: {
       conversation: conversationId,
+      ...(targetTenantId === undefined ? {} : { target_tenant: targetTenantId }),
       arguments: JSON.parse(JSON.stringify(input ?? null)) as unknown,
     },
     tenantId,
     ownerSubjectId,
     instanceId: null,
   });
+}
+
+// The tenant a conversation acts in when it is not the caller's own.
+function targetOf(caller: ChatCaller): string | undefined {
+  return caller.target !== undefined && caller.target.id !== caller.tenantId
+    ? caller.target.id
+    : undefined;
 }
 
 // The approval did not cover this call, or the write could not be made ready:
@@ -81,6 +92,80 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
     rememberMeIdleSeconds: tenant.rememberMeIdleSeconds,
     rememberMeMaxSeconds: tenant.rememberMeMaxSeconds,
   });
+
+  // An approval authorises a change in another tenant, so that tenant's trail
+  // holds it: who approved which tool, never the conversation. It is written as
+  // the change is spent, before it runs, and a row that cannot be written stops
+  // the change, so no change is made there without its record.
+  const recordApprovalInTarget = (
+    targetTenantId: string,
+    caller: ChatCaller,
+    homeTenantId: string,
+    approvalId: string,
+    tool: string,
+  ): Promise<void> =>
+    withTenantRetrying(parts.database.db, targetTenantId, (tx) =>
+      auditRepository(tx).record({
+        eventType: 'admin_mutation',
+        action: 'assistant.approval',
+        outcome: 'allowed',
+        actorTenantId: homeTenantId,
+        actorSubjectId: caller.ownerSubjectId,
+        resourceType: 'agent_approval',
+        resourceId: approvalId,
+        detail: {
+          tenant: homeTenantId,
+          target_tenant: targetTenantId,
+          subject: caller.ownerSubjectId,
+          approval: approvalId,
+          tool,
+          state: 'approved',
+          via: 'console',
+        },
+      }),
+    );
+
+  // What came of an approved change in another tenant, in the administrator's
+  // own trail: the tool, the tenant and whether it was made. The target's trail
+  // holds the tool call itself.
+  const recordOutcomeAtHome = async (
+    caller: ChatCaller,
+    homeTenantId: string,
+    conversationId: string,
+    approvalId: string,
+    tool: string,
+    targetTenantId: string,
+    outcome: 'executed' | 'failed',
+  ): Promise<void> => {
+    try {
+      await withTenantRetrying(parts.database.db, homeTenantId, (tx) =>
+        auditRepository(tx).record({
+          eventType: 'admin_mutation',
+          action: 'assistant.approval',
+          outcome: outcome === 'executed' ? 'allowed' : 'failed',
+          actorTenantId: homeTenantId,
+          actorSubjectId: caller.ownerSubjectId,
+          resourceType: 'assistant_conversation',
+          resourceId: conversationId,
+          detail: {
+            tenant: homeTenantId,
+            target_tenant: targetTenantId,
+            subject: caller.ownerSubjectId,
+            conversation: conversationId,
+            approval: approvalId,
+            tool,
+            state: outcome,
+            via: 'console',
+          },
+        }),
+      );
+    } catch (error) {
+      parts.logger.error(
+        { error: error instanceof Error ? error.name : 'unknown', tenantId: homeTenantId },
+        'the outcome of a change in another tenant was not recorded in the administrator trail',
+      );
+    }
+  };
 
   return {
     async open(caller, input, store) {
@@ -121,6 +206,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
                 input.conversationId,
                 input.tool,
                 input.input,
+                targetOf(caller),
               ),
               now: input.now,
             },
@@ -181,6 +267,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           resourceId: target.conversationId,
           detail: {
             tenant: tenant.id,
+            ...(targetOf(caller) === undefined ? {} : { target_tenant: targetOf(caller) }),
             subject: caller.ownerSubjectId,
             conversation: target.conversationId,
             approval: input.approvalId,
@@ -202,6 +289,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
       if (tool?.access !== 'write' || consoleGrantId === undefined) {
         return { kind: 'not_approved' };
       }
+      const targetFacts = await targetFactsOf(parts, lookup, caller);
       const mintDeps = {
         tenantId: tenant.id,
         issuer: caller.issuer,
@@ -222,6 +310,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
             input.conversationId,
             input.tool,
             input.input,
+            targetOf(caller),
           );
           if (!(await consumeApproval(tx, found, digest, at))) {
             const held = await agentApprovalRepository(tx).byId(found);
@@ -236,6 +325,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
                 consoleGrantId,
                 expectedSubjectId: caller.ownerSubjectId,
                 now: at,
+                ...(targetFacts === undefined ? {} : { target: targetFacts }),
               },
             );
           } catch (error) {
@@ -262,6 +352,18 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           if (client?.builtinAssistant !== true) throw new Error('the assistant client is missing');
           return { clientId: client.clientId, clientDbId: client.id };
         });
+        const landsIn = targetOf(caller);
+        if (landsIn !== undefined) {
+          try {
+            await recordApprovalInTarget(landsIn, caller, tenant.id, approvalId, input.tool);
+          } catch (error) {
+            parts.logger.error(
+              { error: error instanceof Error ? error.name : 'unknown', tenantId: landsIn },
+              'a change in another tenant was not run: its approval could not be recorded there',
+            );
+            return { kind: 'not_approved' };
+          }
+        }
         const minted = await withTenantRetrying(parts.database.db, tenant.id, (tx) =>
           mintAgentToken(tx, mintDeps, {
             subjectGrantId: approvalId,
@@ -287,6 +389,7 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
               undefined,
               parts.logger,
               now,
+              targetOf(caller),
             ),
             holdsWrite: true,
           },
@@ -295,6 +398,17 @@ export function approvalPortsFor(parts: AssistantChatParts): ApprovalPorts {
           tool,
           input.input,
         );
+        if (landsIn !== undefined) {
+          await recordOutcomeAtHome(
+            caller,
+            tenant.id,
+            input.conversationId,
+            approvalId,
+            input.tool,
+            landsIn,
+            result.isError ? 'failed' : 'executed',
+          );
+        }
         return { kind: 'done', result };
       } catch (error) {
         if (error instanceof AgentTokenRefused) {
