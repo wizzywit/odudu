@@ -49,6 +49,7 @@ Each page below does one job. It says what the area is for, walks through the co
 ### Observe
 
 16. [Audit trail](./audit-trail.mdx): every change and every refusal.
+    - [Assistant activity](./assistant-activity.mdx): who used the assistant, a replay of each conversation, and what to keep.
 
 ### System
 

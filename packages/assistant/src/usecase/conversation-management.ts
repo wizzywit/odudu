@@ -1,3 +1,4 @@
+import { effectiveMode } from '#/service/profiles';
 // A person's own conversations: listing them, reopening the latest, hiding one,
 // exporting one and deleting one. Every call is for the caller's conversations
 // at the tenant the path names, and a conversation that is not theirs is
@@ -33,7 +34,7 @@ function summaryOf(row: ConversationListRow): AssistantConversationSummary {
     id: row.id,
     title: row.title,
     profile: row.profile,
-    mode: row.mode === 'act' ? 'act' : 'ask',
+    mode: effectiveMode(row.profile, row.mode),
     created_at: row.createdAt.toISOString(),
     last_active_at: row.lastActiveAt.toISOString(),
     archived: row.archivedAt !== null,
@@ -279,7 +280,7 @@ function conversationOf(row: ConversationRecord): AssistantConversationExport['c
     id: row.id,
     title: row.title,
     profile: row.profile,
-    mode: row.mode === 'act' ? 'act' : 'ask',
+    mode: effectiveMode(row.profile, row.mode),
     created_at: row.createdAt.toISOString(),
     last_active_at: row.lastActiveAt.toISOString(),
   };

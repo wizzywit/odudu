@@ -1,3 +1,4 @@
+import { effectiveMode } from '#/service/profiles';
 import { conversationRepository } from '#/repository/conversations';
 import { conversationIsCallers } from '#/service/conversation-access';
 import { endedReasonOf, type EndedReason } from '#/service/reattach-reason';
@@ -44,7 +45,7 @@ export async function attachConversation(
       conversationId: id,
       previousGrantId: record.grantId ?? record.id,
       newGrantId: deps.newId(),
-      mode: record.mode === 'act' ? 'act' : 'ask',
+      mode: effectiveMode(record.profile, record.mode),
       archived: record.archivedAt !== null,
       now: deps.now(),
     });

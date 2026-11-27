@@ -9936,7 +9936,7 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        /** @description The kind of conversation. `free-chat`, the default, is the only one this server offers; any other is refused with `400`. */
+                        /** @description The kind of conversation: `free-chat`, the default, or a task, `why-cant-sign-in` or `review-client`, which only reads. A profile this server does not offer, or a `mode` the profile does not run in, is refused with `400`. */
                         profile?: string;
                         /**
                          * @description Whether the assistant may only read (`ask`, the default) or may also propose changes (`act`).

@@ -331,6 +331,15 @@ apply. Open defaults are conservative; the paid layer sets tier numbers.
 | Settings, messages    | Translate my wording                   | Act        | message overrides                                                                     |
 | Flows                 | Build this flow from a description     | Ask        | only if the flow editor accepts a pre-filled draft; otherwise dropped from this scope |
 
+A profile is a record of the server (`packages/assistant/src/service/profiles.ts`): its id, the modes it
+runs in, its slot, the tools it is given (a list of the reads, or every tool the mode offers), whether it may
+use sub-agents, its step and per-call output caps, and a line telling the model the task. The ids built so far
+are `free-chat`, `why-cant-sign-in` and `review-client`. A conversation names its profile when it is created
+and the profile fixes its tools for every turn; a read profile is Ask only, and a conversation asking for Act
+under one is refused with `400`. A screen's button asks for a profile and puts its question in the message
+field; it never sends it. "Explain this event" is withheld until the audit reads are offered to the assistant
+without its own record.
+
 Open versus paid (ADR 0055): per object, on demand, started by a person is open;
 whole-tenant, scheduled and proactive is paid.
 

@@ -10,6 +10,7 @@ export function Composer({
   running,
   blocked,
   contextLabel,
+  task,
   draft,
   onDraft,
   words,
@@ -22,6 +23,8 @@ export function Composer({
   blocked: boolean;
   // Where the administrator is, which goes with the first message.
   contextLabel: string;
+  // The task the conversation is for, or null for free chat.
+  task: string | null;
   // What is being typed, held by the panel so putting it away keeps it.
   draft: string;
   onDraft: (text: string) => void;
@@ -52,6 +55,12 @@ export function Composer({
       <p className={styles.context}>
         <span className={styles.contextLabel}>{words.contextLabel}</span>
         <span className={styles.chip}>{contextLabel}</span>
+        {task === null ? null : (
+          <>
+            <span className={styles.contextLabel}>{words.taskLabel}</span>
+            <span className={styles.chip}>{task}</span>
+          </>
+        )}
       </p>
       <textarea
         ref={inputRef}

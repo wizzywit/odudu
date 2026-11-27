@@ -84,6 +84,7 @@ const ACCESS = 'settings/services/accessSections.ts';
 const PASSWORD = 'settings/services/passwordSection.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
 const ASSISTANT = 'settings/services/assistantSection.ts';
+const ACTIVITY_WORDS = 'assistant-activity/services/activityText.ts';
 const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
@@ -629,6 +630,14 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  'Why can’t they sign in?': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Why can’t they sign in?'",
+  ),
+  'Review with the assistant': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Review with the assistant'",
+  ),
   'Ask the assistant': entity('assistant/services/wording.ts', "openButton: 'Ask the assistant'"),
   Close: entity('assistant/services/wording.ts', "closeButton: 'Close'"),
   'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),
@@ -1308,4 +1317,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Formatted address': page('subjects/services/claims.ts', "label: 'Formatted address'"),
   Street: page('subjects/services/claims.ts', "label: 'Street'"),
   Country: page('subjects/services/claims.ts', "label: 'Country'"),
+  // The assistant's activity screen.
+  'Assistant activity': rail('assistant-activity', 'Assistant activity'),
+  'Kind of conversation': page(ACTIVITY_WORDS, "kind: 'Kind of conversation'"),
+  'Last outcome': page(ACTIVITY_WORDS, "outcome: 'Last outcome'"),
+  Tool: page(ACTIVITY_WORDS, "tool: 'Tool'"),
+  'Person (id)': page(ACTIVITY_WORDS, "person: 'Person (id)'"),
+  'Conversation (id)': page(ACTIVITY_WORDS, "conversation: 'Conversation (id)'"),
+  'Only this person': page(ACTIVITY_WORDS, "ONLY_THIS_PERSON = 'Only this person'"),
+  'Show the steps': page(ACTIVITY_WORDS, "SHOW_TURN = 'Show the steps'"),
+  'Hide the steps': page(ACTIVITY_WORDS, "HIDE_TURN = 'Hide the steps'"),
+  'Why this model': page(ACTIVITY_WORDS, "WHY_MODEL = 'Why this model'"),
+  'Why it stopped': page(ACTIVITY_WORDS, "WHY_STOPPED = 'Why it stopped'"),
+  Decisions: page(ACTIVITY_WORDS, "DECISIONS = 'Decisions'"),
+  'Report this answer': page(ACTIVITY_WORDS, "REPORT_LABEL = 'Report this answer'"),
+  'Export as test case': page(ACTIVITY_WORDS, "EXPORT_LABEL = 'Export as test case'"),
 };

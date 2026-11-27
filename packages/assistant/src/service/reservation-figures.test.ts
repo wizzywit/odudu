@@ -1,7 +1,7 @@
 import { TOOLS } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
 import { inputUpperBound } from '#/service/estimate';
-import { FREE_CHAT } from '#/service/profile';
+import { FREE_CHAT } from '#/service/profiles';
 import {
   MAX_REQUEST_TOKENS,
   requestParts,

@@ -19,7 +19,7 @@ import { titleOf } from '#/service/conversation-title';
 import { pageContextText, readPageContext } from '#/service/page-context';
 import { runKey } from '#/service/run-key';
 import type { EndedReason } from '#/service/reattach-reason';
-import { profileById } from '#/service/profile';
+import { effectiveMode, profileById } from '#/service/profiles';
 import { slotDecision } from '#/service/trace-decisions';
 import { startOf, summaryOf } from '#/service/turn-summary';
 import {
@@ -116,7 +116,9 @@ async function readHead(deps: ChatDeps, caller: ChatCaller, id: string): Promise
     // Act only where the deployment can propose a change and every tenant
     // involved allows it.
     mode:
-      record.mode === 'act' && deps.approvals !== undefined && side.modes.includes('act')
+      effectiveMode(record.profile, record.mode) === 'act' &&
+      deps.approvals !== undefined &&
+      side.modes.includes('act')
         ? 'act'
         : 'ask',
   };
@@ -314,7 +316,7 @@ function turnApprovals(
         if (
           record === undefined ||
           !conversationIsCallers(record, caller) ||
-          record.mode !== 'act'
+          effectiveMode(record.profile, record.mode) !== 'act'
         ) {
           return undefined;
         }

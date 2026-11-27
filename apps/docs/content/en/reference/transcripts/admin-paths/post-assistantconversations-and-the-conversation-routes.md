@@ -20,8 +20,8 @@ with it.
 
 `POST /assistant/conversations` starts one. The body names where the administrator is, as `page_context`: a `route` and,
 together, an `objectType` and an `objectId`. Each is a short identifier checked against a fixed pattern, never text a person
-wrote, and nothing else in the body is accepted. `profile` (only `free-chat` today) and `mode` (`ask`, the default, or `act`)
-may be left out. `POST .../messages` takes one `user` message of text parts only and answers `200` with
+wrote, and nothing else in the body is accepted. `profile` (`free-chat`, the default and the one this run uses, or the task profiles `why-cant-sign-in` and
+`review-client`, which run in Ask only) and `mode` (`ask`, the default, or `act`) may be left out. `POST .../messages` takes one `user` message of text parts only and answers `200` with
 `text/event-stream`: the AI SDK's UI message chunks, written as the model produces them. The person's message is stored before
 the model is called and each step is stored as it ends, so `GET` shows a turn that has not finished. Closing the connection, or
 `POST .../stop`, ends the turn; what had been said is kept.

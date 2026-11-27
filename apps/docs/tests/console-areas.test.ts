@@ -28,6 +28,7 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   email: 'email',
   domains: 'domains',
   audit: 'audit-trail',
+  'assistant-activity': 'assistant-activity',
   tenants: 'tenants',
   'system-admins': 'system-administrators',
 };
@@ -46,6 +47,7 @@ const DESCRIBED_BY_THE_TOUR = ['console-home'];
 // scope-assignment the assigned-scopes list of a client and of a scope.
 // branding-editor is the editors the Branding area and a client's tab share.
 const DESCRIBED_BY_ITS_PAGES = [
+  'assistant-actions',
   'begin-administrator',
   'branding-editor',
   'grant-administrator',
@@ -77,6 +79,7 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
   domains: 'domains',
   export: 'tenants',
   audit: 'audit-trail',
+  'assistant-activity': 'assistant-activity',
   tenants: 'tenants',
   'system-admins': 'system-administrators',
 };

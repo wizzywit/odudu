@@ -83,5 +83,12 @@ The conversation with the assistant, docked beside the page or laid over it.
   the assistant's whole tool list holds every tool to a phrase. A step's time is
   what the stream said (`adapter/watchSteps`), so a step the panel never saw
   begin has none.
-
-The profiles are later.
+- **Tasks.** A screen's assistant button (`features/assistant-actions`) puts a
+  request in the store of `entities/assistant`; the gate opens the panel for it
+  as a new panel (a new `key`), so an answer running in the old one ends with it,
+  and hands it the task as `AssistantPanelSlot.task`. The panel starts from it:
+  the profile a conversation about to start is created under, and the question in
+  the field, which the person sends. A task reads only, so the mode switch is
+  still. A stored conversation shows its own profile's name beside the page chip.
+  The task's wording and the profile ids are in
+  `features/assistant-actions/services/tasks`.

@@ -2,7 +2,7 @@ import { createReadCache } from '#/shared/lib/repository/readCache';
 import { render } from '@testing-library/react';
 import { createRef, useEffect, useState } from 'react';
 import { vi } from 'vitest';
-import type { AssistantView } from '#/entities/assistant';
+import type { AssistantView, TaskRequest } from '#/entities/assistant';
 import { AssistantPanel } from '#/widgets/assistant-panel';
 import { routedElement } from '#/testing/mountAtRoute';
 import { fakeTransport, json, type Answer } from '#/testing/fakeTransport';
@@ -100,9 +100,12 @@ export function panelElement(
     url?: string;
     // The tenant acted in, as a system administrator in another tenant.
     actingIn?: string;
+    // A task a page asked for, which the panel starts from.
+    task?: TaskRequest;
   } = {},
 ) {
   const { view = VIEW, conversationId = null, docked = true, actingIn = null } = options;
+  const first = options.task ?? null;
   const tenant = actingIn ?? 'acme';
   const url = options.url ?? `/console/${tenant}/clients/c1`;
   vi.stubGlobal('innerWidth', docked ? 1400 : 800);
@@ -118,24 +121,32 @@ export function panelElement(
   const onConversation = vi.fn<(id: string | null) => void>();
   // What the shell does: it keeps the id the panel reports and hands it back,
   // and it keeps the panel mounted while it is closed.
-  const host: { setOpen: (open: boolean) => void } = { setOpen: () => undefined };
+  const host: { setOpen: (open: boolean) => void; ask: (task: TaskRequest) => void } = {
+    setOpen: () => undefined,
+    ask: () => undefined,
+  };
   const headingRef = createRef<HTMLHeadingElement>();
   function Host() {
     const [id, setId] = useState<string | null>(conversationId);
     const [open, setOpen] = useState(true);
+    // As the shell does, a task is a panel of its own and forgets the conversation.
+    const [task, setTask] = useState<TaskRequest | null>(first);
     useEffect(() => {
       host.setOpen = setOpen;
+      host.ask = (asked) => {
+        setTask(asked);
+        setId(null);
+      };
     }, [setOpen]);
     return (
       <AssistantPanel
+        key={task?.seq ?? 0}
+        task={task}
         tenant={tenant}
         actingIn={actingIn}
         username="ada"
         view={view}
         id="assistant-panel"
-        label="Assistant panel"
-        title="Assistant"
-        closeLabel="Close"
         headingRef={headingRef}
         open={open}
         conversationId={id}

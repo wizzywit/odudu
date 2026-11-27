@@ -3,6 +3,8 @@ import { counted } from '#/shared/lib/services/format';
 // Every word the conversation draws, under a stable id. A count or a name is
 // a function beside this record, never a literal in a view.
 export const PANEL_WORDING = {
+  panelTitle: 'Assistant',
+  panelLabel: 'Assistant panel',
   conversationLabel: 'Conversation',
   composerLabel: 'Message to the assistant',
   composerPlaceholder: 'Message the assistant',
@@ -18,6 +20,11 @@ export const PANEL_WORDING = {
   modelsSummary: 'Models',
   modelsNote: 'The model each slot is set to run.',
   contextLabel: 'This page',
+  taskLabel: 'Task',
+  handoverStopped:
+    'The answer being written in your last conversation was stopped. It is saved under Conversations.',
+  handoverDraftKept:
+    'The message you had not sent is kept, so the task’s question is not filled in.',
   emptyTitle: 'Ask about this tenant',
   emptyText:
     'The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.',

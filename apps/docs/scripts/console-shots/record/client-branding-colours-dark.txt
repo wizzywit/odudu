@@ -28,6 +28,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
  from 
@@ -72,6 +73,7 @@ Clients
 Storefront
 enabled
 storefront
+Review with the assistant
 General
 Redirects & origins
 Tokens

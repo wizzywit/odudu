@@ -117,7 +117,7 @@ describe('the assistant token of a system administrator', () => {
     expect((await get(x.name, '/settings', token)).statusCode).toBe(403);
   });
 
-  it('is refused when it holds the write scope, which this door does not admit across tenants', async () => {
+  it('admits the write scope at the target it was granted for, and only there', async () => {
     const x = await fixture.createTenant(`x-${newId()}`);
     const token = await assistantToken(x.id, { scope: 'mcp:read mcp:write' });
     const res = await fixture.http.inject({
@@ -130,8 +130,10 @@ describe('the assistant token of a system administrator', () => {
       },
       payload: { name: 'planted' },
     });
-    expect(res.statusCode).toBe(403);
-    expect((await get(x.name, '/settings', token)).statusCode).toBe(403);
+    expect(res.statusCode).toBe(201);
+    expect((await get(x.name, '/roles', token)).statusCode).toBe(200);
+    const other = await fixture.createTenant(`y-${newId()}`);
+    expect((await get(other.name, '/roles', token)).statusCode).toBe(403);
   });
 
   it('is refused at a tenant that is disabled', async () => {

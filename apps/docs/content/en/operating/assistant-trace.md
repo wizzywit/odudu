@@ -86,7 +86,7 @@ The trace is written in short transactions at the start and end of each model ca
 
 ## Who can read it
 
-Not the model: the assistant has no tool that reads these tables, and the audit trail and the trace are not among the things it can see. A person always reads their own conversations, in full, through the conversation routes. Others read them through three admin routes that need `read-assistant-activity`, which `tenant-admin` carries. What they get depends on a tenant setting, **Let auditors read conversation text** (`assistant_auditor_visible`), which is **off by default**.
+Not the model: the assistant has no tool that reads these tables, and the audit trail and the trace are not among the things it can see. A person always reads their own conversations, in full, through the conversation routes. Others read them through three admin routes that need `read-assistant-activity`, which `tenant-admin` carries. The console's Assistant activity area, described in [Assistant activity in the console](../admin-console/assistant-activity.mdx), is the client of those routes. What they get depends on a tenant setting, **Let auditors read conversation text** (`assistant_auditor_visible`), which is **off by default**.
 
 **Metadata, always.** A holder of the capability sees who used the assistant, the profile and mode, when a conversation started and was last active, its turns, steps and tokens by model slot, the tools it called by name, how each turn stopped and why, the changes it proposed and what was decided, whether it is reported, and, in a replay, the kind, time and size of every event. The list never hides a row because of the setting.
 

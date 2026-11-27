@@ -63,10 +63,14 @@ function fakePort(recorded: Recorded): AssistantChatPort {
           ? { kind: 'unknown_profile' as const }
           : body.profile === 'denied'
             ? { kind: 'access_refused' as const, reason: 'grant_not_console' }
-            : {
-                kind: 'created' as const,
-                conversation: conversation('11111111-1111-4111-8111-111111111111'),
-              },
+            : body.profile === 'act-off'
+              ? { kind: 'access_refused' as const, reason: 'mode_not_offered' }
+              : body.profile === 'wrong-mode'
+                ? { kind: 'access_refused' as const, reason: 'profile_mode_refused' }
+                : {
+                    kind: 'created' as const,
+                    conversation: conversation('11111111-1111-4111-8111-111111111111'),
+                  },
       );
     },
     load(caller, id) {
@@ -141,6 +145,7 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       recorded.modes.push({ id, mode });
       if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
       if (id.startsWith('3')) return Promise.resolve({ kind: 'not_offered' as const });
+      if (id.startsWith('4')) return Promise.resolve({ kind: 'profile_refused' as const });
       return Promise.resolve({ kind: 'set' as const, mode });
     },
     list(caller, input) {
@@ -305,6 +310,24 @@ describe('POST /assistant/conversations', () => {
       payload: { profile: 'nonesuch', page_context: CONTEXT },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('answers 409 when the tenant does not offer Act, and 400 for a mode the profile does not run in', async () => {
+    const { tenant, headers } = await bearer();
+    const off = await fx().http.inject({
+      method: 'POST',
+      url: BASE(tenant),
+      headers,
+      payload: { profile: 'act-off', mode: 'act', page_context: CONTEXT },
+    });
+    expect(off.statusCode).toBe(409);
+    const wrong = await fx().http.inject({
+      method: 'POST',
+      url: BASE(tenant),
+      headers,
+      payload: { profile: 'wrong-mode', mode: 'act', page_context: CONTEXT },
+    });
+    expect(wrong.statusCode).toBe(400);
   });
 
   it('answers 403 when the sign-in cannot be given an assistant, without naming why', async () => {
@@ -782,6 +805,13 @@ describe('the approval routes', () => {
       payload: { mode: 'act' },
     });
     expect(refused.statusCode).toBe(409);
+    const askOnly = await fx().http.inject({
+      method: 'PUT',
+      url: `${BASE(tenant)}/4aaaaaaa-1111-4111-8111-111111111111/mode`,
+      headers,
+      payload: { mode: 'act' },
+    });
+    expect(askOnly.statusCode).toBe(400);
     const bad = await fx().http.inject({
       method: 'PUT',
       url: `${BASE(tenant)}/${ID}/mode`,

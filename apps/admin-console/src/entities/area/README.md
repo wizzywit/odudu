@@ -8,7 +8,9 @@ under a tenant.
 
 - Which areas exist, in what groups, and which of them only a system
   administrator sees (`SYSTEM_AREAS`).
-- What capability an area's first read needs.
+- What capability an area's first read needs, and whether the area exists only where
+  the deployment has the assistant (`assistant`), which the rail and the page gate read
+  from whoami.
 - What a page needs to link to an area it does not own: its label, its
   capability and its address under a tenant (`placeOf`).
 - An area's address under a tenant, its name encoded (`areaHref`), and where a failed page sends a person back to: the

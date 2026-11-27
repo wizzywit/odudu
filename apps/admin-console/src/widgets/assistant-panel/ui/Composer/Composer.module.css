@@ -9,6 +9,7 @@
 .context {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin: 0;
   min-inline-size: 0;
@@ -22,6 +23,7 @@
 
 .chip {
   min-inline-size: 0;
+  max-inline-size: 100%;
   padding: 1px var(--space-2);
   border: var(--hairline);
   border-radius: var(--radius-s);

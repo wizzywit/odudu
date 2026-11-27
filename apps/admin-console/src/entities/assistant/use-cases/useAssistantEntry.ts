@@ -4,7 +4,10 @@ import { focusedElement, listenToKeys, returnFocusTo } from '#/shared/lib/platfo
 import { shortcutName, shortcutOutcome } from '#/entities/assistant/services/shortcut';
 import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
 import { useAssistantStatus } from '#/entities/assistant/use-cases/useAssistantStatus';
+import { listenForTask } from '#/entities/assistant/adapter/taskEvent';
+import type { TaskRequest } from '#/entities/assistant/types/taskRequest';
 import { conversationFor, type AssistantView } from '#/entities/assistant/services/gate';
+import { askedFor, lastFor } from '#/entities/assistant/services/taskRequest';
 
 export interface AssistantEntry {
   // The gate is open and the tenant has the assistant on: nothing below
@@ -19,6 +22,8 @@ export interface AssistantEntry {
   // The conversation the panel was last open on in this tenant, which it
   // comes back to when opened again.
   conversationId: string | null;
+  // The task a page last asked this tenant's panel for, which the panel starts from.
+  task: TaskRequest | null;
   rememberConversation: (id: string | null) => void;
   words: typeof ASSISTANT_WORDING;
   // The chord as aria-keyshortcuts names it.
@@ -71,6 +76,21 @@ export function useAssistantEntry(
     setEverOpenedFor(tenant);
     setOpenedFor(tenant);
   };
+  // A page asked for a task: the panel is brought up for it, as a new one that
+  // forgets the conversation it was on. A page asks only while a gate listens.
+  const [applied, setApplied] = useState<TaskRequest | null>(null);
+  useEffect(
+    () =>
+      listenForTask((detail) => {
+        const asked = askedFor(detail, tenant);
+        if (asked === null) return;
+        setApplied((last) => ({ ...asked, seq: (last?.seq ?? 0) + 1 }));
+        setEverOpenedFor(tenant);
+        setOpenedFor(tenant);
+        setRemembered(null);
+      }),
+    [tenant],
+  );
   const press = useEffectEvent((event: KeyboardEvent): void => {
     const outcome = shortcutOutcome(event, PLATFORM, { paused, open });
     if (outcome === 'ignore') return;
@@ -93,6 +113,7 @@ export function useAssistantEntry(
     headingRef,
     view,
     conversationId: conversationFor(remembered, tenant),
+    task: lastFor(applied, tenant),
     rememberConversation: (id) => {
       setRemembered(id === null ? null : { tenant, id });
     },

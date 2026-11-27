@@ -68,6 +68,8 @@ A subject's record has a tab for each part of an account.
 - **Grants** lists the tokens that are still in force, never the tokens themselves.
 - **Activity** lists every change made to the subject.
 
+Where the [assistant](./assistant.mdx#start-from-a-screen) is on, a person's record has **Why can’t they sign in?** beside its title. It opens the assistant with that question ready, and the answer comes from the account's state, any lockout, the required actions, the sessions, and the roles and groups.
+
 ## Things that cannot be undone, or that end somebody's work
 
 - **Delete** removes the subject with its credentials, sessions, grants, roles and group memberships. Disabling instead keeps everything and stops the person signing in. The profile has both, as **Disable ada** and **Delete ada** for a person called ada. A client's service account cannot be deleted here: delete the client instead. An agent instance cannot be deleted either: revoke it in **Agents**, and the reaper removes it after its retention window.

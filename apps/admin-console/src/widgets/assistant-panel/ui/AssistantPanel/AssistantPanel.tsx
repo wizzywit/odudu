@@ -2,6 +2,7 @@ import { useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject }
 import { Dialog, Modal, ModalOverlay } from 'react-aria-components';
 import type { AssistantPanelSlot } from '#/entities/assistant';
 import { useAssistantPanel } from '#/widgets/assistant-panel/use-cases/useAssistantPanel';
+import { Note } from '#/shared/ui/Note';
 import { ChatLog } from '#/widgets/assistant-panel/ui/ChatLog';
 import { Composer } from '#/widgets/assistant-panel/ui/Composer';
 import { ConversationsView } from '#/widgets/assistant-panel/ui/ConversationsView';
@@ -45,16 +46,17 @@ function useListReturn(open: boolean, buttonRef: RefObject<HTMLButtonElement | n
 // room, and a dialog laid over the page where it has not, with the page behind
 // it out of reach and Escape to close it.
 export function AssistantPanel(props: AssistantPanelSlot) {
-  const { id, label, title, closeLabel, headingRef, onClose, view, open } = props;
+  const { id, headingRef, onClose, view, open } = props;
   const panel = useAssistantPanel({
     tenant: props.tenant,
     actingIn: props.actingIn,
     view,
     open,
     conversationId: props.conversationId,
+    task: props.task,
     onConversation: props.onConversation,
   });
-  const { chat, conversations } = panel;
+  const { chat, conversations, words } = panel;
   const conversationsRef = useRef<HTMLButtonElement>(null);
   useListReturn(conversations.open, conversationsRef);
   // While the list shows, Escape goes back to the conversation; closing the
@@ -79,9 +81,9 @@ export function AssistantPanel(props: AssistantPanelSlot) {
           inert={conversations.open}
         >
           <PanelHeader
-            title={title}
+            title={words.panelTitle}
             headingRef={headingRef}
-            closeLabel={closeLabel}
+            closeLabel={words.closeButton}
             onClose={onClose}
             canStartNew={chat.canStartNew}
             onStartNew={chat.startNew}
@@ -90,7 +92,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             mode={panel.mode}
             modes={panel.modeChoices}
             onModeChange={panel.chooseMode}
-            modeDisabled={chat.running || chat.readOnly !== null}
+            modeDisabled={chat.running || chat.readOnly !== null || panel.modeFixed}
             modeProblem={chat.modeProblem}
             acting={panel.acting}
             actNote={panel.actNote}
@@ -118,6 +120,9 @@ export function AssistantPanel(props: AssistantPanelSlot) {
             onScroll={panel.onScroll}
             onDecide={chat.approvals.answer}
           />
+          {panel.handover === null || chat.messages.length > 0 ? null : (
+            <Note>{panel.handover}</Note>
+          )}
           <PanelNotices
             state={chat.status}
             statusText={chat.statusText}
@@ -136,6 +141,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
                 running={chat.running}
                 blocked={false}
                 contextLabel={panel.where}
+                task={panel.task}
                 draft={panel.draft}
                 onDraft={panel.setDraft}
                 words={panel.words}
@@ -172,7 +178,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
         className={styles.overlay ?? ''}
       >
         <Modal className={styles.modal ?? ''}>
-          <Dialog id={id} aria-label={label} className={styles.panel ?? ''}>
+          <Dialog id={id} aria-label={words.panelLabel} className={styles.panel ?? ''}>
             {body}
           </Dialog>
         </Modal>
@@ -185,7 +191,7 @@ export function AssistantPanel(props: AssistantPanelSlot) {
     onClose();
   };
   return (
-    <aside id={id} aria-label={label} className={styles.panel} onKeyDown={closeOnEscape}>
+    <aside id={id} aria-label={words.panelLabel} className={styles.panel} onKeyDown={closeOnEscape}>
       {body}
     </aside>
   );

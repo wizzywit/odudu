@@ -14,6 +14,7 @@ import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { messageRepository } from '#/repository/messages';
+import type { AssistantLimits } from '#/service/limits';
 import { runKey, RunLapsed } from '#/service/run-key';
 import type { TurnStart, TurnSummary } from '#/service/turn-summary';
 import { createChat, type Chat, type ChatCaller, type ChatDeps } from '#/view/chat-route';
@@ -190,6 +191,15 @@ function runInstanceOf(key: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+const OPEN_LIMITS: AssistantLimits = {
+  monthlyTokensBySlot: { fast: 1_000_000, standard: 1_000_000, deep: 1_000_000 },
+  allowedModels: [],
+  toolClasses: ['read', 'write'],
+  modes: ['ask', 'act'],
+  maxConcurrent: 4,
+  maxStepsPerTurn: 8,
+};
+
 const CONTEXT = { route: '/clients', objectType: 'client', objectId: 'web' };
 
 async function started(chat: Chat, caller: ChatCaller): Promise<string> {
@@ -246,6 +256,74 @@ describe('create and load', () => {
       page_context: CONTEXT,
     });
     expect(created.kind).toBe('unknown_profile');
+  });
+
+  it('starts a read profile in Ask, and refuses Act for it', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]));
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, {
+      profile: 'why-cant-sign-in',
+      page_context: { route: '/subjects/a', objectType: 'subject', objectId: 'a' },
+    });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    expect(created.conversation).toMatchObject({ profile: 'why-cant-sign-in', mode: 'ask' });
+    expect(
+      await chat.create(caller, { profile: 'review-client', mode: 'act', page_context: CONTEXT }),
+    ).toEqual({ kind: 'access_refused', reason: 'profile_mode_refused' });
+  });
+
+  it('refuses a switch to Act for an Ask profile, and reads a stored Act on one as Ask', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]));
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { profile: 'review-client', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    const { id } = created.conversation;
+    expect(await chat.setMode(caller, id, 'act')).toEqual({ kind: 'profile_refused' });
+    expect(await chat.load(caller, id)).toMatchObject({ mode: 'ask' });
+
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`update assistant_conversations set mode = 'act' where id = ${id}`),
+    );
+    expect(await chat.load(caller, id)).toMatchObject({ mode: 'ask' });
+    expect(await chat.setMode(caller, id, 'ask')).toEqual({ kind: 'set', mode: 'ask' });
+  });
+
+  it('runs a turn of an Ask profile under the Ask rules though Act was stored', async () => {
+    const w = await world();
+    const seen: Seen[] = [];
+    const { chat } = chatOver(scripted([answer('hi')], seen));
+    const caller = callerOf(w, w.alice);
+    const created = await chat.create(caller, { profile: 'review-client', page_context: CONTEXT });
+    if (created.kind !== 'created') throw new Error(created.kind);
+    const { id } = created.conversation;
+    await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`update assistant_conversations set mode = 'act' where id = ${id}`),
+    );
+    const response = await streamOf(chat, caller, id, 'review it');
+    await response.text();
+    const prompt = JSON.stringify(seen[0]?.prompt);
+    expect(prompt).toContain('This conversation is in Ask mode');
+    expect(prompt).not.toContain('This conversation is in Act mode');
+  });
+
+  it('refuses Act in a tenant whose modes lack it, and writes nothing', async () => {
+    const w = await world();
+    const { chat } = chatOver(scripted([answer('hi')]), {
+      entitlements: {
+        limits: () => Promise.resolve({ ...OPEN_LIMITS, modes: ['ask'] }),
+      },
+    });
+    const created = await chat.create(callerOf(w, w.alice), {
+      mode: 'act',
+      page_context: CONTEXT,
+    });
+    expect(created).toEqual({ kind: 'access_refused', reason: 'mode_not_offered' });
+    const rows = await withTenant(app.db, w.tenantId, (tx) =>
+      tx.execute(sql`select count(*)::int as n from assistant_conversations`),
+    );
+    expect((rows as unknown as { n: number }[])[0]?.n).toBe(0);
   });
 
   it('asks for the conversation’s grant in the transaction that creates it, naming its id and mode', async () => {

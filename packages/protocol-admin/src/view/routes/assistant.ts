@@ -231,6 +231,7 @@ export interface AssistantChatPort {
   ): Promise<
     | { kind: 'set'; mode: AssistantMode }
     | { kind: 'not_found' }
+    | { kind: 'profile_refused' }
     | { kind: 'not_offered'; cause?: 'target' }
   >;
 }
@@ -240,6 +241,8 @@ export interface AssistantChatPort {
 const TARGET_ACT_DETAIL = 'the tenant this conversation acts in does not offer Act';
 // The code the chat layer gives that refusal when the conversation is created.
 const TARGET_ACT_NOT_OFFERED = 'target_act_not_offered';
+const MODE_NOT_OFFERED = 'mode_not_offered';
+const PROFILE_MODE_REFUSED = 'profile_mode_refused';
 
 export interface AssistantChatRouteDeps {
   readonly chat: AssistantChatPort | undefined;
@@ -355,6 +358,20 @@ export function createConversationHandler(deps: AssistantChatRouteDeps): AdminRo
         reply,
         request,
         problem(400, 'about:blank', 'Bad Request', 'the profile is not one this server offers'),
+      );
+    }
+    if (outcome.kind === 'access_refused' && outcome.reason === PROFILE_MODE_REFUSED) {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'the profile does not run in this mode'),
+      );
+    }
+    if (outcome.kind === 'access_refused' && outcome.reason === MODE_NOT_OFFERED) {
+      return sendProblem(
+        reply,
+        request,
+        problem(409, 'about:blank', 'Conflict', 'this tenant does not offer Act'),
       );
     }
     if (outcome.kind === 'access_refused' && outcome.reason === TARGET_ACT_NOT_OFFERED) {
@@ -564,6 +581,13 @@ export function setConversationModeHandler(deps: AssistantChatRouteDeps): AdminR
     const body = request.body as SetConversationModeRequest;
     const outcome = await chat.setMode(caller, id, body.mode);
     if (outcome.kind === 'not_found') return notFound(request, reply);
+    if (outcome.kind === 'profile_refused') {
+      return sendProblem(
+        reply,
+        request,
+        problem(400, 'about:blank', 'Bad Request', 'the profile does not run in this mode'),
+      );
+    }
     if (outcome.kind === 'not_offered') {
       return sendProblem(
         reply,

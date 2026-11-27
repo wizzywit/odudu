@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { useAssistantEntry } from '#/entities/assistant/use-cases/useAssistantEntry';
 import { AssistantButton } from '#/entities/assistant/ui/AssistantButton';
 import type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';
@@ -52,22 +52,24 @@ export function AssistantGate({
       />
     ) : null,
     open: entry.open,
-    panel: entry.opened
-      ? renderPanel({
+    // A task starts the panel afresh, so a request is a new panel and what the
+    // last one held, an answer running in it included, ends with it.
+    panel: entry.opened ? (
+      <Fragment key={entry.task?.seq ?? 0}>
+        {renderPanel({
           tenant,
           actingIn,
           username,
           view: entry.view,
           id: entry.panelId,
-          label: words.panelLabel,
-          title: words.panelTitle,
-          closeLabel: words.closeButton,
           headingRef: entry.headingRef,
           open: entry.open,
           conversationId: entry.conversationId,
+          task: entry.task,
           onConversation: entry.rememberConversation,
           onClose: entry.close,
-        })
-      : null,
+        })}
+      </Fragment>
+    ) : null,
   });
 }

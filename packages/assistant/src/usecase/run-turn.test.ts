@@ -2,12 +2,12 @@ import { TOOLS, type ToolResult } from '@odudu/mcp';
 import type { UIMessage } from 'ai';
 import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
-import type { TaskProfile } from '#/service/profile';
+import { FREE_CHAT, SIGN_IN_TROUBLE, type TaskProfile } from '#/service/profiles';
 import { FENCE_OPEN } from '#/service/tool-bridge';
 import { RunLapsed } from '#/service/run-key';
 import { runTurn, type RunTurnDeps } from '#/usecase/run-turn';
 
-const PROFILE: TaskProfile = { id: 'ask-anything', slot: 'standard', maxSteps: 4 };
+const PROFILE: TaskProfile = { ...FREE_CHAT, maxSteps: 4 };
 const CONVERSATION = '0192a0a0-0000-7000-8000-0000000000c1';
 
 const USAGE = {
@@ -90,6 +90,21 @@ async function finish(deps: RunTurnDeps, text = 'list my clients') {
 }
 
 describe('runTurn', () => {
+  it('offers the model only the tools of the conversation’s profile', async () => {
+    const model = scripted([answer('Fine.')]);
+    const { deps } = depsFor(model, { profile: SIGN_IN_TROUBLE });
+    await finish(deps);
+    const offered = (model.doStreamCalls[0]?.tools ?? []).map((tool) => tool.name).sort();
+    expect(offered).toEqual([...SIGN_IN_TROUBLE.tools].sort());
+  });
+
+  it('puts the profile’s guidance in the instructions', async () => {
+    const model = scripted([answer('Fine.')]);
+    const { deps } = depsFor(model, { profile: SIGN_IN_TROUBLE });
+    await finish(deps);
+    expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain('cannot sign in');
+  });
+
   it('calls the bridge once with validated input and returns the answer', async () => {
     const model = scripted([
       toolCall('c1', 'list_clients', '{"limit":3}'),

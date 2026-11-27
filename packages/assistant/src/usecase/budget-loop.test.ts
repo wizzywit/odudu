@@ -3,12 +3,12 @@ import type { UIMessage } from 'ai';
 import { convertArrayToReadableStream, MockLanguageModelV3 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_REQUEST_TOKENS } from '#/service/request-size';
-import type { TaskProfile } from '#/service/profile';
+import { FREE_CHAT, type TaskProfile } from '#/service/profiles';
 import { refusalOf } from '#/service/limits';
 import { BudgetRefused, type TurnBudgetPort } from '#/usecase/budget-hooks';
 import { startTurn, type RunTurnDeps } from '#/usecase/run-turn';
 
-const PROFILE: TaskProfile = { id: 'ask-anything', slot: 'standard', maxSteps: 6 };
+const PROFILE: TaskProfile = { ...FREE_CHAT, maxSteps: 6 };
 const USAGE = {
   inputTokens: { total: 3, noCache: 3, cacheRead: 0, cacheWrite: 0 },
   outputTokens: { total: 2, text: 2, reasoning: 0 },

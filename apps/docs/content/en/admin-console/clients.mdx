@@ -94,6 +94,8 @@ Open the **Advanced** tab and choose the button named for the client, such as **
 
 If tokens may already be in the wrong hands, choose **Revoke every token** on the **Sessions** tab. No refresh token the client holds is honoured again, though nobody is signed out, and people can be issued new ones.
 
+Where the [assistant](./assistant.mdx#start-from-a-screen) is on, a client's record has **Review with the assistant** beside its title. It opens the assistant with a review of the client's redirect addresses, grants, PKCE and scopes ready to send.
+
 ## Things that cannot be undone
 
 - **Rotate secret** replaces the secret. An application that has not been given the new one can no longer authenticate once the grace period ends.

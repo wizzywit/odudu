@@ -1,0 +1,109 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · system
+System
+Tenants
+System administrators
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Assistant activity
+Signed in as 
+admin@odudu.local
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Collapse menu
+or press 
+[
+odudu · system
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Menu
+Assistant activity
+›
+Conversation replay
+‹
+Assistant activity
+Conversation replay
+Keeps the conversation past the retention period so it can be looked into. Downloads this conversation as a promptfoo test case: what was asked, the tools that were called and what the answers should contain.
+Export as test case
+Report this answer
+This tenant does not let people who hold read-assistant-activity read what was said, so titles, questions, answers and what the tools were given and returned are not shown. Who used the assistant, when, which tools it called, the tokens and how each answer ended are.
+Conversation replay
+Person
+admin@odudu.local
+Profile
+free-chat
+ · 
+ask
+Started
+recently
+Last active
+recently
+What was asked
+recently
+[text not visible to auditors in this tenant]
+Changes the assistant proposed
+It proposed no change.
+Answer 1
+Failed
+recently
+Hide the steps
+Why it stopped
+.
+The turn failed.
+Why this model
+standard: anthropic.messages/claude-model-for-screenshots because profile
+Decisions
+Chose the standard model
+reason profile · profile free-chat · model id claude-model-for-screenshots · provider anthropic.messages
+Narrowed the tools
+mode ask · reads 62 · writes 12
+Budget reserved
+slot standard · tokens 55715 · fixed bytes 90125 · messages bytes 88
+The turn failed: AI_APICallError
+[text not visible to auditors in this tenant]
+Steps
+Step 1
+standard · anthropic.messages/claude-model-for-screenshots
+— in · — out
