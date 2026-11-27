@@ -1,4 +1,4 @@
-import { holds } from '#/shared/lib/services/access';
+import { assistantPresent, holds } from '#/shared/lib/services/access';
 import { isTenantName, SYSTEM_TENANT, type Authority } from '#/shared/lib/services/principal';
 import type { Principal } from '#/entities/session';
 import { type Area, EVERY_AREA, OVERVIEW, SYSTEM_AREAS } from '#/entities/area';
@@ -63,6 +63,7 @@ export function areaAccess(
   if (area.capability === null) return { kind: 'open' };
   if (authority === undefined) return system || !answered ? { kind: 'checking' } : { kind: 'open' };
   if (system && !showsSystemArea(principal, tenant, authority)) return { kind: 'hidden' };
+  if (!assistantPresent(authority, area)) return { kind: 'hidden' };
   return holds(authority, area.capability)
     ? { kind: 'open' }
     : { kind: 'refused', capability: area.capability };

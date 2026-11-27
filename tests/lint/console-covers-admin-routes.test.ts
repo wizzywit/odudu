@@ -36,14 +36,6 @@ const NEVER: Readonly<Record<string, string>> = {
     'The audit trail has no count, by design: over a trail that long a capped total would be an estimate the page cannot stand behind, so it says how far back the loaded rows reach instead.',
   'GET /admin/tenants/:tenant/domains/:id':
     'The domains list carries every field of a domain and a tenant holds no more than one page of them, so no screen reads one by its id.',
-  'GET /admin/tenants/:tenant/assistant/activity':
-    'Called by the assistant activity screen, which is a later increment of the console assistant. Remove this entry when the screen ships.',
-  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
-    'Called by the assistant activity screen\u2019s replay, which is a later increment of the console assistant. Remove this entry when the screen ships.',
-  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
-    'Called by the assistant activity screen\u2019s export control, which is a later increment of the console assistant. Remove this entry when the screen ships.',
-  'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
-    'Called by the panel\u2019s report control and the activity screen, which are later increments of the console assistant. Remove this entry when the control ships.',
   'GET /admin/tenants/:tenant/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/clients/:id/theme/preview': FRAMED,
   'GET /admin/tenants/:tenant/mail/preview': FRAMED,

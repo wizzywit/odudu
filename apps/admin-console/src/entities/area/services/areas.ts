@@ -10,6 +10,9 @@ export interface Area {
   // Pages beside its own path that belong to it, such as creation beside a
   // list, so the rail lights it there too.
   pages: readonly string[];
+  // Whether it exists only where the deployment has the assistant, so a
+  // deployment without one has no entry and no page to open.
+  assistant: boolean;
 }
 
 export interface AreaGroup {
@@ -23,7 +26,8 @@ const area = (
   capability: AdminCapability | null,
   list = false,
   pages: readonly string[] = [],
-): Area => ({ path, label, capability, list, pages });
+  assistant = false,
+): Area => ({ path, label, capability, list, pages, assistant });
 
 export const OVERVIEW = area('', 'Overview', null);
 
@@ -65,7 +69,13 @@ export const TENANT_AREAS: readonly AreaGroup[] = [
       area('export', 'Export', 'manage-tenant'),
     ],
   },
-  { heading: 'Observe', areas: [area('audit', 'Audit trail', 'view-audit', true)] },
+  {
+    heading: 'Observe',
+    areas: [
+      area('audit', 'Audit trail', 'view-audit', true),
+      area('assistant-activity', 'Assistant activity', 'read-assistant-activity', true, [], true),
+    ],
+  },
 ];
 
 // Shown only to a system administrator signed in to `system`; the system

@@ -135,6 +135,18 @@
     "width": 390,
     "height": 844
   },
+  "assistant-activity": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-activity-phone": {
+    "width": 390,
+    "height": 844
+  },
+  "assistant-replay": {
+    "width": 1440,
+    "height": 1100
+  },
   "email": {
     "width": 1100,
     "height": 900

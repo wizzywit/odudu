@@ -28,6 +28,7 @@ const PAGE_OF_FEATURE: Readonly<Record<string, string>> = {
   email: 'email',
   domains: 'domains',
   audit: 'audit-trail',
+  'assistant-activity': 'assistant-activity',
   tenants: 'tenants',
   'system-admins': 'system-administrators',
 };
@@ -78,6 +79,7 @@ const PAGE_OF_AREA: Readonly<Record<string, string>> = {
   domains: 'domains',
   export: 'tenants',
   audit: 'audit-trail',
+  'assistant-activity': 'assistant-activity',
   tenants: 'tenants',
   'system-admins': 'system-administrators',
 };

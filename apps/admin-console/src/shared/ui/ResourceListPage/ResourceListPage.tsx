@@ -91,18 +91,26 @@ export function ResourceListPage<T>({
           {() => {
             if (list.rows.length === 0 && list.narrowed) {
               const query = list.search?.query;
+              // A filter that looks inside records answers a page it did not
+              // fill, with where to carry on from.
+              const unfinished = list.next !== null;
               return (
-                <EmptyState
-                  variant="nothing-matches"
-                  title={
-                    query === undefined
-                      ? `No ${noun.other} match`
-                      : `No ${noun.other} match “${query}”`
-                  }
-                  action={<Button onPress={list.clear}>{`Show every ${noun.one}`}</Button>}
-                >
-                  A search matches the start of the field it names.
-                </EmptyState>
+                <>
+                  <EmptyState
+                    variant="nothing-matches"
+                    title={
+                      query === undefined
+                        ? `No ${noun.other} match${unfinished ? ' so far' : ''}`
+                        : `No ${noun.other} match “${query}”`
+                    }
+                    action={<Button onPress={list.clear}>{`Show every ${noun.one}`}</Button>}
+                  >
+                    {unfinished
+                      ? 'This filter looks at part of the list at a time. Load more keeps looking.'
+                      : 'A search matches the start of the field it names.'}
+                  </EmptyState>
+                  {unfinished ? <Pager label={title} list={list} /> : null}
+                </>
               );
             }
             if (list.rows.length === 0) {
