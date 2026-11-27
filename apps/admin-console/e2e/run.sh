@@ -68,7 +68,7 @@ compose() { docker compose --project-directory "$DOCKER_DIR" "$@"; }
 # A stand-in model server on the host, which the stack reaches as
 # host.docker.internal: the assistant tests need an answer and no real model.
 export PROVIDER_STUB_PORT="${PROVIDER_STUB_PORT:-4100}"
-node "$REPO/apps/server/src/testing/provider-stub.ts" &
+node "$REPO/apps/server/src/testing/provider-stub-main.ts" &
 stub_pid=$!
 export COMPOSE_FILE="$COMPOSE_FILE:$DOCKER_DIR/compose.e2e-assistant.yaml"
 

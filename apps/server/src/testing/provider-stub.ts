@@ -2,9 +2,8 @@
 // console assistant: it answers `/v1/chat/completions` with a streamed reply
 // replayed from a fixture, chosen by what the person last wrote and how many tool
 // results have come back since. It calls no model and keeps no state, and it has
-// no imports of this repository's, so `node provider-stub.ts` runs it as it is.
+// no imports of this repository's, so `node provider-stub-main.ts` runs it as it is.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { pathToFileURL } from 'node:url';
 
 interface Reply {
   tool?: { name: string; arguments: Record<string, unknown> };
@@ -188,16 +187,4 @@ export function startProviderStub(port: number): Promise<Server> {
       resolve(server);
     });
   });
-}
-
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const port = Number(process.env.PROVIDER_STUB_PORT ?? '4100');
-  startProviderStub(port)
-    .then(() => {
-      process.stdout.write(`provider stub listening on ${String(port)}\n`);
-    })
-    .catch((error: unknown) => {
-      process.stderr.write(`${String(error)}\n`);
-      process.exitCode = 1;
-    });
 }
