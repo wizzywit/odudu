@@ -58,6 +58,7 @@ export function PanelNotices({
   running,
   note,
   meter,
+  unavailable = false,
   words,
 }: {
   state: PanelState;
@@ -65,6 +66,8 @@ export function PanelNotices({
   running: boolean;
   note: string | null;
   meter: Meter | null;
+  // A tool answered that the assistant had been switched off.
+  unavailable?: boolean;
   words: PanelWords;
 }) {
   return (
@@ -84,6 +87,7 @@ export function PanelNotices({
           {meter.text}. {words.warningNote}
         </Note>
       ) : null}
+      {unavailable ? <Note tone="warning">{words.unavailableNote}</Note> : null}
       <Notice state={state} note={note} words={words} />
     </div>
   );

@@ -40,18 +40,6 @@ const NEVER: Readonly<Record<string, string>> = {
     'Called by the approval card, which is added after the panel; until it lands no screen lists a conversation\u2019s waiting changes. Remove this entry when the card ships.',
   'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
     'Called by the approval card, which is added after the panel; until it lands no screen decides a change. Remove this entry when the card ships.',
-  'GET /admin/tenants/:tenant/assistant/conversations':
-    'Called by the panel\u2019s conversation list, which is a later increment of the console assistant. Remove this entry when the list ships.',
-  'GET /admin/tenants/:tenant/assistant/last-conversation':
-    'Called by the panel when it opens, to reopen the latest conversation, which is a later increment of the console assistant. Remove this entry when it ships.',
-  'PUT /admin/tenants/:tenant/assistant/conversations/:id/archived':
-    'Called by the conversation list\u2019s archive control, which is a later increment of the console assistant. Remove this entry when the control ships.',
-  'DELETE /admin/tenants/:tenant/assistant/conversations/:id':
-    'Called by the conversation list\u2019s delete control, which is a later increment of the console assistant. Remove this entry when the control ships.',
-  'GET /admin/tenants/:tenant/assistant/conversations/:id/export':
-    'Called by the conversation list\u2019s export control, which is a later increment of the console assistant. Remove this entry when the control ships.',
-  'GET /admin/tenants/:tenant/assistant/conversations/:id/export/markdown':
-    'Called by the conversation list\u2019s export control, which is a later increment of the console assistant. Remove this entry when the control ships.',
   'GET /admin/tenants/:tenant/assistant/activity':
     'Called by the assistant activity screen, which is a later increment of the console assistant. Remove this entry when the screen ships.',
   'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':

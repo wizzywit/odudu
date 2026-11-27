@@ -7,6 +7,40 @@
   outline: none;
 }
 
+/* The conversation and the list of conversations share one cell and swap by
+   sliding 16px and fading, so neither is laid out again when the other shows. */
+.stage {
+  display: grid;
+  flex: 1;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.chat {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--surface-panel);
+  transition:
+    transform var(--motion-panel) var(--ease),
+    opacity var(--motion-panel) var(--ease),
+    visibility 0s linear 0s;
+}
+
+.chat[data-away] {
+  transform: translateX(-16px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--motion-panel) var(--ease),
+    opacity var(--motion-panel) var(--ease),
+    visibility 0s linear var(--motion-panel);
+}
+
 /* Where the panel has no column of its own it lies over the page, from the
    right edge, and the whole screen below the tablet width. The height is the
    visible viewport's, so a phone's toolbars do not hide the composer. */

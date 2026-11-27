@@ -1,0 +1,8 @@
+.bar {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-block-start: var(--hairline);
+  background: var(--surface-panel);
+}

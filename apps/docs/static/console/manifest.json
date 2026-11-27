@@ -123,6 +123,14 @@
     "width": 390,
     "height": 844
   },
+  "assistant-conversations": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-conversations-phone": {
+    "width": 390,
+    "height": 844
+  },
   "email": {
     "width": 1100,
     "height": 900

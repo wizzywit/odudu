@@ -18,15 +18,20 @@ export function ActionMenu({
   label,
   trigger,
   actions,
+  compact = false,
 }: {
   // Names the button and the list; `trigger` is what the button shows.
   label: string;
   trigger: string;
   actions: readonly MenuAction[];
+  // The small quiet button, for one drawn on every row of a list.
+  compact?: boolean;
 }) {
   return (
     <MenuTrigger>
-      <Button aria-label={label}>{trigger}</Button>
+      <Button aria-label={label} {...(compact ? { size: 'small', variant: 'quiet' } : {})}>
+        {trigger}
+      </Button>
       <Popover className={styles.popover ?? ''} placement="bottom end">
         <Menu className={styles.menu ?? ''} aria-label={label}>
           {actions.map((action) => (

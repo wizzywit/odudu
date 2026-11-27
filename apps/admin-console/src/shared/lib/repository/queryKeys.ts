@@ -87,6 +87,14 @@ export function assistantConversationKey(tenant: string, id: string) {
   return ['assistant-conversation', tenant, id] as const;
 }
 
+// The person's own conversations, the open list or the archived one. Without
+// `which` it is the prefix both lists sit under, for a change to ask for both.
+export function assistantConversationListKey(tenant: string, which?: 'open' | 'archived') {
+  return which === undefined
+    ? (['assistant-conversation-list', tenant] as const)
+    : (['assistant-conversation-list', tenant, which] as const);
+}
+
 export function authorityKey(tenant: string, subject: string | null) {
   return ['authority', tenant, subject] as const;
 }

@@ -264,7 +264,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'scopes/ui/ScopesPage/RestoreScopes.tsx',
     '>Restore built-in scopes<',
   ),
-  Restore: page('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
+  Restore: several(
+    page('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
+    widget('assistant-panel/services/wording.ts', "actionRestore: 'Restore'"),
+  ),
   'Include all roles in tokens': page(
     'clients/services/idTokenPolicy.ts',
     "FULL_SCOPE_LABEL = 'Include all roles in tokens'",
@@ -401,6 +404,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     page(SUBJECT_PROFILE, 'title="Delete"'),
     page(KEYS_WORDS, "delete: 'Delete'"),
     page(FLOWS_WORDS, "delete: 'Delete'"),
+    widget('assistant-panel/services/wording.ts', "actionDelete: 'Delete'"),
   ),
 
   // Groups and roles.
@@ -651,6 +655,42 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     "newConversation: 'New conversation'",
   ),
   Send: widget('assistant-panel/services/wording.ts', "send: 'Send'"),
+  Conversations: widget(
+    'assistant-panel/services/wording.ts',
+    "conversationsButton: 'Conversations'",
+  ),
+  Today: widget('assistant-panel/services/wording.ts', "groupToday: 'Today'"),
+  Yesterday: widget('assistant-panel/services/wording.ts', "groupYesterday: 'Yesterday'"),
+  'Earlier this week': widget(
+    'assistant-panel/services/wording.ts',
+    "groupWeek: 'Earlier this week'",
+  ),
+  Earlier: widget('assistant-panel/services/wording.ts', "groupEarlier: 'Earlier'"),
+  Back: widget('assistant-panel/services/wording.ts', "conversationsBack: 'Back'"),
+  New: widget('assistant-panel/services/wording.ts', "conversationsNewShort: 'New'"),
+  'Stop and switch': widget('assistant-panel/services/wording.ts', "switchStop: 'Stop and switch'"),
+  'Keep waiting': widget('assistant-panel/services/wording.ts', "switchWait: 'Keep waiting'"),
+  Actions: widget('assistant-panel/services/wording.ts', "menuTrigger: 'Actions'"),
+  Archive: widget('assistant-panel/services/wording.ts', "actionArchive: 'Archive'"),
+  Undo: widget('assistant-panel/services/wording.ts', "undo: 'Undo'"),
+  Archived: widget('assistant-panel/services/wording.ts', "archivedTitle: 'Archived'"),
+  'Export as Markdown': widget(
+    'assistant-panel/services/wording.ts',
+    "actionExportMarkdown: 'Export as Markdown'",
+  ),
+  'Export as JSON': widget(
+    'assistant-panel/services/wording.ts',
+    "actionExportJson: 'Export as JSON'",
+  ),
+  'Delete conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "deleteConfirm: 'Delete conversation'",
+  ),
+  Reported: widget('assistant-panel/services/wording.ts', "reportedTag: 'Reported'"),
+  'Start a new conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "endedAction: 'Start a new conversation'",
+  ),
   'Stopped. Nothing further was run.': widget(
     'assistant-panel/services/wording.ts',
     "stoppedNote: 'Stopped. Nothing further was run.'",

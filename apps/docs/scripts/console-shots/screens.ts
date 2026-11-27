@@ -55,6 +55,64 @@ async function openAssistant(page: Page, context: Context): Promise<void> {
   await page.getByRole('heading', { level: 1 }).waitFor();
   await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
   await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+  await page
+    .getByLabel('Message to the assistant', { exact: true })
+    .first()
+    .waitFor({ timeout: 40_000 });
+}
+
+// Asks a question and puts the answer away, so the conversation exists with
+// its title and the panel is ready for the next one. The capture's model is not
+// real: an answer the provider has refused has ended by itself, and one still
+// being written is stopped.
+async function askAndLeave(page: Page, question: string): Promise<void> {
+  const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+  await composer.fill(question);
+  await composer.press('Enter');
+  const stop = page.getByRole('button', { name: 'Stop', exact: true });
+  const fresh = page
+    .getByRole('button', { name: 'New conversation', exact: true })
+    .and(page.locator(':not([disabled])'));
+  await stop.or(fresh).first().waitFor();
+  if (await stop.isVisible()) await stop.click();
+  await fresh.waitFor();
+  await fresh.click();
+  await page.getByText('Ask about this tenant').waitFor();
+}
+
+// The panel over the system tenant's page, with three conversations of the
+// administrator's own, and the list of them showing.
+async function openConversations(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  // The notice is shown once per browser, and an earlier screen may have put it away.
+  const notice = page.getByRole('button', { name: 'Got it' });
+  if (await notice.isVisible()) await notice.click();
+  for (const question of [
+    'How many clients does this tenant have?',
+    'Which roles can approve a client?',
+    'Why was the last sign-in refused?',
+  ]) {
+    await askAndLeave(page, question);
+  }
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+  await page.getByRole('heading', { level: 2, name: 'Your conversations' }).waitFor();
+  await page.getByRole('grid', { name: 'Conversations' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+}
+
+// Takes the conversations the screen made out again, as a person would. A
+// screen is photographed in both themes, and the panel reopens on the latest
+// conversation, so one left behind would be in every picture after it.
+async function deleteConversations(page: Page): Promise<void> {
+  for (let left = 3; left > 0; left -= 1) {
+    await page
+      .getByRole('button', { name: /^Actions for / })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete conversation', exact: true }).click();
+    await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
+  }
 }
 
 async function openAssistantIn(page: Page, context: Context, tenant: string): Promise<void> {
@@ -503,7 +561,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'assistant-panel',
-    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
+    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act dimmed and a sentence saying why, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
     caption: 'The panel opens beside the page, with a notice the first time it is used.',
     signedIn: true,
     viewport: PANEL_VIEW,
@@ -516,7 +574,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'assistant-panel-other-tenant',
-    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
+    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act dimmed and the sentence Act is not available in another tenant, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
     caption: 'In another tenant the panel names it, and Act is not available.',
     signedIn: true,
     viewport: PANEL_VIEW,
@@ -529,7 +587,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'assistant-panel-phone',
-    alt: 'The assistant’s panel on a phone, filling the screen: the same mode switch, notice, description and message field in one column, with Close at the top right.',
+    alt: 'The assistant’s panel on a phone, filling the screen: the same Conversations and New conversation buttons, mode switch, notice, description and message field in one column, with Close at the top right.',
     caption: 'On a phone the panel fills the screen and the page behind it is out of reach.',
     signedIn: true,
     viewport: PANEL_PHONE_VIEW,
@@ -539,6 +597,34 @@ export const SCREENS: readonly Screen[] = [
       { role: 'button', name: 'Close' },
     ],
     open: (page, context) => openAssistant(page, context),
+  },
+  {
+    name: 'assistant-conversations',
+    alt: 'The assistant’s panel showing Your conversations, with Back and New conversation at the top and three conversations under the heading Today, each named Untitled conversation, with when it was last active, an Ask tag and an Actions button on its right.',
+    caption: 'Your conversations, newest first, grouped by day; the one that is open is marked.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Your conversations' },
+      { role: 'button', name: 'New conversation' },
+      { label: 'Conversations' },
+    ],
+    open: (page, context) => openConversations(page, context),
+    leave: (page) => deleteConversations(page),
+  },
+  {
+    name: 'assistant-conversations-phone',
+    alt: 'The same list of conversations on a phone, filling the screen: Back, the heading and a short New button at the top, and each conversation named Untitled conversation on one line with its time, its Ask tag and Actions.',
+    caption: 'On a phone the list takes the panel’s whole height, and its rows stay one line each.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [
+      { heading: 'Your conversations' },
+      { role: 'button', name: 'New conversation' },
+      { label: 'Conversations' },
+    ],
+    open: (page, context) => openConversations(page, context),
+    leave: (page) => deleteConversations(page),
   },
   {
     name: 'email',

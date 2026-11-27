@@ -1,5 +1,9 @@
 import type { GatewayFailure } from '#/shared/lib/services/result';
 
+// The problem type a message to a conversation whose sign-in has ended is
+// refused with, before any turn starts.
+export const CONVERSATION_ENDED_TYPE = 'about:blank#conversation-ended';
+
 // What a refused or failed call to the assistant carries to the panel: the
 // gateway's own answer, so the panel words it and never the server's detail.
 export class ChatCallError extends Error {

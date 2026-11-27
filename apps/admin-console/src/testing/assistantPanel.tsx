@@ -104,8 +104,12 @@ export function panelElement(
   const tenant = actingIn ?? 'acme';
   const url = options.url ?? `/console/${tenant}/clients/c1`;
   vi.stubGlobal('innerWidth', docked ? 1400 : 800);
+  const base = `/console/api/admin/tenants/${tenant}/assistant`;
   const fake = fakeTransport({
     [`POST ${CONVERSATIONS}`]: json(CONVERSATION, 201),
+    // A panel opened with no conversation remembered asks for the last one.
+    [`GET ${base}/last-conversation`]: json({ conversation: null }),
+    [`GET ${base}/conversations`]: json({ items: [] }),
     ...routes,
   });
   const onClose = vi.fn<() => void>();

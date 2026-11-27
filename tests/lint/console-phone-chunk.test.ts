@@ -21,9 +21,11 @@ const FEATURE_ONLY = [
 
 // The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the
 // size once the React Compiler was on, plus 5%; lowered to 127,700 B when the
-// assistant panel became a lazy chunk (126,661 B measured, from 145,474 B).
+// assistant panel became a lazy chunk (126,661 B measured, from 145,474 B);
+// raised to 129,000 B for the conversation list (128,586 B measured) while the
+// first load fell, so the list's grid code moved between chunks.
 // A larger entry is a decision: raise this beside the reason.
-const ENTRY_GZIP_BUDGET = 127_700;
+const ENTRY_GZIP_BUDGET = 129_000;
 
 // The same bound over everything loaded first: the entry and each chunk it
 // imports statically. 244,911 B (failure screens) plus 5%, then raised for the

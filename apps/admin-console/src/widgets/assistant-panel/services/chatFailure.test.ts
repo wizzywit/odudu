@@ -58,6 +58,22 @@ describe('what a failed call is told to the person', () => {
       expect(failureOf(conflict('messages', 'anything else')).cause).toContain('still running');
     });
 
+    it('on a message to a conversation whose sign-in ended says so, by the problem type', () => {
+      const ended = new ChatCallError({
+        ok: false,
+        kind: 'problem',
+        problem: {
+          type: 'about:blank#conversation-ended',
+          title: 'Conflict',
+          status: 409,
+          detail: 'the sign-in this conversation ran under has ended',
+        },
+      });
+      expect(failureOf(ended).cause).toBe(
+        'This conversation ended when your sign-in did, so it takes no new message. You can still read it. Start a new conversation to carry on.',
+      );
+    });
+
     it('on a resume says whether a change waits or there is nothing to carry on, by the server’s exact detail', () => {
       expect(failureOf(conflict('resume', 'a change still waits for your decision')).cause).toBe(
         'A change in this conversation is waiting for your decision.',

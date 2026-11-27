@@ -13,14 +13,18 @@ import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { AssistantMode } from '#/widgets/assistant-panel/types/chat';
 import type { FirstRunNotice } from '#/widgets/assistant-panel/types/firstRun';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
+import type { ConversationsState } from '#/widgets/assistant-panel/types/conversations';
 import {
   useAssistantChat,
   type AssistantChat,
 } from '#/widgets/assistant-panel/use-cases/useAssistantChat';
+import { useConversations } from '#/widgets/assistant-panel/use-cases/useConversations';
 import { usePinnedScroll } from '#/widgets/assistant-panel/use-cases/usePinnedScroll';
 
 export interface AssistantPanelState {
   chat: AssistantChat;
+  // The person's conversations, and the view that lists them.
+  conversations: ConversationsState;
   // The conversation's mode: Ask, or Act for one that is already in it.
   mode: AssistantMode;
   // The tenant the conversation acts in when it is not the administrator's own.
@@ -65,12 +69,19 @@ export function useAssistantPanel(options: {
     actingIn,
     onConversation: options.onConversation,
   });
+  const conversations = useConversations({
+    tenant,
+    actingIn,
+    currentId: options.conversationId,
+    chat,
+  });
   const read = useFirstRunNotice(noticeScopeOf(actingIn));
   const scroll = usePinnedScroll(contentSize(chat.messages), options.open);
   const docked = useDocked();
   const [draft, setDraft] = useState('');
   return {
     chat,
+    conversations,
     mode: chat.mode,
     acting: actingInText(actingIn),
     modeChoices: modeChoices(view.modes ?? [], actingIn),

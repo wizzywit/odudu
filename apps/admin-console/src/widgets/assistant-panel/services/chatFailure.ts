@@ -1,4 +1,7 @@
-import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
+import {
+  CONVERSATION_ENDED_TYPE,
+  ChatCallError,
+} from '#/widgets/assistant-panel/services/chatCallError';
 import type { Failure } from '#/widgets/assistant-panel/types/chat';
 
 // The line the server's stream carries for a turn that failed for a reason
@@ -31,7 +34,15 @@ const NOT_OFFERED =
 const STILL_WAITS = 'a change still waits for your decision';
 const NOTHING_WAITING = 'There is no change waiting to be carried on.';
 
-function conflictOf(during: ChatCallError['during'], detail: string | undefined): string {
+const ENDED =
+  'This conversation ended when your sign-in did, so it takes no new message. You can still read it. Start a new conversation to carry on.';
+
+function conflictOf(
+  during: ChatCallError['during'],
+  type: string,
+  detail: string | undefined,
+): string {
+  if (type === CONVERSATION_ENDED_TYPE) return ENDED;
   if (during !== 'resume') return RUNNING;
   return detail === STILL_WAITS ? WAITING : NOTHING_WAITING;
 }
@@ -54,11 +65,11 @@ function otherTenantCause(
 
 function causeOf(
   status: number,
-  detail: string | undefined,
+  problem: { type: string; detail?: string | undefined },
   during: ChatCallError['during'],
   actingIn: string | null,
 ): string | undefined {
-  if (status === 409) return conflictOf(during, detail);
+  if (status === 409) return conflictOf(during, problem.type, problem.detail);
   const other = actingIn === null ? undefined : otherTenantCause(status, during, actingIn);
   if (other !== undefined) return other;
   return during === 'start' && status === 404 ? NOT_OFFERED : BY_STATUS[status];
@@ -67,8 +78,8 @@ function causeOf(
 function ofCall(error: ChatCallError, actingIn: string | null): Failure {
   const { failure } = error;
   if (failure.kind !== 'problem') return { cause: UNREACHED, trace: null };
-  const { status, instance, detail } = failure.problem;
-  const cause = causeOf(status, detail, error.during, actingIn);
+  const { status, instance } = failure.problem;
+  const cause = causeOf(status, failure.problem, error.during, actingIn);
   return { cause: cause ?? UNREACHED, trace: instance ?? null };
 }
 

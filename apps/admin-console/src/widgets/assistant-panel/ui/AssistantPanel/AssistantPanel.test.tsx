@@ -63,6 +63,7 @@ it('closes from its button when it has a column of its own', async () => {
 
 it('says where it is, offers a message field and shows no Stop while nothing runs', async () => {
   await renderPanel({});
+  expect(await screen.findByText('Ask about this tenant')).toBeInTheDocument();
   expect(screen.getByText('client c1')).toBeInTheDocument();
   expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
@@ -129,15 +130,16 @@ it('starts the conversation on the page the person is on, in Ask, then sends', a
 
   expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
   expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual([
+    `GET ${ACME_ADMIN}/assistant/last-conversation`,
     `POST ${CONVERSATIONS}`,
     `POST ${MESSAGES}`,
   ]);
-  expect(sent[0]?.body).toEqual({
+  expect(sent[1]?.body).toEqual({
     profile: 'free-chat',
     mode: 'ask',
     page_context: { route: '/clients/c1', objectType: 'client', objectId: 'c1' },
   });
-  expect(sent[1]?.body).toMatchObject({
+  expect(sent[2]?.body).toMatchObject({
     message: { role: 'user', parts: [{ type: 'text', text: 'How many clients?' }] },
   });
   expect(onConversation).toHaveBeenCalledWith('c1');
@@ -472,7 +474,11 @@ it('does not read, show or seed the conversation it has just started, mid-stream
   await new Promise((resolve) => setTimeout(resolve, 200));
   expect(status()).not.toHaveTextContent('Loading the conversation');
   expect(screen.queryByText('Loading the conversation', { selector: 'span' })).toBeNull();
-  expect(sent.some((request) => request.method === 'GET')).toBe(false);
+  expect(
+    sent.filter(
+      (request) => request.method === 'GET' && !request.path.endsWith('/last-conversation'),
+    ),
+  ).toEqual([]);
   expect(screen.getByRole('list', { name: 'Steps' })).toBeInTheDocument();
   stream.push(event({ type: 'data-turn_end', data: { stopReason: 'done' }, transient: true }));
   stream.push(event({ type: 'finish' }));
@@ -749,10 +755,11 @@ describe('for a system administrator acting in another tenant', () => {
     await ask(user);
     await screen.findByText(/clients\./u);
     expect(sent.map((request) => `${request.method} ${request.path}`)).toEqual([
+      `GET ${DEMO}/assistant/last-conversation`,
       `POST ${DEMO_CONVERSATIONS}`,
       `POST ${DEMO_MESSAGES}`,
     ]);
-    expect(sent[0]?.body).toMatchObject({ mode: 'ask' });
+    expect(sent[1]?.body).toMatchObject({ mode: 'ask' });
   });
 
   it('tells the person whose allowance pays and what the tenant’s administrators see', async () => {

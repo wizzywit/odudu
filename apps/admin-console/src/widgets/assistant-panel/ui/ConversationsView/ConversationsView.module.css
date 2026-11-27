@@ -1,0 +1,316 @@
+/* The view fills the panel's one grid cell, over the chat. It moves 16px and
+   fades in the panel's own time; only transform and opacity change, so nothing
+   around it is laid out again. Away, it is hidden after the move, and left out
+   of the page and the keyboard. */
+.view {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  background: var(--surface-panel);
+  transition:
+    transform var(--motion-panel) var(--ease),
+    opacity var(--motion-panel) var(--ease),
+    visibility 0s linear 0s;
+}
+
+.view[data-away] {
+  transform: translateX(16px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--motion-panel) var(--ease),
+    opacity var(--motion-panel) var(--ease),
+    visibility 0s linear var(--motion-panel);
+}
+
+.head {
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--hairline);
+}
+
+.heading {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--type-15);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  outline: none;
+}
+
+.heading:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.full {
+  display: inline;
+}
+
+.short {
+  display: none;
+}
+
+@container (width < 380px) {
+  .full {
+    display: none;
+  }
+
+  .short {
+    display: inline;
+  }
+}
+
+.body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+
+.scroll {
+  flex: 1;
+  min-block-size: 0;
+  padding-block-end: 72px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.state {
+  padding: var(--space-4);
+}
+
+.grid {
+  display: block;
+  outline: none;
+}
+
+.section {
+  display: block;
+}
+
+.group {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding: var(--space-2) var(--space-4);
+  border-block-end: var(--hairline);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: var(--surface-panel);
+}
+
+/* Every row is as tall as two lines: the title on one, and below it the time
+   and tags on one, cut with an ellipsis rather than wrapped, so no title, tag
+   or removed row changes the height of another. */
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 60px;
+  padding: var(--space-2) var(--space-4);
+  border-block-end: var(--hairline);
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--motion-fast) var(--ease),
+    opacity var(--motion-fast) var(--ease);
+}
+
+.item[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.item[data-pressed] {
+  background: var(--surface-grid);
+}
+
+.item[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.item[data-current]::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 3px;
+  background: var(--ink-primary);
+}
+
+.item[data-current] .title {
+  font-weight: 600;
+}
+
+.item[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.title {
+  overflow: hidden;
+  font-size: var(--type-15);
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  block-size: 20px;
+  overflow: hidden;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+/* The time is read as "yesterday"; its exact form is the element's own
+   `datetime`, and takes more room than a row has. */
+.when {
+  flex: none;
+}
+
+.when time > span:last-child {
+  display: none;
+}
+
+.tenant {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  color: var(--ink-primary);
+}
+
+.more {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.archived {
+  border-block-start: var(--hairline);
+}
+
+.archivedSummary {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--control-height);
+  padding: 0 var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  cursor: pointer;
+}
+
+.archivedSummary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.archivedFailed {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.retention {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-block-start: var(--hairline);
+  font-size: var(--type-12);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+/* What waits on the person floats over the foot of the list, so it appearing
+   or going moves nothing. */
+.dock {
+  position: absolute;
+  inset-inline: var(--space-3);
+  inset-block-end: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.dock > * {
+  pointer-events: auto;
+}
+
+.switch {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--signal-warning-ink);
+  border-radius: var(--radius-s);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+}
+
+.switchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.undoRegion {
+  min-block-size: 0;
+}
+
+.undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  font-size: var(--type-13);
+  background: var(--surface-panel);
+  box-shadow: var(--shadow-overlay);
+  animation: arrive var(--motion-fast) var(--ease);
+}
+
+.deleting {
+  display: block;
+  margin-block-end: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+  }
+}

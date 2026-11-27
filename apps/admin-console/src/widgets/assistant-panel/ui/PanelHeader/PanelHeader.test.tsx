@@ -22,6 +22,7 @@ function header(
     onClose?: () => void;
     canStartNew?: boolean;
     onStartNew?: () => void;
+    onShowConversations?: () => void;
   } = {},
 ) {
   return (
@@ -32,6 +33,8 @@ function header(
       onClose={options.onClose ?? vi.fn<() => void>()}
       canStartNew={options.canStartNew ?? false}
       onStartNew={options.onStartNew ?? vi.fn<() => void>()}
+      onShowConversations={options.onShowConversations ?? vi.fn<() => void>()}
+      conversationsRef={createRef<HTMLButtonElement>()}
       mode="ask"
       modes={options.modes ?? ['ask', 'act']}
       acting={actingInText(options.actingIn ?? null)}
