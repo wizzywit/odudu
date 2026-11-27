@@ -27,6 +27,8 @@ describe('the page a tenant address stands for while the session is read', () =>
     });
     expect(pendingPage('/console/system/tenants')?.shape).toBe('list');
     expect(pendingPage('/console/acme/audit')?.shape).toBe('list');
+    expect(pendingPage('/console/acme/assistant-activity')?.shape).toBe('list');
+    expect(pendingPage('/console/acme/assistant-activity/c1')?.shape).toBe('record');
   });
 
   it('draws a record for a page below a list, and a form for a creation page', () => {
@@ -93,6 +95,21 @@ describe('what an area shows its caller', () => {
     });
     expect(areaAccess(ACME_ADMIN, 'acme', viewer, areaAt('subjects'), true)).toEqual({
       kind: 'open',
+    });
+  });
+
+  it('is hidden for the assistant’s activity where whoami says the deployment has no assistant', () => {
+    const area = areaAt('assistant-activity');
+    const reader = { capabilities: ['read-assistant-activity'] as const, crossTenant: false };
+    expect(
+      areaAccess(ACME_ADMIN, 'acme', { ...reader, assistantAvailable: true }, area, true),
+    ).toEqual({
+      kind: 'open',
+    });
+    expect(
+      areaAccess(ACME_ADMIN, 'acme', { ...reader, assistantAvailable: false }, area, true),
+    ).toEqual({
+      kind: 'hidden',
     });
   });
 

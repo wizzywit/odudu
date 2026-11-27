@@ -1,0 +1,75 @@
+---
+title: Assistant activity in the console
+description: See who used the assistant, replay a conversation step by step, keep one past retention, and export it as a test case.
+sidebar_position: 19.5
+---
+
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
+
+# Assistant activity in the console
+
+When people in a tenant ask the assistant things, each conversation is recorded: who asked, which model answered, which tools it called, how many tokens it used and how each answer ended. This page is for reading that record. It needs the `read-assistant-activity` capability, and the menu entry is **Assistant activity** under **OBSERVE**. The entry is drawn only where the server has the assistant on; without one, the address is not a page.
+
+<ConsoleShot
+  name="assistant-activity"
+  alt="The system tenant’s Assistant activity page: filters for the kind of conversation, the last outcome, a tool, a person and a conversation, and a table of three conversations of one administrator, each with its profile, when it was last active, its answers, the tokens it used and how it ended."
+  caption="Every conversation of the tenant, newest first, with how it ended."
+/>
+
+<ConsoleShot
+  name="assistant-activity-phone"
+  alt="The Assistant activity page on a phone: the filters stacked above, then each conversation as its own card with labelled lines for the person, when it was last active, how it ended and whether it is kept."
+  caption="On a phone each conversation is a card, not a row."
+/>
+
+## 1. Find a conversation
+
+Open **Assistant activity**. Each row is one conversation: its title, the profile and mode it ran in, the person, when it was last active, how many answers and model calls it took, the first tools it called, the tokens it used (and how they split across the fast, standard and deep models), how its latest answer ended, and how many changes it proposed. The list is read a page at a time, newest activity first, and the button under the table that loads more adds the next page under the rows you have.
+
+Narrow it with the filters above the table:
+
+- **Kind of conversation** shows only those that proposed a change, those where a budget refused an answer, or those where a tool failed.
+- **Last outcome** shows only those whose latest answer ended one way: answered, waiting for a decision, stopped at its step limit, stopped by a budget, ended early or failed.
+- **Tool** shows those that called one tool, named as the assistant's tool list spells it, such as `list_clients`.
+- **Person (id)** and **Conversation (id)** take an id. The easy way to a person's conversations is **Only this person** on one of their rows, which fills **Person (id)** for you. The person's name links to their record when you may read subjects.
+
+A typed filter is applied when you press Enter or leave the field. One that is not a whole id or tool name is explained under the field and not sent. A filter that looks inside conversations, such as **Tool**, reads only part of the tenant's conversations at a time, so a page can come back empty while more are still to be read. The page says so, and the button that loads more keeps looking. Clearing the filters brings back the whole list. The list is not read again just because you came back to the tab, because reading someone's conversation is itself recorded (section 4).
+
+## 2. Replay a conversation
+
+Choose a conversation's title. The replay shows the conversation's facts, what the person asked, the changes the assistant proposed, and then its answers, oldest first. Only the latest twenty-five answers are kept, and a line says how many earlier ones are not shown.
+
+<ConsoleShot
+  name="assistant-replay"
+  alt="The replay of one conversation: Export as test case and Report this answer buttons, the conversation’s person, profile and times, what was asked, a note that it proposed no change, and the first answer opened, saying why it stopped and listing its decisions."
+  caption="One conversation, replayed: what was asked, and how the answer went."
+/>
+
+Each answer is a card with how it ended and when it started. The latest is open. Choose **Show the steps** on another one to open it, and **Hide the steps** to put it away. An open answer says:
+
+- **Why it stopped**, in words: the model finished, the answer reached its step limit, a named budget had no room for the next call, a change waited for the person's decision, or the answer failed.
+- **Why this model**, once for each model the answer chose: the slot, the model and the reason the choice was made.
+- **Decisions**, the things the server weighed before and between model calls: which tools it narrowed to, whether a budget reserved or refused the next call, and what the approval policy did with a change.
+- **Steps**, one for each model call, with the model, the tokens in and out and how long it took. Under each step are what it did, in order: the tool it called with the arguments it was given, what the tool returned, and what the assistant said.
+
+An answer shows the first hundred of its entries, and a button under them draws the next hundred. A long input or result is cut and says so. The changes the assistant proposed are listed above the answers with the tool, what each was aimed at, whether it was approved, denied, expired or consumed, and when it was decided.
+
+## 3. Keep it, or take it away as a test
+
+**Report this answer** keeps the whole conversation past the retention period, so it can be looked into after everything else of its age has gone. Reporting one that is already reported changes nothing. A tenant keeps at most one hundred reported conversations. From eighty on, a report that succeeds says how many the tenant now keeps, and at one hundred the button is dimmed with the reason beside it, because no further one can be kept. A reported conversation shows **Reported** in the list, with a note once it has been kept for more than a hundred and eighty days. Nothing in the console removes a report.
+
+**Export as test case** downloads the conversation as a promptfoo test case: what was asked, the tools that were called and what the answers should contain. The file is the one the API gives, saved as it arrives and kept nowhere else.
+
+## 4. What an auditor can read
+
+Whoever holds `read-assistant-activity` always sees who used the assistant, when, the profile and mode, the tools it called by name, the tokens, how each answer ended, the changes proposed and what became of them. They see what was asked and answered, and what the tools were given and returned, only where the tenant has turned on **Let auditors read conversation text** under **Console assistant** in [Settings](./settings.mdx#console-assistant). Where it is off, the list and the replay show a stated placeholder instead of each title, question, answer, input and result, and a note at the top of the replay says so. The report and the export still work.
+
+Every time someone reads another person's conversation text, through the list, a replay or an export, the read is recorded in the [audit trail](./audit-trail.mdx) as `assistant.text_read`. The record names who read which conversation and whose it was, never the words. A person reading their own conversation leaves no such record.
+
+## Things that cannot be undone
+
+**Report this answer** cannot be taken back from here. A reported conversation is kept past the retention period and counts against the tenant's hundred places, and nothing releases the place. Reading a conversation's text cannot be taken back either: the audit record of the read stays.
+
+## Do the same through the API
+
+The list, the replay and the export are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): `GET .../assistant/activity` lists the conversations with the same filters, `GET .../assistant/activity/conversations/<id>` replays one, and `GET .../assistant/activity/conversations/<id>/promptfoo` exports it. `POST .../assistant/conversations/<id>/report` reports it, and the person it belongs to may report it as well as a holder of `read-assistant-activity`. [The assistant's trace](../operating/assistant-trace.md) says what is recorded, what a reader sees under each setting and how long it is kept.

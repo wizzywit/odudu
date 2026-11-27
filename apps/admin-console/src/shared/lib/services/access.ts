@@ -46,6 +46,16 @@ export function readable(
   return capability === null || authority === undefined || holds(authority, capability);
 }
 
+// Whether an area that exists only beside the assistant is there: whoami says
+// the deployment has one. An area of any other kind, and a whoami that has not
+// answered, leave it to the capability alone.
+export function assistantPresent(
+  authority: Authority | undefined,
+  area: { assistant: boolean },
+): boolean {
+  return !area.assistant || authority === undefined || authority.assistantAvailable === true;
+}
+
 export interface Change {
   // As the page's one line says it: "change them", "export them".
   change: string;

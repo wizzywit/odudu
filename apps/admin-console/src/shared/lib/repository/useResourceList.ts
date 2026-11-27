@@ -43,18 +43,21 @@ export function useListPages<T>({
   cursor,
   read,
   enabled = true,
+  refetchOnFocus = true,
 }: {
   key: readonly unknown[];
   query: URLSearchParams;
   cursor: string | undefined;
   read: ReadPage<T>;
   enabled?: boolean;
+  refetchOnFocus?: boolean;
 }) {
   const { gateway } = useTransport();
   const pages = useInfiniteQuery({
     queryKey: pageKey(key, query, cursor),
     initialPageParam: cursor,
     enabled,
+    refetchOnWindowFocus: refetchOnFocus,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams(query);
       if (pageParam !== undefined) params.set('cursor', pageParam);
@@ -99,6 +102,7 @@ export function useResourceList<T>({
   read,
   count,
   enabled = true,
+  refetchOnFocus = true,
 }: {
   tenant: string;
   // Names the list in the query cache, e.g. `clients`.
@@ -115,6 +119,9 @@ export function useResourceList<T>({
   count?: ReadCount;
   // False where the read would be refused: nothing is asked of the server.
   enabled?: boolean;
+  // False for a list whose every read is itself recorded, so that coming
+  // back to the tab does not write the record again.
+  refetchOnFocus?: boolean;
 }): ResourceListState<T> {
   const { gateway } = useTransport();
   const { invalidate } = useInvalidate();
@@ -124,7 +131,14 @@ export function useResourceList<T>({
   const trail = trailFromSearch(params);
   const query = apiQuery(withDefaults(narrowing, defaults), fixed);
   const key = listKey(tenant, resource);
-  const pages = useListPages({ key, query, cursor: currentCursor(trail), read, enabled });
+  const pages = useListPages({
+    key,
+    query,
+    cursor: currentCursor(trail),
+    read,
+    enabled,
+    refetchOnFocus,
+  });
   const counted = useQuery({
     queryKey: countKey(tenant, resource, query.toString()),
     enabled: enabled && count !== undefined,

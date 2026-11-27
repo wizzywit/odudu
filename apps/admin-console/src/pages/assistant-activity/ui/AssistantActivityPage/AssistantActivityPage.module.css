@@ -1,0 +1,35 @@
+.stack {
+  display: inline-grid;
+  gap: var(--space-1);
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+.muted {
+  font-size: var(--type-13);
+  color: var(--ink-muted);
+}
+
+a.name,
+a.plain {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  color: var(--ink-primary);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
+a.name {
+  font-weight: 500;
+}
+
+a.name[data-focus-visible],
+a.plain[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.stack button {
+  white-space: nowrap;
+}
