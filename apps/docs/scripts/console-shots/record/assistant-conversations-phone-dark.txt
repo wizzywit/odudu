@@ -31,6 +31,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
 Theme
@@ -115,9 +116,13 @@ Mode
 Ask
 Act
 Ask reads and explains. It changes nothing.
+93% of your share of today’s allowance used
 Ask about this tenant
 The assistant can read what you can read here: clients, subjects, roles, settings and the audit trail.
 In Ask mode it never changes anything.
+93% of your share of today’s allowance used
+. 
+At the limit the assistant stops. It does not switch to another model.
 This page
 /tenants
 Enter sends. Shift and Enter start a new line.
