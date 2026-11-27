@@ -36,7 +36,6 @@ function Step({ step, inPart }: { step: StepView; inPart: string }) {
         <strong>{step.heading}</strong>
         <span>{step.meta}</span>
         <span className={styles.muted}>{step.tokens}</span>
-        {step.took === null ? null : <span className={styles.muted}>{step.took}</span>}
       </p>
       {step.events.length === 0 ? null : <Entries events={step.events} inPart={inPart} />}
     </li>

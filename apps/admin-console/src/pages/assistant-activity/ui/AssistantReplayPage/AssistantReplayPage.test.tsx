@@ -54,7 +54,6 @@ it('replays every step with its model, tokens, call and result', async () => {
   expect(steps[0]).toHaveTextContent('Step 1');
   expect(steps[0]).toHaveTextContent('standard · standard-1');
   expect(steps[0]).toHaveTextContent('1,200 in · 80 out');
-  expect(steps[0]).toHaveTextContent('2.5 s');
   expect(steps[0]).toHaveTextContent('Called list_clients');
   expect(steps[0]).toHaveTextContent('"limit": 10');
   expect(steps[0]).toHaveTextContent('Result of list_clients');

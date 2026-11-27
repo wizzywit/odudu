@@ -30,7 +30,6 @@ export interface StepView {
   heading: string;
   meta: string;
   tokens: string;
-  took: string | null;
   events: readonly EventView[];
 }
 
@@ -155,13 +154,6 @@ export function eventView(event: ReplayEvent): EventView {
   };
 }
 
-export function tookText(startedAt: string, endedAt: string | null): string | null {
-  if (endedAt === null) return null;
-  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return null;
-  return ms < 1_000 ? `${String(ms)} ms` : `${(ms / 1_000).toFixed(1)} s`;
-}
-
 function tokensText(step: ReplayStep): string {
   const said = (count: number | null): string => (count === null ? '—' : groupedNumber(count));
   return `${said(step.inputTokens)} in · ${said(step.outputTokens)} out`;
@@ -173,7 +165,6 @@ function stepView(step: ReplayStep, index: number, events: readonly EventView[])
     heading: `Step ${String(index + 1)}`,
     meta: `${step.slot} · ${step.model}`,
     tokens: tokensText(step),
-    took: tookText(step.startedAt, step.endedAt),
     events,
   };
 }

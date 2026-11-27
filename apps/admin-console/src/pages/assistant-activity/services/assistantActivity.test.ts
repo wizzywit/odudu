@@ -22,7 +22,6 @@ import {
   BODY_MAX,
   EVENTS_PAGE,
   eventView,
-  tookText,
   turnView,
 } from '#/pages/assistant-activity/services/replayView';
 import {
@@ -136,12 +135,6 @@ describe('a replay entry', () => {
       'A budget refused the next call',
     );
     expect(eventView(event('something_new', { a: 1 })).label).toBe('something new');
-  });
-
-  it('times a step, or says nothing for one still running', () => {
-    expect(tookText('2026-11-25T08:00:00.000Z', '2026-11-25T08:00:00.250Z')).toBe('250 ms');
-    expect(tookText('2026-11-25T08:00:00.000Z', '2026-11-25T08:00:02.500Z')).toBe('2.5 s');
-    expect(tookText('2026-11-25T08:00:00.000Z', null)).toBeNull();
   });
 });
 
