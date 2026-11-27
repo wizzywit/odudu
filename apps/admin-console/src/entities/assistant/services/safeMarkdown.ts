@@ -1,6 +1,6 @@
 import { inline, spend } from '#/entities/assistant/services/markdownInline';
 import { cleanText } from '#/entities/assistant/services/textClean';
-import { ASSISTANT_WORDING } from '#/entities/assistant/services/wording';
+import { SAFE_TEXT_WORDING } from '#/entities/assistant/services/safeWording';
 import type { Budget, SafeNode } from '#/entities/assistant/types/safeNode';
 
 export type { SafeNode };
@@ -155,7 +155,7 @@ function table(cursor: Cursor, budget: Budget): SafeNode[] {
     });
   }
   if (cut && spend(budget)) {
-    out.push({ kind: 'p', children: [{ kind: 'text', text: ASSISTANT_WORDING.rowsNotShown }] });
+    out.push({ kind: 'p', children: [{ kind: 'text', text: SAFE_TEXT_WORDING.rowsNotShown }] });
   }
   return out;
 }
@@ -207,7 +207,7 @@ export function renderSafeMarkdown(text: string): SafeNode[] {
   if (text.length > MARKDOWN_MAX_CHARS) {
     nodes.push({
       kind: 'p',
-      children: [{ kind: 'text', text: ASSISTANT_WORDING.tooLongToShow }],
+      children: [{ kind: 'text', text: SAFE_TEXT_WORDING.tooLongToShow }],
     });
   }
   return nodes;

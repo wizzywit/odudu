@@ -1,6 +1,7 @@
 import { useLocation } from '@tanstack/react-router';
 import { useEffect, useState, type RefObject } from 'react';
-import { useTaskCarry, type AssistantView, type TaskRequest } from '#/entities/assistant';
+import type { AssistantView, TaskRequest } from '#/entities/assistant';
+import { useTaskCarry } from '#/widgets/assistant-panel/repository/useTaskCarry';
 import { isReadTask, taskTitleOf } from '#/features/assistant-actions';
 import { useDocked } from '#/widgets/assistant-panel/repository/useDocked';
 import { useFirstRunNotice } from '#/widgets/assistant-panel/repository/useFirstRunNotice';
@@ -101,6 +102,14 @@ export function useAssistantPanel(options: {
   useEffect(() => {
     hand({ tenant, draft, stopped: chat.running });
   }, [hand, tenant, draft, chat.running]);
+  // Gone with nothing to replace it, the panel leaves nothing; one that replaces it
+  // has already read what was left and writes its own once it is drawn.
+  useEffect(
+    () => () => {
+      hand(null);
+    },
+    [hand],
+  );
   // A message the server took back is written into the field again, once, so
   // nothing typed is lost whether or not the field is showing at the time.
   const [taken, setTaken] = useState<string | null>(null);

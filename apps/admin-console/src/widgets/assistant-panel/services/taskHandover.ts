@@ -1,4 +1,5 @@
-import type { TaskCarry, TaskRequest } from '#/entities/assistant';
+import type { TaskRequest } from '#/entities/assistant';
+import type { TaskCarry } from '#/widgets/assistant-panel/types/carry';
 import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 
 // A message the person had begun is theirs: the task's question goes into an

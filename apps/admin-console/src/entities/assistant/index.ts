@@ -11,10 +11,5 @@ export {
 } from '#/entities/assistant/services/safeMarkdown';
 export type { AssistantView } from '#/entities/assistant/services/gate';
 export type { AssistantPanelSlot } from '#/entities/assistant/types/panelSlot';
-export {
-  useAskAssistant,
-  useGateAttached,
-  useTaskCarry,
-  useTaskRequest,
-} from '#/entities/assistant/use-cases/useTaskRequest';
-export type { TaskCarry, TaskRequest } from '#/entities/assistant/types/taskRequest';
+export { askAssistant } from '#/entities/assistant/adapter/askAssistant';
+export type { AskedTask, TaskRequest } from '#/entities/assistant/types/taskRequest';
