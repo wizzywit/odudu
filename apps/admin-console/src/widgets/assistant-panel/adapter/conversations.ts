@@ -1,10 +1,12 @@
 import {
   assistantConversationSchema,
+  assistantResumedConversationSchema,
   lastAssistantConversationResponseSchema,
   listAssistantConversationsResponseSchema,
   setConversationArchivedResponseSchema,
   setConversationModeResponseSchema,
   type AssistantConversation,
+  type AssistantResumedConversation,
   type AssistantMode,
   type CreateConversationRequest,
   type LastAssistantConversationResponse,
@@ -36,9 +38,9 @@ export function loadConversation(
   gateway: Gateway,
   tenant: string,
   id: string,
-): Promise<GatewayResult<AssistantConversation>> {
+): Promise<GatewayResult<AssistantResumedConversation>> {
   return adminCall(gateway, 'GET', tenant, ['assistant', 'conversations', id], {
-    schema: assistantConversationSchema,
+    schema: assistantResumedConversationSchema,
   });
 }
 

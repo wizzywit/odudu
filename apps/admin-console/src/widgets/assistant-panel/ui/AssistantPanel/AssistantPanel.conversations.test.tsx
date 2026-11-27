@@ -117,7 +117,9 @@ describe('reopening the last conversation', () => {
     });
     expect(await screen.findByText('A scope names a permission.')).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Message to the assistant' })).toBeNull();
-    expect(screen.getByRole('note')).toHaveTextContent('ended when your sign-in did');
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'ended for a reason other than you signing out',
+    );
     await user.click(screen.getByRole('button', { name: 'Start a new conversation' }));
     expect(screen.queryByText('A scope names a permission.')).toBeNull();
     expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeInTheDocument();
@@ -146,13 +148,29 @@ describe('reopening the last conversation', () => {
   });
 });
 
-describe('a message the server refuses because the sign-in ended', () => {
-  it('says so plainly, takes the message back and offers a new conversation', async () => {
+describe('a message to a conversation whose earlier sign-in has ended', () => {
+  it('is sent like any other: a conversation reopened after a sign-in takes the message', async () => {
+    const user = userEvent.setup();
+    await renderPanel({
+      [GET_LAST]: json({ conversation: { ...STORED, archived: false, continuable: true } }),
+      [`POST ${CONVERSATIONS}/c9/messages`]: wholeStream(...TEXT_TURN),
+    });
+    expect(await screen.findByText('A scope names a permission.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start a new conversation' })).toBeNull();
+    await user.type(screen.getByRole('textbox', { name: 'Message to the assistant' }), 'Again');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('a message the server refuses because the conversation cannot be carried on', () => {
+  async function refusedAs(type: string) {
     const user = userEvent.setup();
     await renderPanel(
       {
         [`GET ${CONVERSATIONS}/c1`]: json({ ...CONVERSATION, messages: [] }),
-        [`POST ${CONVERSATIONS}/c1/messages`]: problem(409, 'about:blank#conversation-ended'),
+        [`POST ${CONVERSATIONS}/c1/messages`]: problem(409, type),
       },
       { conversationId: 'c1' },
     );
@@ -161,10 +179,32 @@ describe('a message the server refuses because the sign-in ended', () => {
       'Hello',
     );
     await user.keyboard('{Enter}');
+  }
+
+  it('says so plainly when its sign-in was ended for another reason, takes the message back and offers a new conversation', async () => {
+    await refusedAs('about:blank#conversation-ended');
     expect(await screen.findByRole('button', { name: 'Start a new conversation' })).toBeVisible();
-    expect(screen.getByRole('note')).toHaveTextContent('ended when your sign-in did');
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'ended for a reason other than you signing out',
+    );
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText('Hello')).toBeNull();
+  });
+
+  it('offers to restore a hidden one', async () => {
+    await refusedAs('about:blank#conversation-archived');
+    expect(await screen.findByRole('button', { name: 'Restore' })).toBeVisible();
+    expect(screen.getByRole('note')).toHaveTextContent('archived');
+    expect(screen.queryByText('Hello')).toBeNull();
+  });
+
+  it('says that nothing was sent when this sign-in may not carry it on, and keeps the composer', async () => {
+    await refusedAs('about:blank#conversation-access-refused');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'could not be carried on with the sign-in you hold now',
+    );
+    expect(screen.queryByRole('button', { name: 'Start a new conversation' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Message to the assistant' })).toBeVisible();
   });
 });
 
@@ -397,6 +437,81 @@ describe('archiving', () => {
     expect(
       await screen.findByRole('textbox', { name: 'Message to the assistant' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('a conversation opened from the list says truthfully whether it takes a message', () => {
+  async function openFromList(
+    user: ReturnType<typeof userEvent.setup>,
+    loaded: Record<string, unknown>,
+    more: Record<string, Answer> = {},
+  ) {
+    const rendered = await renderPanel({
+      [`GET ${ASSISTANT}/conversations`]: listAnswer([summary('c9', 'Earlier talk')]),
+      [`GET ${CONVERSATIONS}/c9`]: json({ ...STORED, ...loaded }),
+      ...more,
+    });
+    await openList(user);
+    await user.click(await screen.findByRole('row', { name: /Earlier talk/u }));
+    expect(await screen.findByText('A scope names a permission.')).toBeInTheDocument();
+    return rendered;
+  }
+
+  it('offers no message field for one whose sign-in cannot be carried on, before anything is typed', async () => {
+    const user = userEvent.setup();
+    await openFromList(user, { continuable: false });
+    expect(screen.queryByRole('textbox', { name: 'Message to the assistant' })).toBeNull();
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'ended for a reason other than you signing out',
+    );
+    expect(screen.getByRole('button', { name: 'Start a new conversation' })).toBeVisible();
+  });
+
+  it('takes a message for one that is carried on, and sends it', async () => {
+    const user = userEvent.setup();
+    const { sent } = await openFromList(
+      user,
+      { continuable: true },
+      {
+        [`POST ${CONVERSATIONS}/c9/messages`]: wholeStream(...TEXT_TURN),
+      },
+    );
+    await user.type(screen.getByRole('textbox', { name: 'Message to the assistant' }), 'More');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText(/clients\./u)).toBeInTheDocument();
+    expect(sent.some((request) => request.method === 'POST')).toBe(true);
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+
+  it('keeps read-only after a reload for one the server says is hidden', async () => {
+    await renderPanel(
+      { [`GET ${CONVERSATIONS}/c9`]: json({ ...STORED, archived: true }) },
+      { conversationId: 'c9' },
+    );
+    expect(await screen.findByText('A scope names a permission.')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message to the assistant' })).toBeNull();
+    expect(screen.getByRole('note')).toHaveTextContent('archived');
+  });
+
+  it('gives back what was typed when the server refuses the message, and the field returns after Restore', async () => {
+    const user = userEvent.setup();
+    await renderPanel(
+      {
+        [`GET ${CONVERSATIONS}/c1`]: json({ ...CONVERSATION, messages: [] }),
+        [`POST ${CONVERSATIONS}/c1/messages`]: problem(409, 'about:blank#conversation-archived'),
+        [`PUT ${CONVERSATIONS}/c1/archived`]: json({ archived: false, archived_at: null }),
+      },
+      { conversationId: 'c1' },
+    );
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Message to the assistant' }),
+      'Keep this',
+    );
+    await user.keyboard('{Enter}');
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+    expect(await screen.findByRole('textbox', { name: 'Message to the assistant' })).toHaveValue(
+      'Keep this',
+    );
   });
 });
 

@@ -104,8 +104,10 @@ export const PANEL_WORDING = {
   deleteConsequence:
     'Its messages are removed and cannot be brought back. A record that a conversation was deleted is kept, without its text.',
   endedNote:
-    'This conversation ended when your sign-in did. You can read it, but it takes no new message.',
+    'This conversation\u2019s sign-in was ended for a reason other than you signing out, so it takes no new message. You can read it.',
   endedAction: 'Start a new conversation',
+  notCarriedOnNote:
+    'This conversation could not be carried on with the sign-in you hold now. The assistant may be switched off, or you may no longer have the access it needs. Nothing was sent.',
   archivedNote: 'This conversation is archived. Restore it to continue.',
   archivedAction: 'Restore',
   unavailableNote:

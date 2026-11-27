@@ -7,7 +7,8 @@ import { NO_METER, nextMeter, readStreamPart } from '#/widgets/assistant-panel/s
 import { chatView } from '#/widgets/assistant-panel/services/chatView';
 import { messageToSend } from '#/widgets/assistant-panel/services/composer';
 import {
-  isConversationEnded,
+  refusedEndOf,
+  unsentTextOf,
   readOnlyOf,
   unlessEnded,
 } from '#/widgets/assistant-panel/services/conversationFlow';
@@ -66,6 +67,9 @@ export interface AssistantChat {
   // A new conversation can be started: there is one, and nothing is running.
   canStartNew: boolean;
   startNew: () => void;
+  // What the person wrote in the message the server refused and took back, to
+  // put in the message field again; null when none was.
+  unsent: string | null;
   // Shows another of the person's conversations, hidden or not.
   open: (id: string, archived: boolean) => void;
   // The conversation was hidden or brought back from the list.
@@ -98,9 +102,10 @@ export function useAssistantChat(
   const [meter, setMeter] = useState<MeterState>(NO_METER);
   const [connected, setConnected] = useState(false);
   const [expectsEnd, setExpectsEnd] = useState(false);
-  const [archived, setArchived] = useState(false);
-  const [continuable, setContinuable] = useState(true);
-  const [resumed, setResumed] = useState<AssistantConversation | undefined>(undefined);
+  // Set by what the person did here (opened a hidden row, hid or restored this
+  // one); until then the server's own answer for the conversation stands.
+  const [archivedHere, setArchived] = useState<boolean | undefined>(undefined);
+  const [resumed, setResumed] = useState<AssistantResumedConversation | undefined>(undefined);
   const [resuming, setResuming] = useState(conversationId === null);
   const loaded = storedOf(stored, asked) ?? resumed;
   const mode = modeOf(loaded);
@@ -159,7 +164,6 @@ export function useAssistantChat(
     setCreatedId(found.id);
     setResumed(found);
     setArchived(found.archived);
-    setContinuable(found.continuable);
     session.showConversation(found);
     latest().onConversation(found.id);
   };
@@ -183,11 +187,12 @@ export function useAssistantChat(
     findLast();
   }, []);
 
-  // A message the server refused because the sign-in ended is not a failure
-  // the person can retry: the conversation stays to be read, and the message
-  // the server did not take is not drawn as if it had.
-  const ended = isConversationEnded(session.error);
-  const live = unlessEnded(ended, {
+  // A message the server refused because the conversation cannot be carried on
+  // (its sign-in ended for another reason, or it is hidden) is not a failure the
+  // person can retry: the conversation stays to be read, and the message the
+  // server did not take is not drawn as if it had.
+  const refusedEnd = refusedEndOf(session.error);
+  const live = unlessEnded(refusedEnd !== null, {
     chat: session.status,
     messages: session.messages,
     error: session.error,
@@ -231,8 +236,7 @@ export function useAssistantChat(
     setExpectsEnd(false);
     setResuming(false);
     setResumed(undefined);
-    setArchived(false);
-    setContinuable(true);
+    setArchived(undefined);
     session.reset();
   };
 
@@ -264,7 +268,7 @@ export function useAssistantChat(
     statusText: statusLine(drawn.state),
     running: drawn.running,
     blocked: drawn.state.kind === 'waiting',
-    readOnly: readOnlyOf({ archived, continuable: continuable && !ended }),
+    readOnly: readOnlyOf({ archivedHere, server: loaded, refusedEnd }),
     unavailable: assistantSwitchedOff(session.messages),
     mode,
     note: drawn.note,
@@ -274,11 +278,14 @@ export function useAssistantChat(
       session.clearError();
       session.send(messageToSend(text)).catch(() => undefined);
     },
+    unsent: unsentTextOf(session.messages, refusedEnd !== null),
     canStartNew: drawn.messages.length > 0 && !drawn.running,
     startNew,
     open,
     markArchived: (id, hidden) => {
-      if (id === known.current) setArchived(hidden);
+      if (id !== known.current) return;
+      setArchived(hidden);
+      if (!hidden) session.clearError();
     },
     stop,
     resume: () => {

@@ -32,7 +32,9 @@ it('says a conversation whose sign-in ended can only be read, and offers a new o
   const onRestore = vi.fn();
   const onStartNew = vi.fn();
   render(bar('ended', onRestore, onStartNew));
-  expect(screen.getByRole('note')).toHaveTextContent('ended when your sign-in did');
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'ended for a reason other than you signing out',
+  );
   await user.click(screen.getByRole('button', { name: 'Start a new conversation' }));
   expect(onStartNew).toHaveBeenCalledTimes(1);
   expect(onRestore).not.toHaveBeenCalled();

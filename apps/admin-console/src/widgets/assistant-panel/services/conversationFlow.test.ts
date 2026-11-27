@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest';
 import { ChatCallError } from '#/widgets/assistant-panel/services/chatCallError';
 import {
-  isConversationEnded,
   readOnlyOf,
+  refusedEndOf,
+  unsentTextOf,
   switchOutcome,
   unlessEnded,
 } from '#/widgets/assistant-panel/services/conversationFlow';
@@ -17,14 +18,28 @@ it('returns to the conversation already open, opens another when nothing runs, a
   expect(switchOutcome(false, null, null)).toBe('open');
 });
 
-it('is read-only when hidden, or when its sign-in ended, and hidden is said first', () => {
-  expect(readOnlyOf({ archived: false, continuable: true })).toBeNull();
-  expect(readOnlyOf({ archived: true, continuable: true })).toBe('archived');
-  expect(readOnlyOf({ archived: false, continuable: false })).toBe('ended');
-  expect(readOnlyOf({ archived: true, continuable: false })).toBe('archived');
+it('is read-only when hidden, or when its sign-in was ended for another reason, and hidden is said first', () => {
+  const ok = { archived: false, continuable: true };
+  expect(readOnlyOf({})).toBeNull();
+  expect(readOnlyOf({ server: ok })).toBeNull();
+  expect(readOnlyOf({ server: { archived: true, continuable: true } })).toBe('archived');
+  expect(readOnlyOf({ server: { archived: false, continuable: false } })).toBe('ended');
+  expect(readOnlyOf({ server: { archived: true, continuable: false } })).toBe('archived');
 });
 
-it('draws a refused message as never sent, and a chat that settled, when the sign-in ended', () => {
+it('lets what the person did here, and a refusal, outrank what the server last said', () => {
+  const hidden = { archived: true, continuable: true };
+  expect(readOnlyOf({ archivedHere: false, server: hidden })).toBeNull();
+  expect(readOnlyOf({ archivedHere: true, server: { archived: false, continuable: true } })).toBe(
+    'archived',
+  );
+  expect(
+    readOnlyOf({ server: { archived: false, continuable: true }, refusedEnd: 'revoked' }),
+  ).toBe('ended');
+  expect(readOnlyOf({ refusedEnd: 'archived' })).toBe('archived');
+});
+
+it('draws a refused message as never sent, and a chat that settled, when the conversation cannot be carried on', () => {
   const snapshot = {
     chat: 'error' as const,
     messages: ['earlier', 'refused'],
@@ -40,16 +55,32 @@ it('draws a refused message as never sent, and a chat that settled, when the sig
   });
 });
 
-it('knows the refusal of a message to a conversation that ended, and no other', () => {
+it('tells a refusal that ends the conversation from a hidden one, and from any other', () => {
   const problem = (type: string) =>
     new ChatCallError({
       ok: false,
       kind: 'problem',
       problem: { type, title: 'Conflict', status: 409 },
     });
-  expect(isConversationEnded(problem('about:blank#conversation-ended'))).toBe(true);
-  expect(isConversationEnded(problem('about:blank'))).toBe(false);
-  expect(isConversationEnded(new ChatCallError({ ok: false, kind: 'network' }))).toBe(false);
-  expect(isConversationEnded(new Error('x'))).toBe(false);
-  expect(isConversationEnded(undefined)).toBe(false);
+  expect(refusedEndOf(problem('about:blank#conversation-ended'))).toBe('revoked');
+  expect(refusedEndOf(problem('about:blank#conversation-archived'))).toBe('archived');
+  expect(refusedEndOf(problem('about:blank#conversation-access-refused'))).toBeNull();
+  expect(refusedEndOf(problem('about:blank'))).toBeNull();
+  expect(refusedEndOf(new ChatCallError({ ok: false, kind: 'network' }))).toBeNull();
+  expect(refusedEndOf(new Error('x'))).toBeNull();
+  expect(refusedEndOf(undefined)).toBeNull();
+});
+
+it('reads back the text of a refused message, and nothing when the last message is not the person’s', () => {
+  const user = {
+    role: 'user',
+    parts: [{ type: 'text', text: 'one' }, { type: 'file' }, { type: 'text', text: 'two' }],
+  };
+  expect(unsentTextOf([user], true)).toBe('one\ntwo');
+  expect(
+    unsentTextOf([user, { role: 'assistant', parts: [{ type: 'text', text: 'x' }] }], true),
+  ).toBeNull();
+  expect(unsentTextOf([{ role: 'user', parts: [] }], true)).toBeNull();
+  expect(unsentTextOf([], true)).toBeNull();
+  expect(unsentTextOf([user], false)).toBeNull();
 });

@@ -40,10 +40,14 @@ The conversation with the assistant, docked beside the page or laid over it.
   apart from the one for the administrator's own tenant.
 - **The person's own conversations.** A panel opened with none remembered asks
   the server for the latest one that is not archived and shows it
-  (`useAssistantChat`); one whose sign-in ended (`continuable: false`) is read
-  only, as is an archived one, and the composer gives way to a `ReadOnlyBar`.
-  A message refused as `conversation-ended` is drawn as never sent
-  (`unlessEnded`), not as a failure. The Conversations view
+  (`useAssistantChat`). One reopened after a sign-in takes a message like any
+  other: the server carries it on under the new sign-in (`continuable` is
+  `true`). It is read only, with a `ReadOnlyBar`, when it is archived or when
+  its sign-in was ended for a reason other than signing out. A message refused
+  as `conversation-ended` or `conversation-archived` is drawn as never sent
+  (`refusedEndOf`, `unlessEnded`), not as a failure; one refused as
+  `conversation-access-refused` is a failure that says nothing was sent, and
+  the composer stays. The Conversations view
   (`ui/ConversationsView`, `use-cases/useConversations`) shares the panel's
   grid cell with the chat and swaps with it by transform and opacity only, so
   nothing is laid out again and the chat, and an answer running in it, stays

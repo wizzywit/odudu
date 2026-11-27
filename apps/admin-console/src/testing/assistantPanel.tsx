@@ -17,6 +17,8 @@ export const CONVERSATION = {
   title: null,
   created_at: '2026-11-26T08:00:00.000Z',
   last_active_at: '2026-11-26T08:00:00.000Z',
+  archived: false,
+  continuable: true,
   messages: [],
 };
 

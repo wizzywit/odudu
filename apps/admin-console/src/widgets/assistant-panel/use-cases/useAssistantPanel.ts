@@ -79,6 +79,13 @@ export function useAssistantPanel(options: {
   const scroll = usePinnedScroll(contentSize(chat.messages), options.open);
   const docked = useDocked();
   const [draft, setDraft] = useState('');
+  // A message the server took back is written into the field again, once, so
+  // nothing typed is lost whether or not the field is showing at the time.
+  const [taken, setTaken] = useState<string | null>(null);
+  if (chat.unsent !== taken) {
+    setTaken(chat.unsent);
+    if (chat.unsent !== null) setDraft(chat.unsent);
+  }
   return {
     chat,
     conversations,

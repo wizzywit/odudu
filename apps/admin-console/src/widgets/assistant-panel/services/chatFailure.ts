@@ -1,7 +1,10 @@
 import {
+  CONVERSATION_ACCESS_REFUSED_TYPE,
+  CONVERSATION_ARCHIVED_TYPE,
   CONVERSATION_ENDED_TYPE,
   ChatCallError,
 } from '#/widgets/assistant-panel/services/chatCallError';
+import { PANEL_WORDING } from '#/widgets/assistant-panel/services/wording';
 import type { Failure } from '#/widgets/assistant-panel/types/chat';
 
 // The line the server's stream carries for a turn that failed for a reason
@@ -34,15 +37,21 @@ const NOT_OFFERED =
 const STILL_WAITS = 'a change still waits for your decision';
 const NOTHING_WAITING = 'There is no change waiting to be carried on.';
 
-const ENDED =
-  'This conversation ended when your sign-in did, so it takes no new message. You can still read it. Start a new conversation to carry on.';
+// What each refusal to carry a conversation on says. A sign-in that ended by
+// signing out or lapsing never reaches these: the conversation is carried on.
+const BY_CONFLICT_TYPE: Readonly<Record<string, string>> = {
+  [CONVERSATION_ENDED_TYPE]: PANEL_WORDING.endedNote,
+  [CONVERSATION_ARCHIVED_TYPE]: PANEL_WORDING.archivedNote,
+  [CONVERSATION_ACCESS_REFUSED_TYPE]: PANEL_WORDING.notCarriedOnNote,
+};
 
 function conflictOf(
   during: ChatCallError['during'],
   type: string,
   detail: string | undefined,
 ): string {
-  if (type === CONVERSATION_ENDED_TYPE) return ENDED;
+  const refusal = BY_CONFLICT_TYPE[type];
+  if (refusal !== undefined) return refusal;
   if (during !== 'resume') return RUNNING;
   return detail === STILL_WAITS ? WAITING : NOTHING_WAITING;
 }

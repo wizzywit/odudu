@@ -58,20 +58,22 @@ describe('what a failed call is told to the person', () => {
       expect(failureOf(conflict('messages', 'anything else')).cause).toContain('still running');
     });
 
-    it('on a message to a conversation whose sign-in ended says so, by the problem type', () => {
-      const ended = new ChatCallError({
+    it.each([
+      ['about:blank#conversation-ended', 'ended for a reason other than you signing out'],
+      ['about:blank#conversation-archived', 'is archived'],
+      [
+        'about:blank#conversation-access-refused',
+        'could not be carried on with the sign-in you hold now',
+      ],
+    ])('on a message refused as %s says why, by the problem type', (type, said) => {
+      const refused = new ChatCallError({
         ok: false,
         kind: 'problem',
-        problem: {
-          type: 'about:blank#conversation-ended',
-          title: 'Conflict',
-          status: 409,
-          detail: 'the sign-in this conversation ran under has ended',
-        },
+        problem: { type, title: 'Conflict', status: 409, detail: 'text the panel never shows' },
       });
-      expect(failureOf(ended).cause).toBe(
-        'This conversation ended when your sign-in did, so it takes no new message. You can still read it. Start a new conversation to carry on.',
-      );
+      const { cause } = failureOf(refused);
+      expect(cause).toContain(said);
+      expect(cause).not.toContain('text the panel never shows');
     });
 
     it('on a resume says whether a change waits or there is nothing to carry on, by the server’s exact detail', () => {
