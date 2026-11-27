@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import { focusManager } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import {
   countResponseSchema,
@@ -278,4 +279,34 @@ it('lets the address override a default', async () => {
   });
   expect(await screen.findByText('narrowed true rows 1')).toBeVisible();
   expect(fake.sent.map((request) => request.search.toString())).toEqual(['enabled=false']);
+});
+
+function Rows({ quiet }: { quiet: boolean }) {
+  const list = useResourceList({
+    tenant: 'acme',
+    resource: 'subjects',
+    refetchOnFocus: !quiet,
+    read: readSubjects,
+  });
+  return <p>{`rows ${String(list.rows.length)}`}</p>;
+}
+
+async function focusCycle(component: () => React.JSX.Element) {
+  const fake = fakeTransport({ [LIST]: json({ items: [subject('ada')] }) });
+  mountAtRoute('/console/acme/subjects', '/acme/subjects', component, {
+    basepath: '/console',
+    providers: { transport: fake.transport, queryClient: createReadCache() },
+  });
+  await screen.findByText('rows 1');
+  focusManager.setFocused(false);
+  focusManager.setFocused(true);
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+  return fake.sent.filter((request) => `${request.method} ${request.path}` === LIST).length;
+}
+
+it('reads a list again when the tab regains focus, unless the list asks not to be', async () => {
+  expect(await focusCycle(() => <Rows quiet={false} />)).toBe(2);
+  expect(await focusCycle(() => <Rows quiet />)).toBe(1);
 });

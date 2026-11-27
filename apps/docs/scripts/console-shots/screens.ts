@@ -119,6 +119,45 @@ async function deleteConversations(page: Page): Promise<void> {
   }
 }
 
+// Three conversations of the administrator's own, made as a person makes them,
+// and the activity list open on the system tenant.
+async function openActivity(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  const notice = page.getByRole('button', { name: 'Got it' });
+  if (await notice.isVisible()) await notice.click();
+  for (const question of [
+    'How many clients does this tenant have?',
+    'Which roles can approve a client?',
+    'Why was the last sign-in refused?',
+  ]) {
+    await askAndLeave(page, question);
+  }
+  await page.goto(`${context.base}/console/system/assistant-activity`);
+  await page.getByRole('heading', { level: 1, name: 'Assistant activity' }).waitFor();
+  await page.getByRole('grid', { name: 'Assistant activity' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+}
+
+// The first conversation of the list, replayed.
+async function openReplay(page: Page, context: Context): Promise<void> {
+  await openActivity(page, context);
+  await page
+    .getByRole('link', { name: /^Replay / })
+    .first()
+    .click();
+  await page.getByRole('heading', { level: 1, name: 'Conversation replay' }).waitFor();
+  await page.getByRole('article', { name: 'Answer 1' }).waitFor();
+}
+
+// Takes the conversations out again through the panel, as the panel screens do.
+async function leaveActivity(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+  await page.getByRole('grid', { name: 'Conversations' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+  await deleteConversations(page);
+}
+
 async function openAssistantIn(page: Page, context: Context, tenant: string): Promise<void> {
   await page.goto(`${context.base}/console/${tenant}/clients`);
   await page.getByRole('heading', { level: 1 }).waitFor();
@@ -629,6 +668,40 @@ export const SCREENS: readonly Screen[] = [
     ],
     open: (page, context) => openConversations(page, context),
     leave: (page) => deleteConversations(page),
+  },
+  {
+    name: 'assistant-activity',
+    alt: 'The system tenant’s Assistant activity page: filters for the kind of conversation, the last outcome, a tool, a person and a conversation, and a table of three conversations of one administrator, each with a placeholder for its title because the tenant keeps conversation text from auditors, its profile, when it was last active, its answers, the tokens it used and how it ended, here Failed.',
+    caption: 'Every conversation of the tenant, newest first, with how it ended.',
+    signedIn: true,
+    viewport: { width: 1440, height: 900 },
+    expect: [{ heading: 'Assistant activity' }, { label: 'Tool' }, { label: 'Last outcome' }],
+    open: (page, context) => openActivity(page, context),
+    leave: (page, context) => leaveActivity(page, context),
+  },
+  {
+    name: 'assistant-activity-phone',
+    alt: 'The Assistant activity page on a phone: the filters stacked above, then each conversation as its own card with labelled lines for the person, when it was last active, how it ended and whether it is kept.',
+    caption: 'On a phone each conversation is a card, not a row.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [{ heading: 'Assistant activity' }, { label: 'Tool' }],
+    open: (page, context) => openActivity(page, context),
+    leave: (page, context) => leaveActivity(page, context),
+  },
+  {
+    name: 'assistant-replay',
+    alt: 'The replay of one conversation: Export as test case and Report this answer buttons, a note that the tenant keeps conversation text from auditors, the conversation’s person, profile and times, a placeholder where the question would be, a note that it proposed no change, and the first answer opened, which failed, with why it stopped, why this model and its decisions.',
+    caption: 'One conversation, replayed: what was asked, and how the answer went.',
+    signedIn: true,
+    viewport: { width: 1440, height: 1100 },
+    expect: [
+      { heading: 'Conversation replay' },
+      { role: 'button', name: 'Export as test case' },
+      { role: 'button', name: 'Report this answer' },
+    ],
+    open: (page, context) => openReplay(page, context),
+    leave: (page, context) => leaveActivity(page, context),
   },
   {
     name: 'email',

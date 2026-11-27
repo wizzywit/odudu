@@ -31,6 +31,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
 Theme

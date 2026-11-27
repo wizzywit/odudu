@@ -32,6 +32,7 @@ describe('the areas', () => {
     ['domains', 'Domains', 'view-domains'],
     ['export', 'Export', 'manage-tenant'],
     ['audit', 'Audit trail', 'view-audit'],
+    ['assistant-activity', 'Assistant activity', 'read-assistant-activity'],
     ['tenants', 'Tenants', 'manage-tenants'],
     ['system-admins', 'System administrators', 'manage-tenants'],
   ] as const)('%j is %s and needs %s', (path, label, capability) => {

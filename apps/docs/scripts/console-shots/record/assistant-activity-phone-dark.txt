@@ -1,0 +1,171 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · system
+System
+Tenants
+System administrators
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Assistant activity
+Signed in as 
+admin@odudu.local
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Collapse menu
+or press 
+[
+odudu · system
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Menu
+system
+Assistant activity
+Every conversation people in this tenant had with the assistant, latest first: who, which tools it called, the tokens it used and how each answer ended. Open one to replay it step by step.
+Kind of conversation
+All conversations
+▾
+All conversations
+Conversations that proposed a change
+Answers a budget refused
+Conversations where a tool failed
+Last outcome
+Any outcome
+▾
+Any outcome
+Answered
+Step limit
+Awaiting decision
+Answer budget
+Conversation budget
+Daily budget
+Monthly budget
+Ended early
+Failed
+Tool
+A tool name such as list_clients.
+Person (id)
+The id of a subject of this tenant.
+Conversation (id)
+The id of a conversation.
+Conversation
+Person
+Last active
+Activity
+Last outcome
+Changes and kept
+Conversation
+[text not visible to auditors in this tenant]
+free-chat
+ · 
+ask
+0199aa00…
+0199aa00-0000-7000-8000-000000000001
+Copy
+Person
+admin@odudu.local
+Only this person
+Last active
+recently
+Activity
+1 answer, 0 model calls
+0
+ tokens
+Fast 0, standard 0, deep 0
+No tool called
+Last outcome
+Daily budget
+Changes and kept
+None
+Not reported
+Conversation
+[text not visible to auditors in this tenant]
+free-chat
+ · 
+ask
+0199aa00…
+0199aa00-0000-7000-8000-000000000002
+Copy
+Person
+admin@odudu.local
+Only this person
+Last active
+recently
+Activity
+1 answer, 0 model calls
+0
+ tokens
+Fast 0, standard 0, deep 0
+No tool called
+Last outcome
+Daily budget
+Changes and kept
+None
+Not reported
+Conversation
+[text not visible to auditors in this tenant]
+free-chat
+ · 
+ask
+0199aa00…
+0199aa00-0000-7000-8000-000000000003
+Copy
+Person
+admin@odudu.local
+Only this person
+Last active
+recently
+Activity
+1 answer, 0 model calls
+0
+ tokens
+Fast 0, standard 0, deep 0
+No tool called
+Last outcome
+Daily budget
+Changes and kept
+None
+Not reported
+Previous
+Page 1
+Next

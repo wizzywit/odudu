@@ -606,6 +606,36 @@ const audit = createRoute({
   },
 });
 
+const AssistantActivity = lazyFeatureRoute(
+  () => import('#/pages/assistant-activity').then((feature) => feature.AssistantActivityPage),
+  'Loading the assistant activity',
+);
+const AssistantReplay = lazyFeatureRoute(
+  () => import('#/pages/assistant-activity').then((feature) => feature.AssistantReplayPage),
+  'Loading the conversation',
+);
+
+const assistantActivityPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'assistant-activity',
+    component: function AssistantActivityList() {
+      const { tenant: name } = tenant.useParams();
+      return <AssistantActivity key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'assistant-activity/$id',
+    component: function AssistantActivityAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = assistantReplayRoute.useParams();
+      return <AssistantReplay key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const assistantReplayRoute = assistantActivityPages[1];
+
 // Every feature chunk the routes load, for a caller that wants them all in
 // hand before the first render.
 export function preloadFeatures(): Promise<void> {
@@ -646,6 +676,8 @@ export function preloadFeatures(): Promise<void> {
     Email,
     Domains,
     Audit,
+    AssistantActivity,
+    AssistantReplay,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
 }
@@ -672,6 +704,7 @@ const routeTree = root.addChildren([
     email,
     domains,
     audit,
+    ...assistantActivityPages,
   ]),
 ]);
 

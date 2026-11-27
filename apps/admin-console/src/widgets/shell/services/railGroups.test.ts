@@ -37,6 +37,7 @@ describe('the rail', () => {
       'Domains',
       'Export',
       'Audit trail',
+      'Assistant activity',
     ]);
     expect(groups[1]?.items[0]?.href).toBe('/console/acme/subjects');
   });
@@ -52,13 +53,24 @@ describe('the rail', () => {
     ]);
   });
 
+  it('lists Assistant activity only where whoami says the deployment has an assistant and the caller may read it', () => {
+    const reader = { capabilities: ['read-assistant-activity'] as const, crossTenant: false };
+    const labels = (authority: Parameters<typeof railGroups>[2]) =>
+      railGroups('acme', false, authority).flatMap((g) => g.items.map((i) => i.label));
+    expect(labels({ ...reader, assistantAvailable: true })).toContain('Assistant activity');
+    expect(labels({ ...reader, assistantAvailable: false })).not.toContain('Assistant activity');
+    expect(
+      labels({ capabilities: ['view-audit'], crossTenant: false, assistantAvailable: true }),
+    ).not.toContain('Assistant activity');
+  });
+
   it('lists only what needs nothing while whoami is still being asked', () => {
     const groups = railGroups('acme', false, undefined, true);
     expect(groups.flatMap((g) => g.items.map((i) => i.label))).toEqual(['Overview']);
   });
 
   it('lists every area when whoami could not answer, since the server decides regardless', () => {
-    expect(railGroups('acme', false, undefined, false).flatMap((g) => g.items)).toHaveLength(17);
+    expect(railGroups('acme', false, undefined, false).flatMap((g) => g.items)).toHaveLength(18);
   });
 
   it('puts the System area first when it is shown', () => {
