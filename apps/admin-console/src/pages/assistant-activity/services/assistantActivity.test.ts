@@ -28,6 +28,7 @@ import {
   answersText,
   tokenBreakdown,
   tokenTotal,
+  tokensText,
   toolsText,
 } from '#/pages/assistant-activity/services/rows';
 import { isOpen, limitOf, moreShown } from '#/pages/assistant-activity/services/turnState';
@@ -195,6 +196,7 @@ describe('a conversation’s row', () => {
   it('adds the slots and names the first tools with the count of the rest', () => {
     const tokens = { fast: 1, standard: 20, deep: 300 };
     expect(tokenTotal(tokens)).toBe(321);
+    expect(tokensText(tokens)).toBe('321 tokens');
     expect(tokenBreakdown(tokens)).toBe('Fast 1, standard 20, deep 300');
     expect(toolsText([])).toBe('No tool called');
     expect(toolsText(['a', 'b', 'c', 'd', 'e'])).toBe('a, b, c and 2 more');

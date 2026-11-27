@@ -41,7 +41,7 @@ import {
   personOf,
   titleOf,
   tokenBreakdown,
-  tokenTotal,
+  tokensText,
   toolsText,
 } from '#/pages/assistant-activity/services/rows';
 import type { ActivityConversation } from '#/pages/assistant-activity/types/activity';
@@ -89,7 +89,7 @@ export interface ActivityPage {
     title: typeof titleOf;
     person: typeof personOf;
     answers: typeof answersText;
-    total: typeof tokenTotal;
+    tokens: typeof tokensText;
     breakdown: typeof tokenBreakdown;
     changes: typeof changesText;
     tools: typeof toolsText;
@@ -168,7 +168,7 @@ export function useActivityPage(tenant: string): ActivityPage {
       title: titleOf,
       person: personOf,
       answers: answersText,
-      total: tokenTotal,
+      tokens: tokensText,
       breakdown: tokenBreakdown,
       changes: changesText,
       tools: toolsText,
