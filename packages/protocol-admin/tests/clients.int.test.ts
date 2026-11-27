@@ -458,6 +458,65 @@ describe('GET /admin/tenants/{t}/clients and /clients/{id}', () => {
     expect(create.json<{ builtin_admin: boolean }>().builtin_admin).toBe(false);
   });
 
+  it('marks each built-in client by its own flag, in a read and in a list, and no other', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    interface Marks {
+      builtin_admin: boolean;
+      builtin_mcp: boolean;
+      builtin_assistant: boolean;
+    }
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+      payload: {
+        client_id: `spa-${newId()}`,
+        redirect_uris: ['https://app.example/callback'],
+        token_endpoint_auth_method: 'none',
+      },
+    });
+    expect(created.json<Marks>()).toMatchObject({
+      builtin_admin: false,
+      builtin_mcp: false,
+      builtin_assistant: false,
+    });
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+    });
+    const marks = new Map(
+      listed
+        .json<{ items: (Marks & { id: string; client_id: string })[] }>()
+        .items.map((client) => [client.client_id, client]),
+    );
+    expect(marks.get('odudu-admin')).toMatchObject({
+      builtin_admin: true,
+      builtin_mcp: false,
+      builtin_assistant: false,
+    });
+    expect(marks.get('odudu-mcp')).toMatchObject({
+      builtin_admin: false,
+      builtin_mcp: true,
+      builtin_assistant: false,
+    });
+    expect(marks.get('odudu-assistant')).toMatchObject({
+      builtin_admin: false,
+      builtin_mcp: false,
+      builtin_assistant: true,
+    });
+    const assistant = marks.get('odudu-assistant');
+    if (assistant === undefined) throw new Error('the tenant has no odudu-assistant client');
+    const read = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients/${assistant.id}`,
+      headers,
+    });
+    expect(read.json<Marks>()).toMatchObject({ builtin_assistant: true, builtin_mcp: false });
+  });
+
   it('reads a confidential client’s service_subject_id, and null for a public client', async () => {
     const t = await fixture.createTenant(`acme-${newId()}`);
     const token = await fixture.adminToken(t.name, ['manage-clients']);
@@ -1524,6 +1583,8 @@ describe('the built-in MCP client', () => {
       type: 'public',
       enabled: true,
       builtin_admin: false,
+      builtin_mcp: true,
+      builtin_assistant: false,
       token_endpoint_auth_method: 'none',
       redirect_uris: ['http://127.0.0.1', 'http://[::1]'],
       grant_types: ['authorization_code', 'refresh_token'],
@@ -1542,6 +1603,83 @@ describe('the built-in MCP client', () => {
     });
     expect(res.statusCode).toBe(409);
     expect(res.json<{ detail: string }>().detail).toMatch(/reserved/iu);
+  });
+
+  it('refuses the reserved client_id odudu-assistant, and to delete the one every tenant has', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const created = await fixture.http.inject({
+      method: 'POST',
+      url: `/admin/tenants/${t.name}/clients`,
+      headers,
+      payload: { client_id: 'odudu-assistant', token_endpoint_auth_method: 'none' },
+    });
+    expect(created.statusCode).toBe(409);
+    expect(created.json<{ detail: string }>().detail).toMatch(/reserved/iu);
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?client_id=odudu-assistant`,
+      headers,
+    });
+    const found = listed
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-assistant');
+    if (found === undefined) throw new Error('the tenant has no odudu-assistant client');
+    const deleted = await fixture.http.inject({
+      method: 'DELETE',
+      url: `/admin/tenants/${t.name}/clients/${found.id}`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(deleted.statusCode).toBe(409);
+    expect(deleted.json<{ detail: string }>().detail).toMatch(/built-in assistant client/iu);
+  });
+
+  it('amends the assistant client only in its words and its enabled flag, and audits each refusal', async () => {
+    const t = await fixture.createTenant(`acme-${newId()}`);
+    const token = await fixture.adminToken(t.name, ['manage-clients']);
+    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    const listed = await fixture.http.inject({
+      method: 'GET',
+      url: `/admin/tenants/${t.name}/clients?client_id=odudu-assistant`,
+      headers,
+    });
+    const found = listed
+      .json<{ items: { id: string; client_id: string }[] }>()
+      .items.find((client) => client.client_id === 'odudu-assistant');
+    if (found === undefined) throw new Error('the tenant has no odudu-assistant client');
+    const amend = (payload: object) =>
+      fixture.http.inject({
+        method: 'PATCH',
+        url: `/admin/tenants/${t.name}/clients/${found.id}`,
+        headers,
+        payload,
+      });
+    const refusedBefore = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from audit_events
+       where tenant_id = ${t.id} and action = 'client.amend' and outcome = 'refused'`;
+    for (const payload of [
+      { agent_type: false },
+      { redirect_uris: ['https://evil.example/cb'] },
+      { grant_types: ['authorization_code'] },
+      { delegated_actors: [] },
+      { full_scope_allowed: true },
+    ]) {
+      const res = await amend(payload);
+      expect(res.statusCode, JSON.stringify(payload)).toBe(409);
+      expect(res.json<{ detail: string }>().detail).toMatch(/built-in assistant client/iu);
+    }
+    const refusedAfter = await fixture.owner.sql<{ n: number }[]>`
+      select count(*)::int as n from audit_events
+       where tenant_id = ${t.id} and action = 'client.amend' and outcome = 'refused'`;
+    expect((refusedAfter[0]?.n ?? 0) - (refusedBefore[0]?.n ?? 0)).toBe(5);
+    const config = await fixture.owner.sql<{ agent_type: boolean; grant_types: string[] }[]>`
+      select o.agent_type, o.grant_types from client_oidc_config o
+       where o.client_id = ${found.id}`;
+    expect(config[0]).toEqual({ agent_type: true, grant_types: ['client_credentials'] });
+    expect((await amend({ description: 'The assistant' })).statusCode).toBe(200);
+    expect((await amend({ enabled: false })).statusCode).toBe(200);
+    expect((await amend({ enabled: true })).statusCode).toBe(200);
   });
 
   it('refuses to delete it: an administrator turns it off by disabling it', async () => {

@@ -27,6 +27,7 @@ import {
 import { CLAIM_KEY, isEmailAddress, isValidE164, shapeInvalidityFor } from '@odudu/domain-identity';
 import {
   ADMIN_CLIENT_ID,
+  ASSISTANT_CLIENT_ID,
   ALLOWED_ACTIONS_NEED_ME_READ,
   ALLOWED_ACTIONS_NEED_ME_READ_MESSAGE,
   ME_WRITE_NEEDS_READ_MESSAGE,
@@ -563,16 +564,19 @@ function clientProblems(
     (client) => `the client_id ${client.client_id}`,
     problems,
   );
-  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin client too,
-  // and no client that registered itself.
+  // `lockCapacity` (@odudu/domain-tenant) counts the built-in admin and assistant
+  // clients too, which every new tenant is provisioned with and no document
+  // carries, and no client that registered itself.
   const operatorMade = document.clients.filter(
     (client) => client.registration_origin !== 'anonymous',
   ).length;
-  if (operatorMade + 1 > document.settings.max_clients) {
+  const provisioned = 2;
+  if (operatorMade + provisioned > document.settings.max_clients) {
     problems.add(
       'document.clients',
       `max_clients is ${String(document.settings.max_clients)}, which admits ` +
-        `${String(document.settings.max_clients - 1)} clients besides ${ADMIN_CLIENT_ID}`,
+        `${String(Math.max(document.settings.max_clients - provisioned, 0))} clients besides ` +
+        `${ADMIN_CLIENT_ID} and ${ASSISTANT_CLIENT_ID}`,
     );
   }
   // Registrations evict at most one client each, so an excess would stay.
@@ -600,8 +604,10 @@ function clientProblems(
         ALLOWED_ACTIONS_NEED_ME_READ,
       );
     }
-    if (client.client_id === ADMIN_CLIENT_ID) {
-      problems.add(`${path}.client_id`, `${ADMIN_CLIENT_ID} is provisioned by every new tenant`);
+    for (const provisioned of [ADMIN_CLIENT_ID, ASSISTANT_CLIENT_ID]) {
+      if (client.client_id === provisioned) {
+        problems.add(`${path}.client_id`, `${provisioned} is provisioned by every new tenant`);
+      }
     }
     const actors = client.delegated_actors;
     const unknown = actors.findIndex((actor) => !clientIds.has(actor));

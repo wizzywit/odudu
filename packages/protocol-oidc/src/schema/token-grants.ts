@@ -19,6 +19,9 @@ export const tokenGrants = pgTable('token_grants', {
   audience: text('audience').array().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  // Set with `revokedAt` when the revoking path knows the person ended their own
+  // sign-in; null for any other cause. See migration 0158.
+  revokedCause: text('revoked_cause'),
   // Null means an offline grant: nothing expires it and no logout ends it.
   // The composite foreign key to sessions(tenant_id, id) and its ON DELETE
   // SET NULL (session_id) live only in packages/db/drizzle/ (0026, 0070).
@@ -51,6 +54,7 @@ export const tokenGrants = pgTable('token_grants', {
   // compares the count with the limit it is given.
   agentWrites: smallint('agent_writes').notNull().default(0),
   agentCreates: smallint('agent_creates').notNull().default(0),
+  agentPrivilegedWrites: smallint('agent_privileged_writes').notNull().default(0),
   // The grant whose counters this one spends: null for a sign-in's own grant,
   // the root's id for a grant an exchange made. No foreign key on purpose: a
   // root deleted by the reaper must leave a name that matches nothing.
@@ -59,6 +63,10 @@ export const tokenGrants = pgTable('token_grants', {
   // (RFC 8693 §4.4); an untyped boundary, narrowed at the point of use.
   // Null when nothing named an actor.
   mayAct: jsonb('may_act'),
+  // The tenant a console assistant conversation's grant acts in when it is not
+  // this row's own: set only by `grantAssistantAccess`, for a system
+  // administrator in another tenant, and read by the admin API's door.
+  targetTenantId: uuid('target_tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
 }).enableRLS();
 
 export interface TokenGrantRecord {
@@ -70,6 +78,7 @@ export interface TokenGrantRecord {
   audience: string[];
   createdAt: Date;
   revokedAt: Date | null;
+  revokedCause: string | null;
   sessionId: string | null;
   actorSubjectId: string | null;
   exchangedFromGrantId: string | null;
@@ -80,4 +89,5 @@ export interface TokenGrantRecord {
   expCeiling: Date | null;
   requestedUserinfoClaims: string[] | null;
   mayAct: unknown;
+  targetTenantId: string | null;
 }

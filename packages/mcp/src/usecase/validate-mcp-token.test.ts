@@ -49,6 +49,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         audience: [RESOURCE],
         createdAt: new Date(0),
         revokedAt: f.grantRevoked === true ? new Date(1) : null,
+        revokedCause: null,
         sessionId: 'session-1',
         actorSubjectId: null,
         exchangedFromGrantId: null,
@@ -56,6 +57,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         expCeiling: null,
         requestedUserinfoClaims: null,
         mayAct: null,
+        targetTenantId: null,
       }),
     isSessionLive: () => Promise.resolve(f.sessionLive ?? true),
     loadClientState: () =>
@@ -63,6 +65,7 @@ function deps(f: Fakes = {}): ValidateMcpTokenDeps {
         enabled: f.clientEnabled ?? true,
         builtinMcp: true,
         builtinAdmin: false,
+        builtinAssistant: false,
       }),
     isSubjectEnabled: () => Promise.resolve(f.subjectEnabled ?? true),
     acceptedIssuers: () => Promise.resolve(f.accepted ?? [ISSUER]),

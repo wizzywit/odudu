@@ -83,6 +83,8 @@ const EMAIL_MAIL_QUERY = 'email/services/mailQuery.ts';
 const ACCESS = 'settings/services/accessSections.ts';
 const PASSWORD = 'settings/services/passwordSection.ts';
 const PLATFORM = 'settings/services/platformSections.ts';
+const ASSISTANT = 'settings/services/assistantSection.ts';
+const ACTIVITY_WORDS = 'assistant-activity/services/activityText.ts';
 const SETTINGS_WORDS = 'settings/services/settingsPageWords.ts';
 const KEYS_WORDS = 'signing-keys/services/keysWords.ts';
 const KEYS_CONFIRM = 'signing-keys/services/confirm.ts';
@@ -263,7 +265,10 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     'scopes/ui/ScopesPage/RestoreScopes.tsx',
     '>Restore built-in scopes<',
   ),
-  Restore: page('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
+  Restore: several(
+    page('scopes/services/restore.ts', "RESTORE_CONFIRM_LABEL = 'Restore'"),
+    widget('assistant-panel/services/wording.ts', "actionRestore: 'Restore'"),
+  ),
   'Include all roles in tokens': page(
     'clients/services/idTokenPolicy.ts',
     "FULL_SCOPE_LABEL = 'Include all roles in tokens'",
@@ -400,6 +405,7 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
     page(SUBJECT_PROFILE, 'title="Delete"'),
     page(KEYS_WORDS, "delete: 'Delete'"),
     page(FLOWS_WORDS, "delete: 'Delete'"),
+    widget('assistant-panel/services/wording.ts', "actionDelete: 'Delete'"),
   ),
 
   // Groups and roles.
@@ -624,6 +630,119 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Password lifetime': page(PASSWORD, "label: 'Password lifetime'"),
   'Failures before a lockout': page(ACCESS, "label: 'Failures before a lockout'"),
   'Keep events for': page(PLATFORM, "label: 'Keep events for'"),
+  'Why can’t they sign in?': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Why can’t they sign in?'",
+  ),
+  'Review with the assistant': feature(
+    'assistant-actions/services/tasks.ts',
+    "button: 'Review with the assistant'",
+  ),
+  'Ask the assistant': entity('assistant/services/wording.ts', "openButton: 'Ask the assistant'"),
+  Close: widget('assistant-panel/services/wording.ts', "closeButton: 'Close'"),
+  'Got it': widget('assistant-panel/services/wording.ts', "firstRunDismiss: 'Got it'"),
+  Ask: widget('assistant-panel/services/wording.ts', "modeAsk: 'Ask'"),
+  Act: widget('assistant-panel/services/wording.ts', "modeAct: 'Act'"),
+  Mode: widget('assistant-panel/services/wording.ts', "modeLabel: 'Mode'"),
+  'Waiting for you': widget(
+    'assistant-panel/services/wording.ts',
+    "statusWaiting: 'Waiting for you'",
+  ),
+  Connecting: widget('assistant-panel/services/wording.ts', "statusConnecting: 'Connecting'"),
+  Thinking: widget('assistant-panel/services/wording.ts', "statusThinking: 'Thinking'"),
+  'Listing clients': widget('assistant-panel/services/activity-lines.ts', "doing: 'Listing'"),
+  Approve: widget('assistant-panel/services/wording.ts', "cardApprove: 'Approve'"),
+  Refuse: widget('assistant-panel/services/wording.ts', "cardRefuse: 'Refuse'"),
+  'Approval needed:': widget(
+    'assistant-panel/services/wording.ts',
+    "cardNeeded: 'Approval needed'",
+  ),
+  'Jump to approval': widget('assistant-panel/services/wording.ts', "cardJump: 'Jump to approval'"),
+  Expired: widget('assistant-panel/services/wording.ts', "cardExpired: 'Expired'"),
+  'Show steps': widget('assistant-panel/services/wording.ts', "feedShow: 'Show steps'"),
+  'Hide steps': widget('assistant-panel/services/wording.ts', "feedHide: 'Hide steps'"),
+  'Show the call': widget('assistant-panel/services/wording.ts', "stepRaw: 'Show the call'"),
+  'You, as': widget('assistant-panel/services/wording.ts', 'return `You, as ${username}`'),
+  Stopped: widget('assistant-panel/services/wording.ts', "statusStopped: 'Stopped'"),
+  Finished: widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
+  'Finished.': widget('assistant-panel/services/wording.ts', "statusFinished: 'Finished'"),
+  Stop: widget('assistant-panel/services/wording.ts', "stop: 'Stop'"),
+  'New conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "newConversation: 'New conversation'",
+  ),
+  Send: widget('assistant-panel/services/wording.ts', "send: 'Send'"),
+  Conversations: widget(
+    'assistant-panel/services/wording.ts',
+    "conversationsButton: 'Conversations'",
+  ),
+  Today: widget('assistant-panel/services/wording.ts', "groupToday: 'Today'"),
+  Yesterday: widget('assistant-panel/services/wording.ts', "groupYesterday: 'Yesterday'"),
+  'Earlier this week': widget(
+    'assistant-panel/services/wording.ts',
+    "groupWeek: 'Earlier this week'",
+  ),
+  Earlier: widget('assistant-panel/services/wording.ts', "groupEarlier: 'Earlier'"),
+  Back: widget('assistant-panel/services/wording.ts', "conversationsBack: 'Back'"),
+  New: widget('assistant-panel/services/wording.ts', "conversationsNewShort: 'New'"),
+  'Stop and switch': widget('assistant-panel/services/wording.ts', "switchStop: 'Stop and switch'"),
+  'Keep waiting': widget('assistant-panel/services/wording.ts', "switchWait: 'Keep waiting'"),
+  Actions: widget('assistant-panel/services/wording.ts', "menuTrigger: 'Actions'"),
+  Archive: widget('assistant-panel/services/wording.ts', "actionArchive: 'Archive'"),
+  Undo: widget('assistant-panel/services/wording.ts', "undo: 'Undo'"),
+  Archived: widget('assistant-panel/services/wording.ts', "archivedTitle: 'Archived'"),
+  'Export as Markdown': widget(
+    'assistant-panel/services/wording.ts',
+    "actionExportMarkdown: 'Export as Markdown'",
+  ),
+  'Export as JSON': widget(
+    'assistant-panel/services/wording.ts',
+    "actionExportJson: 'Export as JSON'",
+  ),
+  'Delete conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "deleteConfirm: 'Delete conversation'",
+  ),
+  Reported: widget('assistant-panel/services/wording.ts', "reportedTag: 'Reported'"),
+  'Start a new conversation': widget(
+    'assistant-panel/services/wording.ts',
+    "endedAction: 'Start a new conversation'",
+  ),
+  'Stopped. Nothing further was run.': widget(
+    'assistant-panel/services/wording.ts',
+    "stoppedNote: 'Stopped. Nothing further was run.'",
+  ),
+  'Stopped at the step limit.': widget(
+    'assistant-panel/services/wording.ts',
+    "statusStepLimit: 'Stopped at the step limit'",
+  ),
+  'Stopped: allowance used.': widget(
+    'assistant-panel/services/wording.ts',
+    "budgetStopTitle: 'Stopped: allowance used'",
+  ),
+  'Failed.': widget('assistant-panel/services/wording.ts', "statusFailed: 'Failed'"),
+  Assistant: page(ASSISTANT, "ASSISTANT_NAV_GROUP = 'Assistant'"),
+  'Console assistant': page(ASSISTANT, "title: 'Console assistant'"),
+  'Offer the assistant': page(ASSISTANT, "label: 'Offer the assistant'"),
+  'Starts in': page(ASSISTANT, "label: 'Starts in'"),
+  'Ask: the assistant only reads': page(ASSISTANT, "label: 'Ask: the assistant only reads'"),
+  'Act: it may propose changes, each waiting for approval': page(
+    ASSISTANT,
+    "label: 'Act: it may propose changes, each waiting for approval'",
+  ),
+  'Privacy and records': page(ASSISTANT, "privacy: 'Privacy and records'"),
+  'Mask email addresses': page(ASSISTANT, "label: 'Mask email addresses'"),
+  'Let auditors read conversation text': page(
+    ASSISTANT,
+    "label: 'Let auditors read conversation text'",
+  ),
+  'Keep traces for': page(ASSISTANT, "label: 'Keep traces for'"),
+  Limits: page(ASSISTANT, "limits: 'Limits'"),
+  'Fast model, each month': page(ASSISTANT, "label: 'Fast model, each month'"),
+  'Standard model, each month': page(ASSISTANT, "label: 'Standard model, each month'"),
+  'Deep model, each month': page(ASSISTANT, "label: 'Deep model, each month'"),
+  'Answers at once': page(ASSISTANT, "label: 'Answers at once'"),
+  'Steps in one answer': page(ASSISTANT, "label: 'Steps in one answer'"),
   Enabled: page(ACCESS, "label: 'Enabled'"),
   'Clear all lockouts': page('settings/services/lockouts.ts', "'Clear all lockouts'"),
   'Disable demo': template(
@@ -1198,4 +1317,19 @@ export const DEFINED: Readonly<Record<string, Defined>> = {
   'Formatted address': page('subjects/services/claims.ts', "label: 'Formatted address'"),
   Street: page('subjects/services/claims.ts', "label: 'Street'"),
   Country: page('subjects/services/claims.ts', "label: 'Country'"),
+  // The assistant's activity screen.
+  'Assistant activity': rail('assistant-activity', 'Assistant activity'),
+  'Kind of conversation': page(ACTIVITY_WORDS, "kind: 'Kind of conversation'"),
+  'Last outcome': page(ACTIVITY_WORDS, "outcome: 'Last outcome'"),
+  Tool: page(ACTIVITY_WORDS, "tool: 'Tool'"),
+  'Person (id)': page(ACTIVITY_WORDS, "person: 'Person (id)'"),
+  'Conversation (id)': page(ACTIVITY_WORDS, "conversation: 'Conversation (id)'"),
+  'Only this person': page(ACTIVITY_WORDS, "ONLY_THIS_PERSON = 'Only this person'"),
+  'Show the steps': page(ACTIVITY_WORDS, "SHOW_TURN = 'Show the steps'"),
+  'Hide the steps': page(ACTIVITY_WORDS, "HIDE_TURN = 'Hide the steps'"),
+  'Why this model': page(ACTIVITY_WORDS, "WHY_MODEL = 'Why this model'"),
+  'Why it stopped': page(ACTIVITY_WORDS, "WHY_STOPPED = 'Why it stopped'"),
+  Decisions: page(ACTIVITY_WORDS, "DECISIONS = 'Decisions'"),
+  'Report this answer': page(ACTIVITY_WORDS, "REPORT_LABEL = 'Report this answer'"),
+  'Export as test case': page(ACTIVITY_WORDS, "EXPORT_LABEL = 'Export as test case'"),
 };

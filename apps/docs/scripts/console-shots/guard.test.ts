@@ -28,6 +28,14 @@ describe('findSecrets', () => {
     expect(findSecrets({ ...clean, fieldValues: [given] }, [given])).toHaveLength(1);
   });
 
+  it('lets a built chunk’s address through, though its hash looks like a token', () => {
+    const page: Visible = {
+      ...clean,
+      attributes: ['/console/assets/useGridSelectionCheckbox-RPsVRr9v.js'],
+    };
+    expect(findSecrets(page, [])).toEqual([]);
+  });
+
   it('lets a component identifier through, which is words joined by hyphens', () => {
     const attributes = ['react-aria-description-for-the-combo-box-field-label', 'a'.repeat(40)];
     expect(findSecrets({ ...clean, attributes }, [])).toEqual([]);

@@ -13,6 +13,7 @@ export const AUDIT_ACTIONS = {
     'agent.delegation_revoked',
     'agent.approval_requested',
     'agent.approval_decided',
+    'assistant.access_refused',
     'ciba.requested',
     'ciba.poll_refused',
     'ciba.token_issued',
@@ -147,10 +148,22 @@ type AdminAccessInput =
         owner: string;
         tool: string;
         route: string;
+        conversation?: string;
+        turn?: string;
       }>;
     });
 
 type AgentIdentityInput =
+  | (EventCommon & {
+      readonly eventType: 'agent_identity';
+      readonly action: 'assistant.access_refused';
+      readonly detail: WithReason<{
+        agent_client: string;
+        owner: string;
+        refusal: string;
+        target_tenant?: string;
+      }>;
+    })
   | (EventCommon & {
       readonly eventType: 'agent_identity';
       readonly action: 'agent.instance_minted';
@@ -393,13 +406,14 @@ export type AuditEventInput = AdminMutationInput | VocabularyEventInput;
 // vocabulary one — its own allowlist lives in audit-detail.ts.
 const ACTION_DETAIL_KEYS: Partial<Record<VocabularyAction, readonly string[]>> = {
   'capability.refused': ['capability', 'also_admits'],
-  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route'],
+  'agent.tool_call': ['agent_client', 'owner', 'tool', 'route', 'conversation', 'turn'],
   'agent.instance_minted': ['agent_client', 'owner', 'instance', 'depth'],
   'agent.instance_revoked': ['agent_client', 'owner', 'instance', 'depth', 'count', 'via'],
   'agent.delegation_created': ['agent_client', 'owner', 'delegation'],
   'agent.delegation_revoked': ['agent_client', 'owner', 'delegation'],
   'agent.approval_requested': ['agent_client', 'owner', 'approval', 'instance'],
   'agent.approval_decided': ['owner', 'approval', 'state', 'via'],
+  'assistant.access_refused': ['agent_client', 'owner', 'refusal', 'target_tenant'],
   'ciba.requested': ['agent_client', 'owner', 'approval'],
   'ciba.poll_refused': ['agent_client', 'owner', 'approval'],
   'ciba.token_issued': ['agent_client', 'owner', 'approval'],
@@ -482,8 +496,15 @@ function isValidDetailValue(action: string, key: string, value: unknown): boolea
       ).includes(value)
     );
   }
-  if (key === 'instance' || key === 'approval' || key === 'delegation')
+  if (
+    key === 'instance' ||
+    key === 'approval' ||
+    key === 'delegation' ||
+    key === 'conversation' ||
+    key === 'turn'
+  ) {
     return typeof value === 'string' && ID.test(value);
+  }
   if (key === 'depth' || key === 'count') return Number.isInteger(value) && Number(value) >= 0;
   if (key === 'state') return typeof value === 'string' && AGENT_APPROVAL_STATES.includes(value);
   if (key === 'notice') {

@@ -1,7 +1,20 @@
 import type { Client } from '#/entities/client';
-import { BUILTIN_FIXED } from '#/pages/clients/services/clientDetails';
+import { ASSISTANT_FIXED, BUILTIN_FIXED } from '#/pages/clients/services/clientDetails';
 
-export type Fixable = Pick<Client, 'builtin_admin' | 'client_id'>;
+export type Fixable = Pick<
+  Client,
+  'builtin_admin' | 'builtin_mcp' | 'builtin_assistant' | 'client_id' | 'name'
+>;
+
+export type BuiltinKind = 'admin' | 'mcp' | 'assistant';
+
+// Which of the tenant's own clients this is, by the markers the server
+// carries, never by the client ID, which a rename could leave behind.
+export function builtinKind(client: Fixable): BuiltinKind | null {
+  if (client.builtin_admin) return 'admin';
+  if (client.builtin_assistant) return 'assistant';
+  return client.builtin_mcp ? 'mcp' : null;
+}
 
 // The built-in admin client is amended through an allowlist: whether it is
 // enabled, and where it redirects, could lock every administrator out.
@@ -10,8 +23,22 @@ export function enabledFixed(client: Fixable): string | null {
 }
 
 export function redirectsFixed(client: Fixable): string | null {
-  return client.builtin_admin
-    ? `${client.client_id}'s redirect URIs and web origins cannot be changed. ${BUILTIN_FIXED}`
+  const kind = builtinKind(client);
+  if (kind === 'admin') {
+    return `${client.client_id}'s redirect URIs and web origins cannot be changed. ${BUILTIN_FIXED}`;
+  }
+  return kind === 'assistant'
+    ? `${client.client_id}'s redirect URIs and web origins cannot be changed. ${ASSISTANT_FIXED}`
+    : null;
+}
+
+// The assistant's client is amended only in its name, description,
+// translations and whether it is enabled: every other setting is what keeps
+// anything from signing in through it. The tabs that hold those settings say
+// so and show them as text.
+export function fieldsFixed(client: Fixable | undefined): string | null {
+  return client !== undefined && builtinKind(client) === 'assistant'
+    ? `${client.name} is built in. Only its name, description and whether it is enabled can be changed. ${ASSISTANT_FIXED}`
     : null;
 }
 

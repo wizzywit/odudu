@@ -207,12 +207,15 @@ export function TextField({
   inputMode,
   hideLabel,
   placeholder,
+  onEnter,
 }: Chrome &
   ClusterPart &
   PartLabel & {
     value: string;
     onChange: (value: string) => void;
     onBlur?: () => void;
+    // For a field that stands alone rather than in a form: Enter applies it.
+    onEnter?: () => void;
     inputMode?: 'numeric' | 'tel';
     type?: 'text' | 'url' | 'email' | 'tel' | 'password';
     mono?: boolean;
@@ -254,6 +257,13 @@ export function TextField({
         spellCheck={false}
         {...(inputMode === undefined ? {} : { inputMode })}
         {...(placeholder === undefined ? {} : { placeholder })}
+        {...(onEnter === undefined
+          ? {}
+          : {
+              onKeyDown: (event) => {
+                if (event.key === 'Enter') onEnter();
+              },
+            })}
       />
       <Description>{description}</Description>
       <Message error={error} />

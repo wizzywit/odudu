@@ -17,12 +17,58 @@ export const ADMIN_PROBLEM_TYPES: Readonly<Record<string, AdminProblemType>> = {
       'The audit read ran past its five second bound because its filters match too many rows ' +
       'to serve cheaply. Narrow the time range with `from` and `to`.',
   },
+  'not-found': {
+    status: 404,
+    summary:
+      'No resource at this path. The assistant’s settings answer it where the deployment ' +
+      'has no assistant, exactly as a path that was never served does.',
+  },
   'service-account': {
     status: 409,
     summary:
       'A subject that is a client\u2019s service account is not deleted on its own, since the ' +
       'client would be left with none. `detail` names the client. Delete the client instead, ' +
       'which deletes its account.',
+  },
+  'conversation-reported': {
+    status: 409,
+    summary:
+      'The conversation was reported and is kept for review, so its owner cannot delete it. ' +
+      'The owner can archive it.',
+  },
+  'conversation-busy': {
+    status: 409,
+    summary:
+      'An answer is still running in the conversation. Stop it, then delete the conversation.',
+  },
+  'conversation-ended': {
+    status: 409,
+    summary:
+      'The sign-in the conversation acted under was ended for a reason other than the ' +
+      'person signing out or the session lapsing, such as a reused refresh token, an ' +
+      'administrator ending the session or a recovered account, so a later sign-in does not ' +
+      'carry the conversation on. It can still be read and exported; start a new conversation.',
+  },
+  'conversation-archived': {
+    status: 409,
+    summary:
+      'The conversation is hidden from its owner\u2019s list, and a hidden conversation is ' +
+      'not carried on after a sign-in. Restore it with `PUT .../archived`, then send the message again.',
+  },
+  'conversation-access-refused': {
+    status: 409,
+    summary:
+      'The conversation could not be carried on under the sign-in the caller holds now: the ' +
+      'assistant is switched off, the caller no longer holds `use-assistant` (and, in another ' +
+      'tenant, `manage-tenants`), the tenant it acts in no longer offers it, or the session ' +
+      'has ended. Nothing was written; the refusal is audited as `assistant.access_refused`.',
+  },
+  'agent-instance': {
+    status: 409,
+    summary:
+      'The subject of an agent instance is not deleted by hand. Revoke the instance; the ' +
+      'reaper deletes it after its retention window, so the audit rows that name it keep ' +
+      'their subject until then.',
   },
   'builtin-scope-confirmation': {
     status: 422,

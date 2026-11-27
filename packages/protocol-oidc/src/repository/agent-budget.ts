@@ -13,6 +13,11 @@ interface Caps {
 }
 
 export interface SpendInput {
+  // A write that changes who can sign in, what a token carries or what goes
+  // live is counted apart from the rest, on the grant and on the daily window,
+  // so a burst of ordinary writes cannot spend what it needs. It has the same
+  // limits; a create among them is still counted against the create limit.
+  privileged?: boolean;
   grantId: string;
   instanceId: string | null;
   ownerSubjectId: string;
@@ -82,13 +87,14 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
     // root or carried by the call, is refused at the grant.
     async spend(input: SpendInput): Promise<SpendOutcome> {
       const create = input.kind === 'create';
+      const privileged = input.privileged === true;
       const root = await budgetGrantId(tx, input.grantId);
       if (root === null) return refused('grant');
 
       const [grant] = await tx
         .select({
           tenantId: tokenGrants.tenantId,
-          writes: tokenGrants.agentWrites,
+          writes: privileged ? tokenGrants.agentPrivilegedWrites : tokenGrants.agentWrites,
           creates: tokenGrants.agentCreates,
           revokedAt: tokenGrants.revokedAt,
         })
@@ -137,7 +143,9 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
         })
         .onConflictDoNothing();
       const [window] = await tx
-        .select({ writes: agentBudgetWindows.writes })
+        .select({
+          writes: privileged ? agentBudgetWindows.privilegedWrites : agentBudgetWindows.writes,
+        })
         .from(agentBudgetWindows)
         .where(
           and(
@@ -154,7 +162,9 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
       await tx
         .update(tokenGrants)
         .set({
-          agentWrites: sql`${tokenGrants.agentWrites} + 1`,
+          ...(privileged
+            ? { agentPrivilegedWrites: sql`${tokenGrants.agentPrivilegedWrites} + 1` }
+            : { agentWrites: sql`${tokenGrants.agentWrites} + 1` }),
           agentCreates: sql`${tokenGrants.agentCreates} + ${create ? 1 : 0}`,
         })
         .where(eq(tokenGrants.id, root));
@@ -169,7 +179,11 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
       }
       await tx
         .update(agentBudgetWindows)
-        .set({ writes: sql`${agentBudgetWindows.writes} + 1` })
+        .set(
+          privileged
+            ? { privilegedWrites: sql`${agentBudgetWindows.privilegedWrites} + 1` }
+            : { writes: sql`${agentBudgetWindows.writes} + 1` },
+        )
         .where(
           and(
             eq(agentBudgetWindows.ownerSubjectId, input.ownerSubjectId),
@@ -186,12 +200,17 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
     // which the MCP door keeps for the purpose, not the instant it is given back.
     async release(input: ReleaseInput): Promise<void> {
       const create = input.kind === 'create';
+      const privileged = input.privileged === true;
       const root = await budgetGrantId(tx, input.grantId);
       if (root === null) return;
       await tx
         .update(tokenGrants)
         .set({
-          agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)`,
+          ...(privileged
+            ? {
+                agentPrivilegedWrites: sql`greatest(${tokenGrants.agentPrivilegedWrites} - 1, 0)`,
+              }
+            : { agentWrites: sql`greatest(${tokenGrants.agentWrites} - 1, 0)` }),
           agentCreates: sql`greatest(${tokenGrants.agentCreates} - ${create ? 1 : 0}, 0)`,
         })
         .where(eq(tokenGrants.id, root));
@@ -206,7 +225,11 @@ export function agentBudgetRepository(tx: TenantScopedDatabase) {
       }
       await tx
         .update(agentBudgetWindows)
-        .set({ writes: sql`greatest(${agentBudgetWindows.writes} - 1, 0)` })
+        .set(
+          privileged
+            ? { privilegedWrites: sql`greatest(${agentBudgetWindows.privilegedWrites} - 1, 0)` }
+            : { writes: sql`greatest(${agentBudgetWindows.writes} - 1, 0)` },
+        )
         .where(
           and(
             eq(agentBudgetWindows.ownerSubjectId, input.ownerSubjectId),

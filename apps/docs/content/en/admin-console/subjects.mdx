@@ -8,7 +8,7 @@ import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
 
 # Subjects in the console
 
-A subject is anything that signs in to a tenant: a person or a service. This is where you add one, help one who is locked out, and take one away. It needs the `view-users` capability to read and `manage-users` to change; the menu entry is **Subjects** under **IDENTITY**.
+A subject is anything that signs in to a tenant: a person or a service. The list and its count show people and service accounts. An agent instance, the run of an AI agent, is a subject too but is left out, because there is one for each conversation and it is listed under [Agents](./agents.mdx); the page of one still opens from its link in the audit trail. This is where you add a person, help one who is locked out, and take one away. It needs the `view-users` capability to read and `manage-users` to change; the menu entry is **Subjects** under **IDENTITY**.
 
 <ConsoleShot
   name="subjects"
@@ -68,9 +68,11 @@ A subject's record has a tab for each part of an account.
 - **Grants** lists the tokens that are still in force, never the tokens themselves.
 - **Activity** lists every change made to the subject.
 
+Where the [assistant](./assistant.mdx#start-from-a-screen) is on, a person's record has **Why can’t they sign in?** beside its title. It opens the assistant with that question ready, and the answer comes from the account's state, any lockout, the required actions, the sessions, and the roles and groups.
+
 ## Things that cannot be undone, or that end somebody's work
 
-- **Delete** removes the subject with its credentials, sessions, grants, roles and group memberships. Disabling instead keeps everything and stops the person signing in. The profile has both, as **Disable ada** and **Delete ada** for a person called ada. A client's service account cannot be deleted here: delete the client instead.
+- **Delete** removes the subject with its credentials, sessions, grants, roles and group memberships. Disabling instead keeps everything and stops the person signing in. The profile has both, as **Disable ada** and **Delete ada** for a person called ada. A client's service account cannot be deleted here: delete the client instead. An agent instance cannot be deleted either: revoke it in **Agents**, and the reaper removes it after its retention window.
 - **End every session** on the Sessions tab signs the person out everywhere, and **End session** ends one.
 - **Revoke grants** on the Grants tab ends a client's access for the person, including grants that outlive a session.
 - **Revoke recovery codes** on the Credentials tab discards the person's whole set at once.

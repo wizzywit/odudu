@@ -212,3 +212,5 @@ curl -sS -H "Authorization: Bearer $ADMIN_TOKEN" \
 {"action":"scope.unassign_from_client","outcome":"refused","detail":{"denied":["view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit","view-domains","manage-domains"]}}
 {"action":"scope.assign_to_client","outcome":"refused","detail":{"denied":["view-users","manage-users","manage-clients","manage-keys","manage-sessions","view-audit","view-domains","manage-domains"]}}
 ```
+
+The lists of admin capabilities in this page's blocks keep their capture from before the three assistant capabilities (`use-assistant`, `read-assistant-activity` and `manage-assistant`) joined the built-in roles, and were not run again: a server now answers each of them with the three added, and with thirteen built-in roles of `odudu-admin` where a role list is shown.

@@ -6,6 +6,7 @@ from enum import Enum
 class GetAdminTenantsTenantClientsResponse200ItemsItemServiceAccountAdminReachItem(
     str, Enum
 ):
+    MANAGE_ASSISTANT = "manage-assistant"
     MANAGE_CLIENTS = "manage-clients"
     MANAGE_DOMAINS = "manage-domains"
     MANAGE_KEYS = "manage-keys"
@@ -13,6 +14,8 @@ class GetAdminTenantsTenantClientsResponse200ItemsItemServiceAccountAdminReachIt
     MANAGE_TENANT = "manage-tenant"
     MANAGE_TENANTS = "manage-tenants"
     MANAGE_USERS = "manage-users"
+    READ_ASSISTANT_ACTIVITY = "read-assistant-activity"
+    USE_ASSISTANT = "use-assistant"
     VIEW_AUDIT = "view-audit"
     VIEW_DOMAINS = "view-domains"
     VIEW_USERS = "view-users"

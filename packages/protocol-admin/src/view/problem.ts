@@ -148,6 +148,16 @@ export function serviceAccountProblem(clientId: string): Problem {
   );
 }
 
+/** A delete of the subject of an agent instance. */
+export function agentInstanceProblem(): Problem {
+  return problem(
+    409,
+    'about:blank#agent-instance',
+    'Conflict',
+    'An agent instance is removed by revoking it; the reaper deletes it after its retention window.',
+  );
+}
+
 export type IdempotencyRefusal = 'secret' | 'not-atomic' | 'external-io';
 
 export function idempotencyBusy(): Problem {

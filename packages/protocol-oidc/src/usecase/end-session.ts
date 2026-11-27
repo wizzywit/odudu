@@ -45,6 +45,7 @@ export async function endSession(
     now: input.now,
     issuer: input.issuer,
     via: input.via,
+    ownSignOut: input.via !== 'admin',
   });
 }
 
@@ -55,6 +56,11 @@ export interface EndSessionsInput {
   readonly now: Date;
   readonly issuer: string;
   readonly via: 'logout' | 'admin' | 'self';
+  // Whether the person ended their own sign-in, which a console assistant
+  // conversation under it may be carried on after. Defaults to the cases the
+  // person did themselves: a logout they made and their own sessions. A recovered
+  // account ends every session as a logout and says it was not theirs.
+  readonly ownSignOut?: boolean;
 }
 
 // `endSession` for several sessions of one subject, in a fixed number of
@@ -76,7 +82,12 @@ export async function endSessions(
       detail: { via: input.via },
     })),
   );
-  await tokenGrantRepository(tx).revokeForSessions(input.sessionIds, input.now);
+  const ownSignOut = input.ownSignOut ?? input.via === 'self';
+  await tokenGrantRepository(tx).revokeForSessions(
+    input.sessionIds,
+    input.now,
+    ownSignOut ? 'sign_out' : undefined,
+  );
 
   const targets = await tokenGrantRepository(tx).clientsForSessions(input.sessionIds);
   const backchannelTargets = targets.filter(hasBackchannelLogoutUri);

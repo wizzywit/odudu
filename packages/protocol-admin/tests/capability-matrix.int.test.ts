@@ -297,10 +297,12 @@ describe('the capability matrix', () => {
       const widened = tenantScopedRoutes.filter((route) => route.alsoAdmits !== undefined);
       expect(widened.map(routeKey).sort()).toEqual([
         'DELETE /admin/tenants/:tenant/theme/assets/:assetId',
+        'GET /admin/tenants/:tenant/assistant/settings',
         'GET /admin/tenants/:tenant/groups',
         'GET /admin/tenants/:tenant/roles',
         'GET /admin/tenants/:tenant/theme/assets/:assetId/content',
         'GET /admin/tenants/:tenant/theme/stylesheet-hooks',
+        'POST /admin/tenants/:tenant/assistant/conversations/:id/report',
         'POST /admin/tenants/:tenant/theme/assets',
       ]);
     });
@@ -325,6 +327,25 @@ describe('the capability matrix', () => {
       ({ family, routes }) => {
         const distinct = [...new Set(routes.map(tenantCapabilityOf))];
         if (distinct.length === 1) return;
+        // Using the assistant is not viewing it: the settings routes need
+        // `manage-assistant`, the activity routes `read-assistant-activity`,
+        // and every other route, reads included, `use-assistant`.
+        if (family === 'assistant') {
+          expect([...distinct].sort()).toEqual([
+            'manage-assistant',
+            'read-assistant-activity',
+            'use-assistant',
+          ]);
+          for (const route of routes) {
+            const expected = route.pattern.endsWith('/assistant/settings')
+              ? 'manage-assistant'
+              : route.pattern.includes('/assistant/activity')
+                ? 'read-assistant-activity'
+                : 'use-assistant';
+            expect(tenantCapabilityOf(route), routeKey(route)).toBe(expected);
+          }
+          return;
+        }
         expect(distinct, `${family} names more than two capabilities`).toHaveLength(2);
         const [a, b] = distinct as [TenantCapability, TenantCapability];
         const view = viewCounterpart(a) === b ? b : viewCounterpart(b) === a ? a : undefined;

@@ -116,6 +116,16 @@ it('tells nothing yet apart from nothing matching', async () => {
   expect(narrowed.clear).toHaveBeenCalledOnce();
 });
 
+it('keeps looking when a filtered page came back empty with more to read', async () => {
+  const user = userEvent.setup();
+  const list = state({ rows: [], narrowed: true, filters: { tool: 'get_client' } });
+  render(page(list));
+  expect(screen.getByRole('heading', { name: 'No clients match so far' })).toBeVisible();
+  expect(screen.getByText(/looks at part of the list at a time/u)).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Load more clients' }));
+  expect(list.loadMore).toHaveBeenCalledOnce();
+});
+
 it('says a list failed to load and offers to try again', async () => {
   const user = userEvent.setup();
   const list = state({ status: 'failed', rows: [], count: null });

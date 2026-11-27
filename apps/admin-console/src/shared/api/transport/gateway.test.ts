@@ -552,7 +552,7 @@ describe('gateway.download, a body kept as the bytes the server sent', () => {
     expect(result).toEqual({
       ok: true,
       status: 200,
-      data: { text: DOCUMENT, contentType: 'application/vnd.odudu.tenant+json' },
+      data: { text: DOCUMENT, contentType: 'application/vnd.odudu.tenant+json', date: null },
       etag: null,
       next: null,
     });
@@ -707,5 +707,79 @@ describe('gateway.request, a write sent with no tag on purpose', () => {
     const { gateway } = harness(required());
     const result = await gateway.request('PUT', SUBJECT_PATH, { body: {}, schema: subjectSchema });
     expect(result).toEqual({ ok: false, kind: 'defect' });
+  });
+});
+
+describe('gateway.stream, a response read as it arrives', () => {
+  const MESSAGES = 'admin/tenants/acme/assistant/conversations/c1/messages';
+
+  it('sends the console header, the believed subject and the body, with the caller’s signal', async () => {
+    const { gateway, calls } = harness(
+      new Response('data: x\n\n', { headers: { 'content-type': 'text/event-stream' } }),
+    );
+    gateway.believe('s1');
+    const controller = new AbortController();
+
+    const result = await gateway.stream('POST', MESSAGES, {
+      body: '{"message":1}',
+      signal: controller.signal,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls[0]?.url).toBe(`/console/api/${MESSAGES}`);
+    expect(calls[0]?.init.method).toBe('POST');
+    expect(calls[0]?.init.credentials).toBe('same-origin');
+    expect(calls[0]?.init.body).toBe('{"message":1}');
+    expect(headersOf(calls[0]).get('x-odudu-console')).toBe('1');
+    expect(headersOf(calls[0]).get('x-odudu-console-subject')).toBe('s1');
+    expect(headersOf(calls[0]).get('content-type')).toBe('application/json');
+    expect(headersOf(calls[0]).get('accept')).toBe('text/event-stream');
+  });
+
+  it('hands over the response without reading its body', async () => {
+    const { gateway } = harness(new Response('data: x\n\n'));
+    const result = await gateway.stream('POST', MESSAGES, {});
+    expect(result.ok && (await result.response.text())).toBe('data: x\n\n');
+  });
+
+  it('stops the request when the caller’s signal aborts, and never on a timer of its own', async () => {
+    const { gateway, calls } = harness(new Response('ok'));
+    const controller = new AbortController();
+    await gateway.stream('POST', MESSAGES, { signal: controller.signal });
+    const sent = calls[0]?.init.signal;
+    expect(sent?.aborted).toBe(false);
+    controller.abort();
+    expect(sent?.aborted).toBe(true);
+  });
+
+  it('answers a refusal as a problem and emits authEnded on a session that ended', async () => {
+    const { gateway, events } = harness(
+      problem(401, 'about:blank#console-session-ended', 'Unauthorized'),
+    );
+    const ended = vi.fn();
+    events.on('authEnded', ended);
+
+    const result = await gateway.stream('POST', MESSAGES, {});
+
+    expect(result).toMatchObject({ ok: false, kind: 'problem', problem: { status: 401 } });
+    expect(ended).toHaveBeenCalledOnce();
+  });
+
+  it('answers a busy turn as a problem and a network failure as one, never repeating', async () => {
+    const busy = harness(problem(409, 'about:blank', 'Conflict'));
+    expect(await busy.gateway.stream('POST', MESSAGES, {})).toMatchObject({
+      ok: false,
+      kind: 'problem',
+      problem: { status: 409 },
+    });
+    const down = harness(new Error('down'), new Response('late'));
+    expect(await down.gateway.stream('POST', MESSAGES, {})).toEqual({ ok: false, kind: 'network' });
+    expect(down.calls).toHaveLength(1);
+  });
+
+  it('refuses a path that would leave /console/api/', async () => {
+    const { gateway, calls } = harness(new Response('x'));
+    await expect(gateway.stream('POST', '../../x', {})).rejects.toThrow(TypeError);
+    expect(calls).toHaveLength(0);
   });
 });

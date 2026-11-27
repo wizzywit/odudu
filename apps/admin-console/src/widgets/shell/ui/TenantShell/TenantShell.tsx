@@ -6,6 +6,8 @@ import {
   useTenantMissing,
   type Principal,
 } from '#/entities/session';
+import { AssistantGate, type AssistantPanelSlot } from '#/entities/assistant';
+import { useAssistantAvailable } from '#/widgets/shell/use-cases/useAssistantAvailable';
 import { useShell } from '#/widgets/shell/use-cases/useShell';
 import { useTenantFrame } from '#/widgets/shell/use-cases/useTenantFrame';
 import { RailFooter } from '#/widgets/shell/ui/RailFooter';
@@ -21,13 +23,16 @@ import styles from '#/widgets/shell/ui/TenantShell/TenantShell.module.css';
 function SignedInShell({
   tenant,
   principal,
+  renderAssistantPanel,
   children,
 }: {
   tenant: string;
   principal: Principal;
+  renderAssistantPanel: (slot: AssistantPanelSlot) => ReactNode;
   children: ReactNode;
 }) {
   const shell = useShell(tenant, principal);
+  const assistant = useAssistantAvailable(tenant);
   const { productName } = useTenantFrame(tenant);
   const missing = useTenantMissing(tenant);
   if (missing === true) {
@@ -38,45 +43,67 @@ function SignedInShell({
     );
   }
   return (
-    <AppShell
-      brand={shell.brand}
-      collapsed={shell.collapsed}
-      onCollapsedChange={shell.setCollapsed}
-      shortcutsPaused={shell.dialogOpen}
-      contextBar={
-        shell.systemAuthority ? (
-          <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />
-        ) : undefined
-      }
-      rail={
-        <Rail
-          label={shell.areasLabel}
-          groups={shell.groups}
-          checking={shell.checking}
-          {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
-          header={
-            <strong className={styles.brand}>
-              <BrandLine>{shell.brand}</BrandLine>
-            </strong>
+    <AssistantGate
+      tenant={tenant}
+      available={assistant.available}
+      actingIn={assistant.actingIn}
+      username={shell.username}
+      paused={shell.dialogOpen}
+      renderPanel={renderAssistantPanel}
+    >
+      {({ control, panel, open }) => (
+        <AppShell
+          brand={shell.brand}
+          collapsed={shell.collapsed}
+          onCollapsedChange={shell.setCollapsed}
+          shortcutsPaused={shell.dialogOpen}
+          assistant={control}
+          assistantPanel={panel}
+          assistantOpen={open}
+          contextBar={
+            shell.systemAuthority ? (
+              <ContextBar tenant={tenant} backHref={shell.systemRecordHref} />
+            ) : undefined
           }
-          footer={
-            <RailFooter
-              username={shell.username}
-              from={shell.signedInFrom}
-              switchHref={shell.switchHref}
-              theme={shell.theme}
-              onSignOut={shell.signOut}
+          rail={
+            <Rail
+              label={shell.areasLabel}
+              groups={shell.groups}
+              checking={shell.checking}
+              {...(shell.currentHref === undefined ? {} : { currentHref: shell.currentHref })}
+              header={
+                <strong className={styles.brand}>
+                  <BrandLine>{shell.brand}</BrandLine>
+                </strong>
+              }
+              footer={
+                <RailFooter
+                  username={shell.username}
+                  from={shell.signedInFrom}
+                  switchHref={shell.switchHref}
+                  theme={shell.theme}
+                  onSignOut={shell.signOut}
+                />
+              }
             />
           }
-        />
-      }
-    >
-      {children}
-    </AppShell>
+        >
+          {children}
+        </AppShell>
+      )}
+    </AssistantGate>
   );
 }
 
-function Access({ tenant, children }: { tenant: string; children: ReactNode }) {
+function Access({
+  tenant,
+  renderAssistantPanel,
+  children,
+}: {
+  tenant: string;
+  renderAssistantPanel: (slot: AssistantPanelSlot) => ReactNode;
+  children: ReactNode;
+}) {
   const access = useTenantAccess(tenant);
   if (access.kind === 'signing-in') {
     return <SigningIn words={access.words} ended={access.ended} />;
@@ -91,13 +118,27 @@ function Access({ tenant, children }: { tenant: string; children: ReactNode }) {
     );
   }
   return (
-    <SignedInShell tenant={tenant} principal={access.principal}>
+    <SignedInShell
+      tenant={tenant}
+      principal={access.principal}
+      renderAssistantPanel={renderAssistantPanel}
+    >
       {children}
     </SignedInShell>
   );
 }
 
-export function TenantShell({ tenant, children }: { tenant: string; children: ReactNode }) {
+// `renderAssistantPanel` draws the assistant's panel, which is a widget of its
+// own: this one cannot import a sibling, so the composition root hands it in.
+export function TenantShell({
+  tenant,
+  renderAssistantPanel,
+  children,
+}: {
+  tenant: string;
+  renderAssistantPanel: (slot: AssistantPanelSlot) => ReactNode;
+  children: ReactNode;
+}) {
   const { valid, productName } = useTenantFrame(tenant);
   if (!valid) {
     return (
@@ -106,5 +147,9 @@ export function TenantShell({ tenant, children }: { tenant: string; children: Re
       </LostFrame>
     );
   }
-  return <Access tenant={tenant}>{children}</Access>;
+  return (
+    <Access tenant={tenant} renderAssistantPanel={renderAssistantPanel}>
+      {children}
+    </Access>
+  );
 }

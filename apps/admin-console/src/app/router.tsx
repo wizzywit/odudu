@@ -11,6 +11,7 @@ import {
 import { RouterProvider as AriaRouterProvider } from 'react-aria-components';
 import { lazyFeatureRoute } from '#/app/lazyFeatureRoute';
 import { NavigationGuard } from '#/app/NavigationGuard';
+import type { AssistantPanelSlot } from '#/entities/assistant';
 import { RouteFailure, ShellFailure } from '#/widgets/failure';
 import { ConsoleHome } from '#/pages/console-home';
 import { SessionGate } from '#/widgets/session-gate';
@@ -57,13 +58,26 @@ const root = createRootRoute({
 
 const home = createRoute({ getParentRoute: () => root, path: '/', component: ConsoleHome });
 
+// The assistant's panel is a widget of its own, drawn inside the shell; the shell
+// takes it as a function so that neither widget imports the other.
+// It is its own chunk, with the chat client it reads the stream with, fetched
+// when the panel is first opened: nobody who never opens it pays for it.
+const LazyAssistantPanel = lazyFeatureRoute<AssistantPanelSlot>(
+  () => import('#/widgets/assistant-panel').then((widget) => widget.AssistantPanel),
+  'Loading the assistant',
+);
+
+function renderAssistantPanel(slot: AssistantPanelSlot) {
+  return <LazyAssistantPanel key={slot.tenant} {...slot} />;
+}
+
 const tenant = createRoute({
   getParentRoute: () => root,
   path: '$tenant',
   component: function Tenant() {
     const { tenant: name } = tenant.useParams();
     return (
-      <TenantShell tenant={name}>
+      <TenantShell tenant={name} renderAssistantPanel={renderAssistantPanel}>
         <Outlet />
       </TenantShell>
     );
@@ -592,6 +606,36 @@ const audit = createRoute({
   },
 });
 
+const AssistantActivity = lazyFeatureRoute(
+  () => import('#/pages/assistant-activity').then((feature) => feature.AssistantActivityPage),
+  'Loading the assistant activity',
+);
+const AssistantReplay = lazyFeatureRoute(
+  () => import('#/pages/assistant-activity').then((feature) => feature.AssistantReplayPage),
+  'Loading the conversation',
+);
+
+const assistantActivityPages = [
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'assistant-activity',
+    component: function AssistantActivityList() {
+      const { tenant: name } = tenant.useParams();
+      return <AssistantActivity key={name} tenant={name} />;
+    },
+  }),
+  createRoute({
+    getParentRoute: () => tenant,
+    path: 'assistant-activity/$id',
+    component: function AssistantActivityAtId() {
+      const { tenant: name } = tenant.useParams();
+      const { id } = assistantReplayRoute.useParams();
+      return <AssistantReplay key={`${name}/${id}`} tenant={name} id={id} />;
+    },
+  }),
+] as const;
+const assistantReplayRoute = assistantActivityPages[1];
+
 // Every feature chunk the routes load, for a caller that wants them all in
 // hand before the first render.
 export function preloadFeatures(): Promise<void> {
@@ -632,6 +676,8 @@ export function preloadFeatures(): Promise<void> {
     Email,
     Domains,
     Audit,
+    AssistantActivity,
+    AssistantReplay,
   ];
   return Promise.all(features.map((feature) => feature.preload())).then(() => undefined);
 }
@@ -658,6 +704,7 @@ const routeTree = root.addChildren([
     email,
     domains,
     audit,
+    ...assistantActivityPages,
   ]),
 ]);
 

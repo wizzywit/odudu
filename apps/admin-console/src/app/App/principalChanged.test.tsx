@@ -61,6 +61,7 @@ function whoami(subjectId: string): Answer {
     subjectId,
     issuerTenantId: 't1',
     issuerTenantName: 'acme',
+    assistant_available: false,
     capabilities: ['manage-clients'],
     crossTenant: false,
   });

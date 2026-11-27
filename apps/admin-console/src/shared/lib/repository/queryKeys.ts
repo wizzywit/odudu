@@ -77,6 +77,29 @@ export function usernamePolicyKey(tenant: string) {
   return ['username-policy', tenant] as const;
 }
 
+export function assistantStatusKey(tenant: string) {
+  return ['assistant-status', tenant] as const;
+}
+
+// One conversation as the server holds it, read when the panel is opened on
+// one that already has messages.
+export function assistantConversationKey(tenant: string, id: string) {
+  return ['assistant-conversation', tenant, id] as const;
+}
+
+// The person's own conversations, the open list or the archived one. Without
+// `which` it is the prefix both lists sit under, for a change to ask for both.
+export function assistantConversationListKey(tenant: string, which?: 'open' | 'archived') {
+  return which === undefined
+    ? (['assistant-conversation-list', tenant] as const)
+    : (['assistant-conversation-list', tenant, which] as const);
+}
+
+// The changes of one conversation that wait for the person's decision.
+export function assistantApprovalsKey(tenant: string, id: string) {
+  return ['assistant-approvals', tenant, id] as const;
+}
+
 export function authorityKey(tenant: string, subject: string | null) {
   return ['authority', tenant, subject] as const;
 }

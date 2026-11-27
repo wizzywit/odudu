@@ -1,0 +1,232 @@
+.header {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-block-end: var(--hairline);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--type-15);
+  font-weight: 600;
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.acting {
+  display: block;
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--type-12);
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--ink-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-inline-size: 100%;
+}
+
+.modeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.acting::before {
+  content: '';
+  display: inline-block;
+  margin-inline-end: var(--space-2);
+  vertical-align: middle;
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--ink-primary);
+}
+
+.modes {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.modeLabel {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.segments {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+}
+
+.field {
+  display: flex;
+  flex: 1;
+}
+
+.field + .field {
+  border-inline-start: 1px solid var(--border-strong);
+}
+
+.segment {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--target-min);
+  padding: var(--space-1) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--type-13);
+  color: var(--ink-primary);
+  background: var(--surface-panel);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+
+.segment[data-hovered] {
+  background: var(--surface-sunken);
+}
+
+.segment[data-selected] {
+  font-weight: 600;
+  color: var(--surface-panel);
+  background: var(--ink-primary);
+}
+
+.segment[data-focus-visible] {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+.segment[data-disabled] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.modeHint {
+  margin: 0;
+  font-size: var(--type-12);
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+.meterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.meter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.meter::before {
+  content: '';
+  inline-size: 6px;
+  block-size: 6px;
+  border-radius: 50%;
+  background: var(--signal-active-ink);
+}
+
+.meter[data-level='warning'] {
+  color: var(--signal-warning-ink);
+}
+
+.meter[data-level='warning']::before {
+  background: var(--signal-warning-ink);
+}
+
+.meter[data-level='refused'] {
+  color: var(--signal-danger-ink);
+}
+
+.meter[data-level='refused']::before {
+  background: var(--signal-danger-ink);
+}
+
+.models {
+  font-size: var(--type-12);
+  color: var(--ink-muted);
+}
+
+.modelsSummary {
+  min-block-size: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.modelsSummary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.modelList {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.slot {
+  color: var(--ink-primary);
+}
+
+.modelsNote {
+  margin: var(--space-2) 0 0;
+  line-height: 1.4;
+}
+
+/* On a short screen, or at a large zoom, the conversation is what the panel is
+   for: the hints stay for a screen reader and leave the page. */
+@media (height < 600px) {
+  .modeHint {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

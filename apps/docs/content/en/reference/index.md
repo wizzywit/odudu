@@ -39,6 +39,7 @@ The operations of the admin API, grouped by area, with one page for each operati
   the shape of an error.
 - [Agent approvals](./generated/admin-api/agent-approvals/index.md)
 - [Agents](./generated/admin-api/agents/index.md)
+- [Assistant](./generated/admin-api/assistant/index.md)
 - [Audit](./generated/admin-api/audit/index.md)
 - [Clients](./generated/admin-api/clients/index.md)
 - [Domains](./generated/admin-api/domains/index.md)

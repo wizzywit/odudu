@@ -7,6 +7,10 @@
 }
 
 .frame {
+  --assistant-width: 360px;
+  /* The full rail's column, repeated where the panel adds a third. */
+  --rail-width: 240px;
+
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-block-size: 100vh;
@@ -49,6 +53,19 @@
 .railFoot {
   padding: var(--space-3) var(--space-4);
   border-block-start: 1px solid var(--border-rail);
+}
+
+.railAssistant {
+  display: flex;
+  margin-block-end: var(--space-3);
+}
+
+/* The control stacks its shortcut under it here, left-aligned as the collapse
+   toggle below is; the element selector outweighs the control's own class. */
+.railAssistant > span {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 
 .toggle {
@@ -99,6 +116,7 @@
   display: none;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
   min-block-size: 48px;
   padding: 0 var(--space-4);
   color: var(--ink-rail);
@@ -107,6 +125,7 @@
 
 .topActions {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-3);
 }
@@ -170,6 +189,9 @@
 }
 
 .brand {
+  /* Gives way first: the actions beside it keep their width. */
+  flex: 0 1 auto;
+  min-inline-size: 0;
   font-family: var(--font-mono);
   font-size: var(--type-13);
   font-weight: 600;
@@ -216,5 +238,60 @@
 @keyframes slide {
   from {
     transform: translateX(-100%);
+  }
+}
+
+/* The assistant's panel lies over the page, from the right, where there is
+   no room beside it; from 1280 it takes a column of its own. */
+.dock[hidden],
+.dock:empty {
+  display: none;
+}
+
+.dock {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 30;
+  inline-size: min(var(--assistant-width), 100vw);
+  border-inline-start: var(--hairline);
+  background: var(--surface-panel);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dock {
+    animation: dock var(--motion-panel) var(--ease);
+  }
+}
+
+/* On a phone it is the whole screen, with no sliver of page beside it. */
+@container shell (width < 480px) {
+  .dock {
+    inline-size: 100vw;
+  }
+}
+
+@container shell (width >= 1280px) {
+  .frame[data-assistant] {
+    grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--assistant-width);
+  }
+
+  .frame[data-assistant][data-collapsed] {
+    grid-template-columns: minmax(0, 1fr) var(--assistant-width);
+  }
+
+  .dock {
+    position: sticky;
+    inset-block: 0 auto;
+    z-index: auto;
+    inline-size: auto;
+    block-size: 100vh;
+    animation: none;
+  }
+}
+
+@keyframes dock {
+  from {
+    transform: translateX(100%);
   }
 }

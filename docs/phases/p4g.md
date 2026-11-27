@@ -1516,6 +1516,7 @@ error and config tables from `@odudu/kernel`, the audit vocabulary from
 | --------------------- | --------- | ------ |
 | `agent-approvals`     | 16        | 16     |
 | `agents`              | 35        | 35     |
+| `assistant`           | 177       | 178    |
 | `audit`               | 60        | 60     |
 | `clients`             | 524       | 535    |
 | `domains`             | 62        | 62     |

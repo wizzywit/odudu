@@ -14,7 +14,7 @@ import {
 } from '#/pages/clients/repository/useClientRecord';
 import { clientsHref } from '#/entities/client';
 import { deleteFixed } from '#/pages/clients/services/clientDeletion';
-import { enabledFixed } from '#/pages/clients/services/builtinFixed';
+import { enabledFixed, fieldsFixed } from '#/pages/clients/services/builtinFixed';
 import { deleteConsequence } from '#/pages/clients/services/clientDeletion';
 import {
   CLIENT_ID_FIXED,
@@ -78,6 +78,8 @@ export interface ClientGeneral {
   // Why it cannot be disabled, said in place of the toggle.
   enabledFixed: string | null;
   consent: SectionSave<ConsentValues>;
+  // Why the consent screen links and consent setting cannot be changed.
+  fieldsFixed: string | null;
   // Why it cannot be deleted, said in place of the button.
   deleteFixed: string | null;
   deletion: Deletion;
@@ -197,6 +199,7 @@ export function useClientGeneral({ tenant, client, etag, gone }: ClientRecordRea
     availability,
     enabledFixed: enabledFixed(client),
     consent,
+    fieldsFixed: fieldsFixed(client),
     deleteFixed: deleteFixed(client),
     deletion: { ...removal, consequence: deleteConsequence(client.name) },
   };

@@ -3,6 +3,7 @@ import { withTenant, type DatabaseHandle } from '@odudu/db';
 import { roleRepository } from '@odudu/domain-authz';
 import { subjectRepository } from '@odudu/domain-identity';
 import {
+  ADMIN_API_AUDIENCE,
   ADMIN_CLIENT_ID,
   clientRepository,
   MCP_CLIENT_ID,
@@ -59,12 +60,48 @@ export async function mcpSystemWorld(
   );
 }
 
+// The same console sign-in, in the system tenant: a system administrator
+// holding `capabilities`, as a console conversation's grant is derived from.
+export async function consoleSystemWorld(
+  appDb: DatabaseHandle,
+  base: string,
+  capabilities: readonly string[],
+): Promise<World> {
+  const admin = await seedAdmin({ username: `ops-${newId()}` });
+  return worldIn(
+    appDb,
+    base,
+    { tenantId: admin.tenantId, name: SYSTEM_TENANT_NAME },
+    capabilities,
+    'openid',
+    'admin',
+  );
+}
+
+// A tenant and a person who signed in to the console: the grant is the admin
+// client's own, scope `openid`, for the admin API. What a console token stands
+// on, and what an assistant conversation's grant is derived from.
+export async function consoleWorld(
+  appDb: DatabaseHandle,
+  base: string,
+  capabilities: readonly string[],
+): Promise<World> {
+  const name = `console-${newId()}`;
+  const seeded = await seed({
+    tenant: name,
+    clientId: 'portal',
+    redirectUris: ['https://app.example/callback'],
+  });
+  return worldIn(appDb, base, { tenantId: seeded.tenantId, name }, capabilities, 'openid', 'admin');
+}
+
 async function worldIn(
   appDb: DatabaseHandle,
   base: string,
   seeded: { readonly tenantId: string; readonly name: string },
   capabilities: readonly string[],
   grantScope: string,
+  grantOf: 'mcp' | 'admin' = 'mcp',
 ): Promise<World> {
   const { name } = seeded;
   const issuer = `${base}/tenants/${name}`;
@@ -91,10 +128,10 @@ async function worldIn(
     await tokenGrantRepository(tx).create({
       id: grantId,
       tenantId: seeded.tenantId,
-      clientId: agent.id,
+      clientId: grantOf === 'admin' ? admin.id : agent.id,
       subjectId: subject.id,
       scope: grantScope,
-      audience: [mcpAudienceOfIssuer(issuer)],
+      audience: [grantOf === 'admin' ? ADMIN_API_AUDIENCE : mcpAudienceOfIssuer(issuer)],
       sessionId,
     });
     return {

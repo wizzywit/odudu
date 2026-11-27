@@ -168,7 +168,9 @@ def sync_detailed(
 
      The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of
     `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`,
-    every name it holds and whether one is assigned to it directly.
+    every name it holds and whether one is assigned to it directly. The people and service accounts
+    only: an agent instance, which exists for one conversation or run, is left out unless
+    `type=agent_instance` is asked for.
 
     Args:
         tenant (str):
@@ -186,7 +188,8 @@ def sync_detailed(
         group (UUID | Unset): Only members of this group, by group id.
         capability (GetAdminTenantsTenantSubjectsCapability | Unset): Only holders of this admin
             capability, `tenant-admin`, or `any` admin capability; held effectively.
-        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type.
+        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type. Without it,
+            `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsLocked | Unset): `true` for subjects locked out by
             failed sign-ins only.
 
@@ -244,7 +247,9 @@ def sync(
 
      The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of
     `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`,
-    every name it holds and whether one is assigned to it directly.
+    every name it holds and whether one is assigned to it directly. The people and service accounts
+    only: an agent instance, which exists for one conversation or run, is left out unless
+    `type=agent_instance` is asked for.
 
     Args:
         tenant (str):
@@ -262,7 +267,8 @@ def sync(
         group (UUID | Unset): Only members of this group, by group id.
         capability (GetAdminTenantsTenantSubjectsCapability | Unset): Only holders of this admin
             capability, `tenant-admin`, or `any` admin capability; held effectively.
-        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type.
+        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type. Without it,
+            `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsLocked | Unset): `true` for subjects locked out by
             failed sign-ins only.
 
@@ -315,7 +321,9 @@ async def asyncio_detailed(
 
      The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of
     `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`,
-    every name it holds and whether one is assigned to it directly.
+    every name it holds and whether one is assigned to it directly. The people and service accounts
+    only: an agent instance, which exists for one conversation or run, is left out unless
+    `type=agent_instance` is asked for.
 
     Args:
         tenant (str):
@@ -333,7 +341,8 @@ async def asyncio_detailed(
         group (UUID | Unset): Only members of this group, by group id.
         capability (GetAdminTenantsTenantSubjectsCapability | Unset): Only holders of this admin
             capability, `tenant-admin`, or `any` admin capability; held effectively.
-        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type.
+        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type. Without it,
+            `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsLocked | Unset): `true` for subjects locked out by
             failed sign-ins only.
 
@@ -389,7 +398,9 @@ async def asyncio(
 
      The subjects of a tenant, paged. `capability` narrows to the holders of one admin capability, of
     `tenant-admin`, or of `any`, held effectively; with it, each item carries `admin_capabilities`,
-    every name it holds and whether one is assigned to it directly.
+    every name it holds and whether one is assigned to it directly. The people and service accounts
+    only: an agent instance, which exists for one conversation or run, is left out unless
+    `type=agent_instance` is asked for.
 
     Args:
         tenant (str):
@@ -407,7 +418,8 @@ async def asyncio(
         group (UUID | Unset): Only members of this group, by group id.
         capability (GetAdminTenantsTenantSubjectsCapability | Unset): Only holders of this admin
             capability, `tenant-admin`, or `any` admin capability; held effectively.
-        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type.
+        type_ (GetAdminTenantsTenantSubjectsType | Unset): Only subjects of this type. Without it,
+            `agent_instance` subjects are left out; name that type to list or count them.
         locked (GetAdminTenantsTenantSubjectsLocked | Unset): `true` for subjects locked out by
             failed sign-ins only.
 

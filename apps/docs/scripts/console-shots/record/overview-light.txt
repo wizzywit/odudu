@@ -28,6 +28,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
  from 
@@ -38,10 +39,24 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · demo
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Menu
 System
 Acting in 
@@ -57,12 +72,12 @@ Counts
 Subjects
 1 subject
 Clients
-3 clients
- (3 of 200 made by administrators or tokens)
+4 clients
+ (4 of 200 made by administrators or tokens)
 Groups
 0 groups
 Roles
-10 roles
+13 roles
 Scopes
 12 scopes
 Discovery

@@ -14,6 +14,10 @@ const READS: readonly { file: string; targets: readonly string[] }[] = [
   { file: 'apps/server/tests/seed-bidi.int.test.ts', targets: ['apps/server/src/**'] },
   { file: 'packages/db/tests/schema-drift.int.test.ts', targets: ['packages/*/src/schema/**'] },
   {
+    file: 'packages/assistant/tests/budget-crash.int.test.ts',
+    targets: ['packages/assistant/tests/support/crash-turn.ts'],
+  },
+  {
     file: 'packages/domain-theme/src/service/hooks.test.ts',
     targets: [
       'packages/*/src/view/*.ts',

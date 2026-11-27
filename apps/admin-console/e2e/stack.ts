@@ -170,6 +170,16 @@ const seededSchema = z.object({
     // Sign in through a client, to have a session and a grant of their own.
     walkers: z.array(account),
   }),
+  // A tenant of its own for the assistant tests, which create groups in it.
+  assistant: z.object({
+    read: account,
+    approve: account,
+    refuse: account,
+    phone: account,
+    shots: account,
+    // A system administrator, who acts in the assistant tenant above.
+    cross: account,
+  }),
   // A tenant of its own for the Groups and Roles tests.
   groupsRoles: z.object({
     // Holds tenant-admin there.

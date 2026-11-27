@@ -437,6 +437,9 @@
               "view-audit",
               "view-domains",
               "manage-domains",
+              "use-assistant",
+              "read-assistant-activity",
+              "manage-assistant",
               "manage-tenants",
               "tenant-admin",
               "any"
@@ -853,6 +856,12 @@
           "builtin_admin": {
             "type": "boolean"
           },
+          "builtin_mcp": {
+            "type": "boolean"
+          },
+          "builtin_assistant": {
+            "type": "boolean"
+          },
           "service_subject_id": {
             "anyOf": [
               {
@@ -906,6 +915,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -967,6 +979,8 @@
           "flow_id",
           "previous_secret_expires_at",
           "builtin_admin",
+          "builtin_mcp",
+          "builtin_assistant",
           "service_subject_id",
           "scopes",
           "service_account_admin_reach",
@@ -2592,6 +2606,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -2681,6 +2698,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -3148,6 +3168,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -3249,6 +3272,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -3604,6 +3630,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -6136,6 +6165,12 @@
                 "builtin_admin": {
                   "type": "boolean"
                 },
+                "builtin_mcp": {
+                  "type": "boolean"
+                },
+                "builtin_assistant": {
+                  "type": "boolean"
+                },
                 "service_subject_id": {
                   "anyOf": [
                     {
@@ -6189,6 +6224,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -6243,6 +6281,8 @@
                 "flow_id",
                 "previous_secret_expires_at",
                 "builtin_admin",
+                "builtin_mcp",
+                "builtin_assistant",
                 "service_subject_id",
                 "scopes",
                 "service_account_admin_reach"
@@ -6622,6 +6662,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -7065,6 +7108,9 @@
                       "view-audit",
                       "view-domains",
                       "manage-domains",
+                      "use-assistant",
+                      "read-assistant-activity",
+                      "manage-assistant",
                       "manage-tenants"
                     ]
                   }
@@ -8004,6 +8050,9 @@
               "view-audit",
               "view-domains",
               "manage-domains",
+              "use-assistant",
+              "read-assistant-activity",
+              "manage-assistant",
               "manage-tenants",
               "tenant-admin",
               "any"
@@ -8093,6 +8142,9 @@
                           "view-audit",
                           "view-domains",
                           "manage-domains",
+                          "use-assistant",
+                          "read-assistant-activity",
+                          "manage-assistant",
                           "manage-tenants",
                           "tenant-admin"
                         ]
@@ -8706,6 +8758,12 @@
           "builtin_admin": {
             "type": "boolean"
           },
+          "builtin_mcp": {
+            "type": "boolean"
+          },
+          "builtin_assistant": {
+            "type": "boolean"
+          },
           "service_subject_id": {
             "anyOf": [
               {
@@ -8759,6 +8817,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -8820,6 +8881,8 @@
           "flow_id",
           "previous_secret_expires_at",
           "builtin_admin",
+          "builtin_mcp",
+          "builtin_assistant",
           "service_subject_id",
           "scopes",
           "service_account_admin_reach",
@@ -8936,6 +8999,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -9065,6 +9131,9 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
@@ -9414,11 +9483,17 @@
                 "view-audit",
                 "view-domains",
                 "manage-domains",
+                "use-assistant",
+                "read-assistant-activity",
+                "manage-assistant",
                 "manage-tenants"
               ]
             }
           },
           "crossTenant": {
+            "type": "boolean"
+          },
+          "assistant_available": {
             "type": "boolean"
           }
         },

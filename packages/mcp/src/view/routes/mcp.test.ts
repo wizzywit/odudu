@@ -101,6 +101,7 @@ function build(
           audience: [mcpAudienceOfIssuer(ISSUER)],
           createdAt: new Date(0),
           revokedAt: null,
+          revokedCause: null,
           sessionId: 'session-1',
           actorSubjectId: null,
           exchangedFromGrantId: null,
@@ -108,10 +109,16 @@ function build(
           expCeiling: null,
           requestedUserinfoClaims: null,
           mayAct: null,
+          targetTenantId: null,
         }),
       isSessionLive: () => Promise.resolve(true),
       loadClientState: () =>
-        Promise.resolve({ enabled: true, builtinMcp: true, builtinAdmin: false }),
+        Promise.resolve({
+          enabled: true,
+          builtinMcp: true,
+          builtinAdmin: false,
+          builtinAssistant: false,
+        }),
       isSubjectEnabled: () => Promise.resolve(true),
       tenantNameAtHost: () => Promise.resolve(null),
       verifyAccessToken: () =>

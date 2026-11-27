@@ -77,6 +77,31 @@ describe('agent.tool_call', () => {
     ]);
   });
 
+  it('carries the conversation and turn of an assistant call, and only those ids', async () => {
+    const { t, principal } = await agentWorld();
+    const conversation = newId();
+    const turn = newId();
+    await withTenant(fixture.app.db, t.id, (tx) =>
+      recordAgentToolCall(tx, principal, {
+        tool: 'list_clients',
+        route: 'GET /admin/tenants/:tenant/clients',
+        outcome: 'allowed',
+        conversation,
+        turn,
+      }),
+    );
+    const [row] = await rows(t.id, 'agent.tool_call');
+    expect(row?.detail).toMatchObject({ conversation, turn });
+    expect(Object.keys(row?.detail as object).sort()).toEqual([
+      'agent_client',
+      'conversation',
+      'owner',
+      'route',
+      'tool',
+      'turn',
+    ]);
+  });
+
   it('is stored under the narrowest event types a tenant may keep, and cannot be dropped', async () => {
     const { t, principal } = await agentWorld();
     await fixture.owner

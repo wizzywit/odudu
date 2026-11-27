@@ -359,6 +359,12 @@ export const configSchema = z.object({
   // this one is not refused under NODE_ENV=production. Loopback,
   // link-local and multicast stay refused regardless.
   ODUDU_ALLOW_PRIVATE_SMTP_HOSTS: booleanEnvVar,
+  // The console assistant's models and its self-hosted endpoint, parsed by
+  // @odudu/assistant. The providers' own variables (AWS_BEARER_TOKEN_BEDROCK,
+  // AWS_REGION, ANTHROPIC_API_KEY, OPENAI_API_KEY) are theirs and not read here.
+  ODUDU_ASSISTANT_MODELS: z.string().min(1).optional(),
+  ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL: z.string().min(1).optional(),
+  ODUDU_ASSISTANT_OPENAI_COMPATIBLE_API_KEY: z.string().min(1).optional(),
 });
 
 export type Config = Readonly<z.infer<typeof configSchema>>;

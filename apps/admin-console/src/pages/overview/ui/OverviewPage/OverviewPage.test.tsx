@@ -133,6 +133,17 @@ it("shows a tenant administrator the tenant's issuer, counts, attention and late
   );
 });
 
+it('counts subjects without naming a type, so the server leaves agent instances out of the number', async () => {
+  const { sent } = renderConsoleAt('/console/acme', routes(EVERYTHING));
+  expect(await screen.findByRole('region', { name: 'Counts' })).toBeVisible();
+  await waitFor(() => {
+    expect(sent.some((s) => s.path === `${ACME_ADMIN}/subjects/count`)).toBe(true);
+  });
+  for (const each of sent.filter((s) => s.path === `${ACME_ADMIN}/subjects/count`)) {
+    expect(each.search.has('type')).toBe(false);
+  }
+});
+
 it('leaves out what the operator cannot read, as the rail does, and asks nothing of it', async () => {
   const { calls } = renderConsoleAt('/console/acme', routes(['manage-tenant']));
   await screen.findByText(ISSUER);

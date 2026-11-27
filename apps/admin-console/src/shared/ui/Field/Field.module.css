@@ -1,5 +1,8 @@
 .field {
   display: grid;
+  /* One column that may shrink below its content, so a control with a long
+     value is cut to the card and never makes the card wider than the page. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-1);
   min-inline-size: 0;
@@ -205,14 +208,38 @@
   background: var(--surface-sunken);
 }
 
+.unitPicker {
+  display: flex;
+}
+
 .unitSelect {
+  gap: var(--space-2);
   min-inline-size: 5rem;
+  block-size: 100%;
   cursor: pointer;
 }
 
-.unitSelect:focus-visible {
+.unitSelect[data-hovered] {
+  color: var(--ink-primary);
+}
+
+.unitSelect[data-disabled] {
+  border-style: dashed;
+  cursor: not-allowed;
+}
+
+.unitSelect[data-focus-visible] {
   outline: 2px solid var(--focus-ring);
   outline-offset: -1px;
+}
+
+.option[data-disabled] {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.field[data-invalid] .unitSelect {
+  border-color: var(--signal-danger-ink);
 }
 
 .trigger {
@@ -221,6 +248,7 @@
   justify-content: space-between;
   gap: var(--space-2);
   inline-size: 100%;
+  min-inline-size: 0;
   max-inline-size: 20rem;
   block-size: var(--control-height);
   padding: 0 var(--space-3);

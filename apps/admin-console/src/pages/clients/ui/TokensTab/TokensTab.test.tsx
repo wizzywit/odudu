@@ -307,3 +307,14 @@ it('reads the client again, and nothing else, for the section it saved', async (
   expect(sent.every((s) => s.method === 'GET')).toBe(true);
   expect(whoamiReads(sent)).toBeGreaterThan(0);
 });
+
+it("shows the built-in assistant client's lifetimes and grants as text, with the reason", async () => {
+  renderConsoleAt('/console/acme/clients/c-assistant?tab=tokens', clientRoutes());
+  expect(
+    await screen.findByText(
+      /Odudu assistant is built in\. Only its name, description and whether it is enabled can be changed\./u,
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('switch')).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Save/u })).toBeNull();
+});

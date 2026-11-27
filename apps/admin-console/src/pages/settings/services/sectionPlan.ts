@@ -1,4 +1,10 @@
 import {
+  ASSISTANT_HEADING_ID,
+  ASSISTANT_NAV_GROUP,
+  ASSISTANT_SECTION,
+  ASSISTANT_SECTION_ID,
+} from '#/pages/settings/services/assistantSection';
+import {
   GENERAL_SECTION,
   LOCKOUT_SECTION,
   PASSWORD_SECTION,
@@ -64,11 +70,15 @@ export interface NavGroup {
   items: readonly NavItem[];
 }
 
+// The assistant's settings are a section of their own, listed last and only
+// while they are on the page: `assistant` is whether they are, and which of
+// its edits are unsaved.
 export function settingsNav(
   plans: readonly SectionPlan[],
   dirty: ReadonlySet<string>,
+  assistant: { shown: boolean; dirty: ReadonlySet<string> } = { shown: false, dirty: new Set() },
 ): readonly NavGroup[] {
-  return SECTION_GROUPS.map((group) => ({
+  const groups = SECTION_GROUPS.map((group) => ({
     title: group.title,
     items: group.ids.flatMap((id) =>
       plans
@@ -81,6 +91,22 @@ export function settingsNav(
         })),
     ),
   }));
+  return assistant.shown
+    ? [
+        ...groups,
+        {
+          title: ASSISTANT_NAV_GROUP,
+          items: [
+            {
+              id: ASSISTANT_SECTION_ID,
+              headingId: ASSISTANT_HEADING_ID,
+              title: ASSISTANT_SECTION.title,
+              dirty: assistant.dirty.has(ASSISTANT_SECTION_ID),
+            },
+          ],
+        },
+      ]
+    : groups;
 }
 
 // The first of the sections, in page order, that is in the reading band; the

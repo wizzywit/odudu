@@ -235,3 +235,26 @@ it('fills the width beside the rail, and centres the page only past its cap', ()
   expect(main).toMatch(/margin-inline:\s*auto/u);
   expect(source).not.toMatch(/max-inline-size:\s*1200px/u);
 });
+
+describe('assistant slots', () => {
+  it('draws the control in the rail and the top bar, and no dock without a panel', () => {
+    const { container } = render(
+      <AppShell rail={rail} assistant={<button type="button">Ask</button>}>
+        <h1>Overview</h1>
+      </AppShell>,
+    );
+    expect(screen.getAllByRole('button', { name: 'Ask' })).toHaveLength(2);
+    expect(container.querySelector('[data-assistant]')).toBeNull();
+    expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('docks the panel beside the page and says so on the frame', () => {
+    const { container } = render(
+      <AppShell rail={rail} assistantPanel={<aside aria-label="Helper">panel</aside>}>
+        <h1>Overview</h1>
+      </AppShell>,
+    );
+    expect(container.querySelector('[data-assistant]')).not.toBeNull();
+    expect(screen.getByRole('complementary', { name: 'Helper' })).toBeInTheDocument();
+  });
+});

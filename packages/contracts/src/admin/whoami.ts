@@ -17,6 +17,9 @@ export const ADMIN_CAPABILITIES = [
   'view-audit',
   'view-domains',
   'manage-domains',
+  'use-assistant',
+  'read-assistant-activity',
+  'manage-assistant',
   'manage-tenants',
 ] as const;
 
@@ -26,5 +29,10 @@ export const whoamiResponseSchema = z.object({
   issuerTenantName: z.string(),
   capabilities: z.array(z.enum(ADMIN_CAPABILITIES)),
   crossTenant: z.boolean(),
+  // Whether this deployment resolved a standard model, which is whether the
+  // assistant's settings routes are served at all: a console that reads it
+  // never asks for a route it expects to be answered as never served. Absent
+  // from the answer to an AI agent's token, which is told nothing of the assistant.
+  assistant_available: z.boolean().optional(),
 });
 export type WhoamiResponse = z.infer<typeof whoamiResponseSchema>;

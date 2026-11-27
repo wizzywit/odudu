@@ -1387,6 +1387,7 @@ export {
   type ProvisionAdminClientOptions,
 } from '#/usecase/provision-admin-client';
 export { provisionMcpClient } from '#/usecase/provision-mcp-client';
+export { provisionAssistantClient } from '#/usecase/provision-assistant-client';
 export { clientOidcConfig, type ClientOidcConfig } from '#/schema/client-oidc-config';
 export {
   parseClientMetadata,
@@ -1435,6 +1436,25 @@ export { narrowActClaim, TOKEN_EXCHANGE_GRANT } from '#/service/token-exchange';
 export { CIBA_GRANT } from '#/service/ciba';
 export { mayActFor } from '#/usecase/agent-layer';
 export type { MayActClaim } from '#/service/agent-mint';
+export { runInstanceId } from '#/service/agent-mint';
+export {
+  AssistantGrantRefused,
+  grantAssistantAccess,
+  grantAssistantWrite,
+  reattachAssistantAccess,
+  reattachDecisionFor,
+  type ReattachAssistantAccessInput,
+  type ReattachedAccess,
+  type GrantAssistantAccessDeps,
+  type GrantAssistantAccessInput,
+  type GrantAssistantWriteInput,
+} from '#/usecase/grant-assistant-access';
+export { recordAssistantRefusal } from '#/usecase/record-assistant-refusal';
+export type {
+  AssistantGrantRefusal,
+  AssistantMode,
+  AssistantTargetFacts,
+} from '#/service/assistant-grant-rules';
 export {
   AgentTokenRefused,
   mintAgentToken,

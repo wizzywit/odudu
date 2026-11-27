@@ -29,6 +29,8 @@ export type { GatewayFailure, GatewayResult, GatewaySuccess };
 export interface RawBody {
   text: string;
   contentType: string | null;
+  // The server's own `Date` header, for a reading that needs the server's clock.
+  date: string | null;
 }
 
 // A body answered as bytes, for a file the console shows rather than saves,
@@ -38,8 +40,22 @@ export interface RawBytes {
   contentType: string | null;
 }
 
+// A response handed over unread, for one that stays open while it is written.
+export type StreamResult = { ok: true; response: Response } | GatewayFailure;
+
+export interface StreamOptions {
+  body?: string;
+  // The only way to stop it: a stream has no timeout of its own, since an
+  // answer may take as long as the model does.
+  signal?: AbortSignal | undefined;
+}
+
 export interface Gateway {
   request<T>(method: Method, path: string, options: RequestOptions<T>): Promise<GatewayResult<T>>;
+  // A call whose response is read as it arrives. Refused calls answer as any
+  // other does; one that is accepted is returned with its body untouched. It is
+  // never repeated, and never carries `If-Match`.
+  stream(method: 'POST', path: string, options: StreamOptions): Promise<StreamResult>;
   download(method: 'GET', path: string): Promise<GatewayResult<RawBody>>;
   bytes(method: 'GET', path: string): Promise<GatewayResult<RawBytes>>;
   // The subject this tab shows as signed in, named on every admin request so
@@ -175,6 +191,23 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
     }
   }
 
+  // What every request carries, the console header on a write and the subject
+  // this tab believes it is on an admin call.
+  function baseHeaders(method: Method, path: string): Headers {
+    const headers = new Headers({ accept: 'application/json' });
+    if (method !== 'GET') headers.set('x-odudu-console', '1');
+    if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
+    return headers;
+  }
+
+  // What a refusal tells the rest of the console, whichever way it was read.
+  function refusal(response: Response, text: string): GatewayFailure {
+    const problem = readProblem(response.status, response.headers.get('content-type'), text);
+    if (isAuthEnded(problem)) emit('authEnded');
+    if (isPrincipalChanged(problem)) emit('principalChanged');
+    return { ok: false, kind: 'problem', problem };
+  }
+
   // Everything but reading a successful body: the headers every request
   // carries, the retries, and what a refusal tells the rest of the console.
   async function exchange(
@@ -191,11 +224,9 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
   ): Promise<{ ok: true; answer: Answer; where: string } | GatewayFailure> {
     const url = resolve(path);
     const where = `${method} ${url.pathname.slice(BASE.length)}`;
-    const headers = new Headers({ accept: 'application/json' });
-    if (method !== 'GET') headers.set('x-odudu-console', '1');
+    const headers = baseHeaders(method, path);
     if (options.ifMatch !== undefined) headers.set('if-match', options.ifMatch);
     if (options.ifNoneMatch !== undefined) headers.set('if-none-match', options.ifNoneMatch);
-    if (believed !== null && path.startsWith(ADMIN)) headers.set(SUBJECT_HEADER, believed);
     const init: RequestInit = { method, headers, credentials: 'same-origin' };
     if (options.body !== undefined) {
       headers.set('content-type', 'application/json');
@@ -221,10 +252,7 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         log(`console defect: ${where} answered 428: the server required If-Match`);
         return { ok: false, kind: 'defect' };
       }
-      const problem = readProblem(response.status, response.headers.get('content-type'), text);
-      if (isAuthEnded(problem)) emit('authEnded');
-      if (isPrincipalChanged(problem)) emit('principalChanged');
-      return { ok: false, kind: 'problem', problem };
+      return refusal(response, text);
     }
     return { ok: true, answer, where };
   }
@@ -257,6 +285,30 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
         next: nextCursor(response.headers.get('link')),
       };
     },
+    async stream(method, path, options) {
+      const url = resolve(path);
+      const headers = baseHeaders(method, path);
+      headers.set('accept', 'text/event-stream');
+      const init: RequestInit = {
+        method,
+        headers,
+        credentials: 'same-origin',
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      };
+      if (options.body !== undefined) {
+        headers.set('content-type', 'application/json');
+        init.body = options.body;
+      }
+      let response: Response;
+      try {
+        response = await fetchResponse(`${url.pathname}${url.search}`, init);
+      } catch {
+        return { ok: false, kind: 'network' };
+      }
+      if (response.ok) return { ok: true, response };
+      const text = await response.text().catch(() => '');
+      return refusal(response, text);
+    },
     async download(method, path) {
       const exchanged = await exchange(method, path, {});
       if (!exchanged.ok) return exchanged;
@@ -264,7 +316,11 @@ export function createGateway(dependencies: GatewayDependencies = {}): Gateway {
       return {
         ok: true,
         status: response.status,
-        data: { text, contentType: response.headers.get('content-type') },
+        data: {
+          text,
+          contentType: response.headers.get('content-type'),
+          date: response.headers.get('date'),
+        },
         etag: readEtag(response.headers),
         next: null,
       };

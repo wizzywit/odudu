@@ -120,6 +120,25 @@ const CLAIMS: readonly (readonly [phase: string, sentence: string, ...criterion:
     'swapping the provider a configuration change',
   ],
   [
+    'P5c',
+    'In Act mode it covers every change',
+    'every console write',
+    'a registered human-only entry',
+  ],
+  [
+    'P5c',
+    'What it will not do itself it explains',
+    'a write the assistant will not make is answered with the console',
+  ],
+  [
+    'P5d',
+    'What the assistant leaves to a person today',
+    'a reveal channel',
+    'an instance-write door',
+    'a delegated-administrator rule',
+    "spares the caller's own session",
+  ],
+  [
     'P5b',
     'The writes the MCP server withholds',
     'the access-changing writes',
@@ -396,6 +415,16 @@ describe('the roadmap and section 11 of the design spec agree', () => {
     phases: string[],
     roadmap: string[] | string,
   ])[] = [
+    [
+      'Telling a person that someone read',
+      ['P5c'],
+      'work inside P5c, whose console assistant row already places the assistant screens',
+    ],
+    [
+      'Two owner decisions of 2026-11-26',
+      ['P5c'],
+      'work inside P5c, whose console assistant row already places the conversation list',
+    ],
     [
       'Twelve administrative capabilities',
       ['P7'],

@@ -168,6 +168,32 @@ describe('boundary rules', { timeout: 60_000 }, () => {
     expect(found.some((v) => v.from.includes('apps/server/src/composes-mcp'))).toBe(false);
   });
 
+  it('lets the assistant package import the MCP package', async () => {
+    const found = await violations('mcp-imported-only-by-server');
+    expect(found.some((v) => v.from.includes('assistant/src/allowed'))).toBe(false);
+  });
+
+  it('rejects the assistant package importing a domain or protocol package', async () => {
+    const found = await violations('assistant-allowlist');
+    expect(
+      found.some(
+        (v) => v.from.includes('assistant/src/reaches-domain') && v.to.includes('domain-identity'),
+      ),
+    ).toBe(true);
+    expect(
+      found.some(
+        (v) => v.from.includes('assistant/src/reaches-protocol') && v.to.includes('protocol-oidc'),
+      ),
+    ).toBe(true);
+    expect(found.some((v) => v.from.includes('assistant/src/allowed'))).toBe(false);
+  });
+
+  it('lets only apps/server import the assistant package', async () => {
+    const found = await violations('assistant-imported-only-by-server');
+    expect(found.some((v) => v.from.includes('protocol-oidc/src/imports-assistant'))).toBe(true);
+    expect(found.some((v) => v.from.includes('apps/server/src/composes-assistant'))).toBe(false);
+  });
+
   it('rejects the me package importing a package outside its allowlist', async () => {
     const found = await violations('me-allowlist');
     expect(

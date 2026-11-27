@@ -105,6 +105,31 @@ import {
   clearLockoutsResponseSchema,
   listEffectiveRolesQuerySchema,
   adminCapabilitiesResponseSchema,
+  assistantSettingsSchema,
+  assistantStatusSchema,
+  putAssistantSettingsRequestSchema,
+  assistantApprovalListSchema,
+  assistantConversationExportSchema,
+  assistantConversationSchema,
+  assistantResumedConversationSchema,
+  lastAssistantConversationResponseSchema,
+  listAssistantConversationsQuerySchema,
+  listAssistantConversationsResponseSchema,
+  setConversationArchivedRequestSchema,
+  setConversationArchivedResponseSchema,
+  assistantActivityReplaySchema,
+  assistantPromptfooCaseSchema,
+  listAssistantActivityQuerySchema,
+  listAssistantActivityResponseSchema,
+  reportConversationResponseSchema,
+  createConversationRequestSchema,
+  decideApprovalRequestSchema,
+  decideApprovalResponseSchema,
+  sendMessageRequestSchema,
+  setConversationModeRequestSchema,
+  setConversationModeResponseSchema,
+  stopConversationResponseSchema,
+  SEND_MESSAGE_BODY_LIMIT,
   listEffectiveRolesResponseSchema,
   listTenantsQuerySchema,
   countTenantsQuerySchema,
@@ -444,7 +469,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       'The subjects of a tenant, paged. `capability` narrows to the holders of one admin ' +
       'capability, of `tenant-admin`, or of `any`, held effectively; with it, each item carries ' +
-      '`admin_capabilities`, every name it holds and whether one is assigned to it directly.',
+      '`admin_capabilities`, every name it holds and whether one is assigned to it directly. ' +
+      'The people and service accounts only: an agent instance, which exists for one ' +
+      'conversation or run, is left out unless `type=agent_instance` is asked for.',
   },
   {
     method: 'GET',
@@ -452,6 +479,9 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     capability: 'view-users',
     responseSchema: countResponseSchema,
     querystringSchema: countSubjectsQuerySchema,
+    description:
+      'How many subjects match, counting the people and service accounts only, as the list ' +
+      'does: an agent instance is counted only when `type=agent_instance` is asked for.',
   },
   {
     method: 'GET',
@@ -513,7 +543,7 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
     description:
       TARGET_CEILING.trimStart() +
       LAST_ADMINISTRATOR +
-      ' Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead.',
+      ' Refused with `409` (`about:blank#service-account`) for the service account of a client; delete the client instead. Refused with `409` (`about:blank#agent-instance`) for the subject of an agent instance; revoke the instance instead.',
   },
   {
     method: 'GET',
@@ -2087,6 +2117,313 @@ export const ADMIN_ROUTES: readonly AdminRoute[] = [
       'Every row the same filters list, newest first, one JSON object per line, built in full ' +
       'before it is sent rather than streamed. Refused whole with `413` past 10,000 rows ' +
       'rather than cut short. Audited as `audit.export`.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/status',
+    capability: 'use-assistant',
+    responseSchema: assistantStatusSchema,
+    description:
+      'Whether the console assistant is on in this deployment: `{ "enabled": false }` when no ' +
+      'model is configured, otherwise the model each slot runs, the modes offered and the ' +
+      'default, the models a person may choose and the provider, with the host of a ' +
+      'self-hosted endpoint and never a key. A tenant that switched the assistant off reads ' +
+      '`{ "enabled": false }` too, and the default mode is the tenant’s own.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/settings',
+    capability: 'manage-assistant',
+    alsoAdmits: ['read-assistant-activity'],
+    responseSchema: assistantSettingsSchema,
+    description:
+      'Needs `manage-assistant`, or `read-assistant-activity`, which may read but not change. ' +
+      'What this tenant chose for its assistant, each setting at its default until it chooses: ' +
+      'whether it is on, the mode a person starts in, email masking, how long traces are kept, ' +
+      'whether auditors see conversations, a month’s tokens for each model slot, the ' +
+      'conversations a tenant may run at once and the steps of one turn. `404` where the ' +
+      'deployment has no assistant configured. A system administrator holding ' +
+      '`manage-tenants` and the capability may read another tenant\u2019s settings.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/settings',
+    capability: 'manage-assistant',
+    responseSchema: assistantSettingsSchema,
+    bodySchema: putAssistantSettingsRequestSchema,
+    description:
+      'Replaces every setting, so a caller sends the whole document it read. A value outside ' +
+      'its range, a missing setting and an unknown one are refused with `400`. A change is ' +
+      'audited as `assistant.config` with each changed setting as before and after, and a save ' +
+      'that changes nothing writes no row. Answers an `ETag`, as GET does; `If-Match` is ' +
+      'optional, and a stale one is refused with `412`.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations',
+    capability: 'use-assistant',
+    responseSchema: assistantConversationSchema,
+    successStatus: 201,
+    bodySchema: createConversationRequestSchema,
+    noIdempotency: 'not-atomic',
+    description:
+      'Starts a conversation for the caller, in `ask` mode unless `act` is named, with the page ' +
+      'the administrator has open as `page_context`: a `route` and, optionally, an `objectType` ' +
+      'and `objectId`, each a short identifier and never free text. `400` for a profile this ' +
+      'server does not offer. `404` when no model is configured. `409` for `act` in another ' +
+      'tenant that does not offer it.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations',
+    capability: 'use-assistant',
+    responseSchema: listAssistantConversationsResponseSchema,
+    querystringSchema: listAssistantConversationsQuerySchema,
+    description:
+      'The caller\u2019s own conversations, newest activity first, each with a title made from ' +
+      'the first thing they asked, when it last took a message, its mode, whether it is hidden ' +
+      'and whether it is reported. Never another person\u2019s: a person\u2019s conversations ' +
+      'are theirs alone, whatever other capability they hold. `archived=true` lists the hidden ' +
+      'ones and the default lists the rest. A page is one indexed read of at most `limit` ' +
+      'rows, `limit` is at most 200, and `next` carries on from where it ended. `404` when no ' +
+      'model is configured. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/last-conversation',
+    capability: 'use-assistant',
+    responseSchema: lastAssistantConversationResponseSchema,
+    description:
+      'The caller\u2019s most recently active conversation that is not hidden, with its latest ' +
+      'messages, or `{ "conversation": null }` when they have none, so the console can reopen ' +
+      'it after a reload or a sign-in. `continuable` is true when a new message would be ' +
+      'answered, including after the person signed out or the sign-in lapsed, and false when ' +
+      'the sign-in was ended for another reason: the conversation can be read and a new message ' +
+      'to it is refused with `409` (`about:blank#conversation-ended`). `404` when no model is ' +
+      'configured. Not offered to an agent.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/archived',
+    capability: 'use-assistant',
+    responseSchema: setConversationArchivedResponseSchema,
+    bodySchema: setConversationArchivedRequestSchema,
+    description:
+      'Hides the caller\u2019s conversation from their list (`archived: true`) or brings it ' +
+      'back. Nothing is removed, retention counts as before, and the conversation can still ' +
+      'be opened by its id. Setting what is already set changes nothing. `404` for a ' +
+      'conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'DELETE',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id',
+    capability: 'use-assistant',
+    responseSchema: z.void(),
+    successStatus: 204,
+    description:
+      'Deletes the caller\u2019s own conversation: its messages, its trace and its approval ' +
+      'cards go at once. A tombstone stays in the conversation\u2019s place (its id, owner, ' +
+      'times, who deleted it, how many messages and turns it held and a keyed digest of its ' +
+      'messages, never the text), and an `assistant.conversation_deleted` row is written in the ' +
+      'same transaction; no audit row is touched. `409` while the conversation is reported ' +
+      '(`about:blank#conversation-reported`) or an answer is running in it ' +
+      '(`about:blank#conversation-busy`). It works while the tenant has the assistant switched ' +
+      'off. `404` for a conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/export',
+    capability: 'use-assistant',
+    responseSchema: assistantConversationExportSchema,
+    description:
+      'The caller\u2019s own conversation as a JSON download: its fields and its messages, ' +
+      'oldest first and at most 500, the text with secrets hidden (and email addresses where ' +
+      'the tenant masks them) and, for an answer, the names of the tools it called but not ' +
+      'their inputs or results. No one else can export a conversation: there is no route for ' +
+      'an auditor or an operator. Audited as `assistant.conversation_exported`, in the ' +
+      'transaction of the read. `404` for a conversation that is not the caller\u2019s. Not ' +
+      'offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/export/markdown',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/markdown',
+    description:
+      'The same export as a Markdown document: the title, then each message under who said it, ' +
+      'with the tools an answer called. The same rules, the same audit row and the same `404`. ' +
+      'Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id',
+    capability: 'use-assistant',
+    responseSchema: assistantResumedConversationSchema,
+    description:
+      'A conversation and its latest messages, oldest first, as the caller\u2019s own, with `archived` and `continuable` (true when a message would be answered under the sign-in held now). `404` for ' +
+      'one that does not exist or belongs to another administrator, and when no model is configured.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/messages',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/event-stream',
+    bodySchema: sendMessageRequestSchema,
+    bodyLimit: SEND_MESSAGE_BODY_LIMIT,
+    noIdempotency: 'external-io',
+    description:
+      'Sends the caller\u2019s message and streams the turn as server-sent events of AI SDK UI ' +
+      'message chunks. The message is stored before the model is called and each step is stored ' +
+      'as it ends. Closing the connection ends the turn. Each model call is reserved against the ' +
+      'tenant\u2019s token limits first, and a limit that refuses ends the turn with an error ' +
+      'part that names the level and who can change it, never moving to a cheaper model. A ' +
+      '`data-budget_warning` part says a level has passed 80 percent, and the last part, ' +
+      '`data-turn_end`, carries a `stopReason`: `done`, `step_cap`, `budget_turn`, ' +
+      '`budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`. `409` while ' +
+      'a turn of this conversation is running on this server. `429` with a `Retry-After` when ' +
+      'this server is running as many turns as it admits, or when the tenant already has as many ' +
+      'in progress, on any server, as its settings allow. `404` for a conversation that is not ' +
+      'the caller\u2019s. A conversation whose grant ended with an earlier sign-in of the caller\u2019s ' +
+      '(signing out, or a session that lapsed) is carried on first: a new grant is made from ' +
+      'the sign-in the request came on, under the checks a first grant meets, and the old one ' +
+      'ends, audited as `assistant.reattached`. Where that is refused nothing is stored and ' +
+      'the answer is `409` with a problem type of its own: `about:blank#conversation-ended` ' +
+      '(the sign-in ended for another reason), `about:blank#conversation-archived` (restore it ' +
+      'first) or `about:blank#conversation-access-refused` (the sign-in held now may not carry ' +
+      'it on).',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/stop',
+    capability: 'use-assistant',
+    responseSchema: stopConversationResponseSchema,
+    noIdempotency: 'not-atomic',
+    description:
+      'Ends the conversation\u2019s running turn: `{ "stopped": true }` when this server was ' +
+      'running one, `false` when it was not. The turn stores what it had said.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/approvals',
+    capability: 'use-assistant',
+    responseSchema: assistantApprovalListSchema,
+    description:
+      'The changes the assistant proposed in this conversation that still wait for the caller, ' +
+      'newest first and never more than 20. Each card is written by the server: a title, the ' +
+      'target, the state the server read just before the proposal, what the call would set and ' +
+      'when the approval ends by the server\u2019s clock. `404` for a conversation that is not the ' +
+      'caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId',
+    capability: 'use-assistant',
+    responseSchema: decideApprovalResponseSchema,
+    bodySchema: decideApprovalRequestSchema,
+    noIdempotency: 'not-atomic',
+    description:
+      'Approves or refuses one change, as the administrator the conversation belongs to and from ' +
+      'their own console sign-in: a token the assistant or any agent holds is refused, and so is ' +
+      'another administrator, whatever they may do elsewhere. Approving lets the one change run ' +
+      'once, exactly as the card shows it, when the conversation is resumed. `404` for an ' +
+      'approval that is not this conversation\u2019s or not the caller\u2019s, `409` for one that was ' +
+      'already decided or has expired. Audited as `assistant.approval`.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/resume',
+    capability: 'use-assistant',
+    responseSchema: z.string(),
+    successMediaType: 'text/event-stream',
+    noIdempotency: 'external-io',
+    description:
+      'Carries the conversation on after the changes it was waiting on were decided, and streams ' +
+      'the rest of the answer as a message does. An approved change runs once and the assistant ' +
+      'reads its result; a refused or expired one is closed as such. `409` while a change still ' +
+      'waits for a decision, or when there is none to carry on from, or while a turn runs on ' +
+      'this server. `429` as for a message. `404` for a conversation that is not the caller\u2019s.',
+  },
+  {
+    method: 'PUT',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/mode',
+    capability: 'use-assistant',
+    responseSchema: setConversationModeResponseSchema,
+    bodySchema: setConversationModeRequestSchema,
+    description:
+      'Switches the conversation between `ask` and `act`. Leaving `act` withdraws the changes ' +
+      'still waiting, as refused. `409` where `act` is not offered: the deployment cannot ' +
+      'propose changes, or the tenant\u2019s limits do not allow the mode, or, for a system ' +
+      'administrator in another tenant, that tenant does not offer it. `404` for a ' +
+      'conversation that is not the caller\u2019s. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity',
+    capability: 'read-assistant-activity',
+    responseSchema: listAssistantActivityResponseSchema,
+    querystringSchema: listAssistantActivityQuerySchema,
+    description:
+      'The tenant\u2019s assistant conversations, newest activity first, each with its person, ' +
+      'mode, turns, steps, tokens by model slot, why the latest turn stopped, the tools it ' +
+      'called, the changes it proposed and whether it is reported (`report_old` for one reported ' +
+      'more than 180 days ago). This is metadata, and a holder of the capability always gets it. ' +
+      'A conversation\u2019s title is text: it is a placeholder unless the tenant\u2019s **Let auditors read ' +
+      'conversation text** setting is on, and a list that then returns a title of someone else\u2019s ' +
+      'conversation is audited once as `assistant.text_read` with part `list`. `person` and `conversation` narrow by owner and id; `tool`, `outcome` ' +
+      '(the latest turn\u2019s stop reason) and `kind` (`approval`, `budget_refusal` or ' +
+      '`tool_error`) look inside each conversation, and look at no more than 1,000 conversations ' +
+      'a request, so a page they do not fill is returned short, even empty, with `next` to carry ' +
+      'on from. `limit` is at most 200. `404` where the deployment has no assistant. Not offered ' +
+      'to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity/conversations/:id',
+    capability: 'read-assistant-activity',
+    responseSchema: assistantActivityReplaySchema,
+    description:
+      'One conversation as the trace holds it: its latest 25 turns, oldest first, each with its ' +
+      'steps (model, slot, tokens, request id), its events as they were recorded, why each ' +
+      'model was chosen and why the turn stopped from the choices the server recorded; the ' +
+      'changes the assistant proposed with where each stands; and what the person asked. The ' +
+      'kinds, tool names, timings, token counts and sizes are always there. The text (what ' +
+      'was asked and answered, and what the tools were given and returned, masked) is there ' +
+      'only while the tenant\u2019s **Let auditors read conversation text** setting is on, and ' +
+      '`text_visible` says which; otherwise each is replaced by a placeholder and its size. ' +
+      'A read that returns text, by someone other than the conversation\u2019s owner, is ' +
+      'audited as `assistant.text_read`. The system prompt is a hash. `404` for a conversation ' +
+      'that is not this tenant\u2019s and where there is no assistant. Not offered to an agent.',
+  },
+  {
+    method: 'GET',
+    pattern: '/admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo',
+    capability: 'read-assistant-activity',
+    responseSchema: assistantPromptfooCaseSchema,
+    description:
+      'The conversation as one promptfoo test case, as a JSON download: the person\u2019s messages, ' +
+      'the tools the assistant called with their inputs, the answers it gave and why each turn ' +
+      'stopped, with `metadata.contains` and `metadata.excludes` saying what is and is not in it. ' +
+      'It carries no assertions: whoever files it writes them. Text is subject to the same ' +
+      'setting and the same record as the replay: while the setting is off the messages, inputs ' +
+      'and answers are a placeholder and the case holds the tool names and stop reasons only. ' +
+      'Not offered to an agent.',
+  },
+  {
+    method: 'POST',
+    pattern: '/admin/tenants/:tenant/assistant/conversations/:id/report',
+    capability: 'use-assistant',
+    alsoAdmits: ['read-assistant-activity'],
+    responseSchema: reportConversationResponseSchema,
+    description:
+      'Keeps the conversation, with its trace, past the tenant\u2019s retention. Its owner may ' +
+      'report it; someone who holds `read-assistant-activity` may report any conversation, since ' +
+      'reporting shows no text. Reporting one that is already reported answers the ' +
+      'same `reported_at` and changes nothing. A tenant keeps at most 100: `409` beyond that, ' +
+      'and `near_limit` is true from 80. ' +
+      '`404` for a conversation the caller may not report. Audited as `assistant.report`. Not ' +
+      'offered to an agent.',
   },
 ];
 

@@ -12,7 +12,9 @@ type VocabularyAction = AuditAction<VocabularyEventType>;
 export const AUDIT_EVENT_TYPE_DOCS: Record<AuditEventType, string> = {
   admin_mutation:
     'A write made through the admin API, the `odudu console` command or, by a person for their ' +
-    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`.',
+    'own account, the me API. Its action is free-form: one per mutation, named `<resource>.<verb>`. ' +
+    'The console assistant’s own records (`assistant.turn`, `assistant.budget`) use this type ' +
+    'so a tenant cannot drop them, and are not writes.',
   admin_access:
     'A refusal at the admin API door: an authenticated caller without the capability, or a ' +
     'genuine token from another tenant.',
@@ -39,7 +41,14 @@ export const AUDIT_ACTION_DOCS: Record<VocabularyAction, string> = {
     'the agent client, the owner, the tool and the admin route it reached, never its arguments. ' +
     'The MCP endpoint writes it for a call it serves; for a call made straight to the admin API ' +
     'with a token the endpoint did not sign (`odudu mcp`, or an exchanged token), the admin API writes it before the call runs, ' +
-    'and the tool is the route (`admin.get.clients`).',
+    'and the tool is the route (`admin.get.clients`). A call the console assistant made also ' +
+    'carries the `conversation` and the `turn` it was made in. The event is written after the call: ' +
+    'when it cannot be written the call has already run and only its result is withheld, and an ' +
+    'approved change stands, recorded by its `assistant.approval` and mutation events.',
+  'assistant.access_refused':
+    'The console assistant was refused an identity for a conversation, or a token for one of ' +
+    'its tool calls. `detail` names the agent client (`odudu-assistant`), the person and a ' +
+    'fixed refusal code, never a token or a request body. The row\u2019s actor is the person.',
   'agent.instance_minted':
     'An agent instance was minted for its owner under an agent client. `detail` names the ' +
     'instance, the owner, the agent client and the instance\u2019s depth in its lineage.',
@@ -178,6 +187,70 @@ export const AUDIT_OUTCOME_DOCS: Record<AuditOutcome, string> = {
 export const ADMIN_MUTATION_ACTION_DOCS: Record<AdminMutationAction, string> = {
   'agent.instance_revoke':
     'An administrator revoked an agent instance, with everything beneath it and the grants it acted in, or was refused because the instance’s owner holds an admin capability the administrator does not. `detail` carries the numbers; the lineage row `agent.instance_revoked` names the instance.',
+  'assistant.approval':
+    'A person decided a change the console assistant proposed, or sending a new message or stopping ' +
+    'withdrew it. `detail` names the tenant, the person, the conversation, the approval, the tool ' +
+    'and the state (`approved` or `denied`), and for a withdrawal the reason. It holds neither the ' +
+    'change nor any message text. For a system administrator\u2019s conversation in another tenant it ' +
+    'also names that tenant as `target_tenant`; a row with the state `executed` or `failed` says ' +
+    'what came of the approved change, and one is written to that tenant\u2019s trail as the ' +
+    'change is made, without the conversation.',
+  'assistant.budget':
+    'The console assistant stopped a turn because a token limit was reached, or a model provider ' +
+    'charged more than was reserved for a call. `detail` names the level (`tenant_month`, ' +
+    '`admin_day`, `conversation` or `turn`), the model slot, the tenant, the person and the turn, ' +
+    'and for an overrun the tokens beyond the reservation. For a system administrator using the ' +
+    'assistant in another tenant it also names that tenant as `target_tenant`, and the row is in ' +
+    'the administrator’s own tenant. It never holds message text.',
+  'assistant.config':
+    'A tenant’s settings for the console assistant changed: whether it is on, its default mode, ' +
+    'email masking, trace retention, whether auditors see conversations, or a limit. `detail` ' +
+    'gives each changed setting as before and after.',
+  'assistant.conversation_deleted':
+    'A person deleted one of their own console assistant conversations. Its messages, trace and ' +
+    'approval cards were removed in the same transaction; a tombstone stays in the conversation’s ' +
+    'place and this row stays in the trail. `detail` names the tenant, the conversation, how many ' +
+    'messages and turns it held and `digest`, a keyed HMAC of its messages that confirms a copy of ' +
+    'the text to whoever holds the deployment’s key. It never holds the text. For a system ' +
+    'administrator in another tenant it also names that tenant as `target_tenant`.',
+  'assistant.conversation_exported':
+    'A person exported one of their own console assistant conversations as a document. `detail` ' +
+    'names the tenant, the conversation, the `format` (`json` or `markdown`), how many messages ' +
+    'the document carried and whether it was cut short. It never holds the text. Only the ' +
+    'conversation’s owner can export it, so no one else has a row like this for it.',
+  'assistant.reattached':
+    'A person carried on one of their own console assistant conversations after signing in ' +
+    'again: the conversation got a new grant made from the sign-in they hold now, and the grant ' +
+    'of the earlier sign-in ended. `detail` names the tenant, the person, the conversation, ' +
+    '`previous_grant` and `new_grant`, and for a system administrator in another tenant that ' +
+    'tenant as `target_tenant`. It holds no message text, and a conversation whose earlier grant ' +
+    'ended for another reason is refused with an `assistant.access_refused` event instead.',
+  'assistant.report':
+    'A person reported a conversation of the console assistant, which keeps it, with its trace, ' +
+    'past the tenant’s retention. `detail` names the conversation and its owner. Reporting one that ' +
+    'is already reported writes no event, and neither does a report refused because the tenant ' +
+    'already keeps as many as it may. It holds no message text.',
+  'assistant.text_read':
+    'Someone who is not the person it belongs to read the text of a console assistant conversation: ' +
+    'its replay or its test-case export, which show what was asked and answered and what the tools ' +
+    'were given and returned. It is written only while the tenant lets auditors read text, in the ' +
+    'transaction of the read. `detail` names the tenant, the conversation, its owner and which part ' +
+    '(`replay` or `export`), never the text. The owner’s own reads are not recorded.',
+  'assistant.turn':
+    'A turn of the console assistant began or ended, one event for each. `detail.phase` is ' +
+    '`started` or `ended`; both name the tenant, the person, the conversation, the turn, the ' +
+    'profile, the mode and the slots. The `ended` event adds the tokens by slot, the steps taken and ' +
+    'why the turn stopped (`done`, `step_cap`, `awaiting_approval`, `aborted`, `error` or a ' +
+    'budget stop), and its outcome is `refused` for a budget stop and `failed` for an error. A ' +
+    '`started` event with no `ended` event after more than the turn deadline (five minutes by ' +
+    'default) means the server died, the stream was never read to its end, or the `ended` event ' +
+    'could not be written (the log line `assistant.turn_audit_failed` says the last); no monitor ' +
+    'for this ships. It holds no message text, tool output or name of anything in the tenant, and ' +
+    'a turn is not begun when its `started` event cannot be written. The `ended` event also ' +
+    'says whether the turn\u2019s trace stops short: `trace_lost` is `true` when a write to the trace ' +
+    'failed, and the turn went on. For a system administrator using the assistant in another ' +
+    'tenant the row is in the administrator’s own tenant and names that tenant as `target_tenant`; ' +
+    'the tool calls of that turn are `agent.tool_call` rows in the other tenant’s trail.',
   'audit.export': 'The audit trail was exported.',
   'client.amend': 'A client was amended.',
   'client.create': 'A client was created.',

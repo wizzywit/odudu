@@ -56,6 +56,7 @@ function authority() {
           issuerTenantName: 'acme',
           capabilities: [],
           crossTenant: false,
+          assistant_available: false,
         }),
       );
     }

@@ -23,11 +23,61 @@ import {
   revokeAgentResponseSchema,
 } from '#/admin/agents';
 import {
+  assistantApprovalCardSchema,
+  assistantApprovalListSchema,
+  assistantApprovalTargetSchema,
+  assistantConversationSchema,
+  assistantMessageSchema,
+  assistantPageContextSchema,
+  assistantTextPartSchema,
+  assistantUserMessageSchema,
+  createConversationRequestSchema,
+  decideApprovalRequestSchema,
+  decideApprovalResponseSchema,
+  sendMessageRequestSchema,
+  setConversationModeRequestSchema,
+  setConversationModeResponseSchema,
+  stopConversationResponseSchema,
+} from '#/admin/assistant';
+import {
   auditEventSchema,
   countAuditQuerySchema,
   listAuditQuerySchema,
   listAuditResponseSchema,
 } from '#/admin/audit';
+import { assistantSettingsSchema } from '#/admin/assistant';
+import {
+  assistantConversationExportSchema,
+  assistantConversationSummarySchema,
+  assistantExportMessageSchema,
+  assistantExportedConversationSchema,
+  assistantResumedConversationSchema,
+  lastAssistantConversationResponseSchema,
+  listAssistantConversationsQuerySchema,
+  listAssistantConversationsResponseSchema,
+  setConversationArchivedRequestSchema,
+  setConversationArchivedResponseSchema,
+} from '#/admin/assistantConversations';
+import {
+  assistantActivityConversationSchema,
+  assistantActivityReplaySchema,
+  assistantPromptfooCaseSchema,
+  assistantPromptfooMessageSchema,
+  assistantPromptfooMetadataSchema,
+  assistantPromptfooObservedSchema,
+  assistantPromptfooToolCallSchema,
+  assistantPromptfooVarsSchema,
+  assistantReplayApprovalSchema,
+  assistantReplayAskedSchema,
+  assistantReplayConversationSchema,
+  assistantReplayEventSchema,
+  assistantReplayStepSchema,
+  assistantReplayTurnSchema,
+  assistantTokensBySlotSchema,
+  assistantWhyModelSchema,
+  listAssistantActivityQuerySchema,
+  reportConversationResponseSchema,
+} from '#/admin/assistantActivity';
 import {
   clientFieldsSchema,
   clientInstallationSchema,
@@ -382,6 +432,10 @@ describeFields(clientFieldsSchema, {
     'When the secret that a rotation replaced stops authenticating, or null when no rotation kept one. The secret itself is never shown.',
   builtin_admin:
     'True for the tenant’s built-in admin console client, which cannot be deleted and is limited in what can be amended.',
+  builtin_mcp:
+    'True for the tenant’s built-in MCP client, which cannot be deleted. It can be disabled.',
+  builtin_assistant:
+    'True for the tenant’s built-in assistant client, which cannot be deleted. Only its name, description and enabled state can be amended.',
   service_subject_id:
     'The service account a client authenticates as, or null when it holds no client_credentials grant or is public. Setting grant_types creates it when the grant is added and deletes it, with the roles and token grants it held, when the grant is removed.',
   scopes:
@@ -904,7 +958,7 @@ describeFields(listSubjectsQuerySchema, {
   group: 'Only members of this group, by group id.',
   capability:
     'Only holders of this admin capability, `tenant-admin`, or `any` admin capability; held effectively.',
-  type: 'Only subjects of this type.',
+  type: 'Only subjects of this type. Without it, `agent_instance` subjects are left out; name that type to list or count them.',
   locked: '`true` for subjects locked out by failed sign-ins only.',
 });
 describeFields(countSubjectsQuerySchema, {
@@ -918,7 +972,7 @@ describeFields(countSubjectsQuerySchema, {
   group: 'Only members of this group, by group id.',
   capability:
     'Only holders of this admin capability, `tenant-admin`, or `any` admin capability; held effectively.',
-  type: 'Only subjects of this type.',
+  type: 'Only subjects of this type. Without it, `agent_instance` subjects are left out; name that type to list or count them.',
   locked: '`true` for subjects locked out by failed sign-ins only.',
 });
 describeFields(subjectSchema, {
@@ -1227,6 +1281,312 @@ describeFields(tenantSchema, {
   created_at: 'When the tenant was created.',
 });
 
+describeFields(assistantPageContextSchema, {
+  route:
+    'The console route the administrator has open, for example `/clients`: a path of letters, digits and `._~/-`, at most 200 characters. It is what the assistant is told about where they are.',
+  objectType:
+    'The kind of object that page shows, for example `client`: lower-case letters and hyphens. Sent with `objectId`.',
+  objectId:
+    'The id of that object: letters, digits and `._:-`, at most 128 characters. Sent with `objectType`.',
+});
+describeFields(createConversationRequestSchema, {
+  profile:
+    'The kind of conversation: `free-chat`, the default, or a task, `why-cant-sign-in` or `review-client`, which only reads. A profile this server does not offer, or a `mode` the profile does not run in, is refused with `400`.',
+  mode: 'Whether the assistant may only read (`ask`, the default) or may also propose changes (`act`).',
+  page_context: 'Where the administrator is. Nothing else the browser knows reaches the assistant.',
+});
+describeFields(assistantTextPartSchema, {
+  type: 'Always `text`: a person sends words, and no other kind of part.',
+  text: 'What the person typed, one to 20,000 characters.',
+});
+describeFields(sendMessageRequestSchema, {
+  message: 'The person’s message: a `user` message of one to eight text parts.',
+});
+describeFields(assistantUserMessageSchema, {
+  id: 'An id the caller chose for the message, at most 128 characters.',
+  role: 'Always `user`.',
+  parts: 'The message’s text parts.',
+});
+describeFields(assistantMessageSchema, {
+  id: 'The message’s id, stable across loads.',
+  role: '`user` for the person’s message, `assistant` for the answer.',
+  parts:
+    'The message’s parts as the AI SDK’s UI message format carries them: text, and the tool calls the assistant made with their results.',
+});
+describeFields(assistantConversationSchema, {
+  id: 'The conversation’s id.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  title: 'A short title once the conversation has one, otherwise `null`.',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+  messages:
+    'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
+});
+describeFields(assistantConversationSummarySchema, {
+  id: 'The conversation’s id.',
+  title:
+    'A short title made from the first thing the person asked, with addresses, links, long numbers and secrets taken out, or `null` before they have asked anything.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  created_at: 'When it was started.',
+  last_active_at:
+    'When it last took a message. Retention counts from here, and the list is ordered by it, newest first.',
+  archived: 'True while the person has hidden it from their list. Nothing is removed by hiding.',
+  archived_at: 'When it was hidden, or `null` while it is not.',
+  reported:
+    'True when it was reported, which keeps it past retention; a reported conversation cannot be deleted by its owner.',
+  target_tenant_id:
+    'The tenant it acts in when that is not the person’s own, as for a system administrator; `null` otherwise.',
+});
+describeFields(listAssistantConversationsResponseSchema, {
+  items: 'The caller’s own conversations, newest activity first.',
+  next: 'The cursor for the next page. Absent on the last page.',
+});
+describeFields(assistantResumedConversationSchema, {
+  id: 'The conversation’s id.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  title: 'A short title once the conversation has one, otherwise `null`.',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+  messages:
+    'The latest messages, oldest first, never more than 100; the page context the conversation started with is not among them.',
+  archived: 'True while the person has hidden it from their list.',
+  continuable:
+    'True when a new message would be answered, which includes a conversation whose earlier sign-in ended by signing out or lapsing: the message gets a new grant from the current sign-in. False when its sign-in was ended for another reason, so the message would be refused: the messages can be read, and a new conversation is the way to carry on.',
+});
+describeFields(lastAssistantConversationResponseSchema, {
+  conversation:
+    'The caller’s most recently active conversation that is not hidden, with its messages, or `null` when they have none.',
+});
+describeFields(setConversationArchivedRequestSchema, {
+  archived: 'True to hide the conversation from the list, false to bring it back.',
+});
+describeFields(setConversationArchivedResponseSchema, {
+  archived: 'Whether the conversation is hidden now.',
+  archived_at:
+    'When it was hidden. Hiding one that is hidden already answers the first time, and bringing one back answers `null`.',
+});
+describeFields(assistantExportMessageSchema, {
+  role: '`user` for the person’s message, `assistant` for the answer.',
+  at: 'When the message was stored.',
+  text: 'The message’s text with secrets hidden, and email addresses too where the tenant masks them.',
+  tools:
+    'For an answer, the names of the tools it called. Their inputs and results are not exported.',
+});
+describeFields(assistantExportedConversationSchema, {
+  id: 'The conversation’s id.',
+  title: 'Its title, or `null`.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'Whether it may only read (`ask`) or may also propose changes (`act`).',
+  created_at: 'When it was started.',
+  last_active_at: 'When it last took a message.',
+});
+describeFields(assistantConversationExportSchema, {
+  exported_at: 'When the export was made.',
+  conversation: 'The conversation’s own fields.',
+  messages:
+    'The conversation’s messages, oldest first, the first 500 at most. The page context the conversation started with is not among them.',
+  truncated: 'True when the conversation holds more messages than the export carries.',
+});
+
+describeFields(assistantApprovalCardSchema, {
+  approval_id: 'The approval to decide, the id the decision route takes.',
+  tool_call_id:
+    'The model’s call this change is for; the same id the stream’s approval request names.',
+  tool: 'The name of the change tool, one of the twelve the assistant may propose.',
+  title: 'What the change does, in one line, written by the server.',
+  tier: 'How much the change asks of the person, decided by the server from the tool and its target: `A` answers the card, `B` asks once more before a removal, `C` also needs the target’s name typed in the decision.',
+  confirm_with:
+    'The exact text a `C` decision must carry as `confirm`, written by the server; null for `A` and `B`.',
+  diff: 'For a change that replaces a list: the names it adds and the names it removes, each shown whole, at most 40 a side; absent for any other change.',
+  target:
+    'What it changes: the kind of object and, where there is one, its id and the name the server read.',
+  before:
+    'The target as the server read it just now, as text per field, each shown whole (a value over 2,000 characters is refused before a card is made), or null for something that does not exist yet. Never text the model wrote.',
+  after:
+    'What the call would set, as text per field, each shown whole, taken from the stored call; null for a removal.',
+  expires_at:
+    'When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it.',
+});
+describeFields(assistantApprovalTargetSchema, {
+  type: 'The kind of object: `client`, `scope`, `role`, `group`, `message`, `tenant settings` or a theme draft.',
+  id: 'Its id, or for a message the language and key; absent for something the change creates.',
+  name: 'Its name, as the server read it just before the proposal; absent where there is none to read.',
+});
+describeFields(assistantApprovalListSchema, {
+  items: 'The conversation’s pending changes, newest first, at most 20.',
+});
+describeFields(decideApprovalRequestSchema, {
+  approve:
+    'True to let the one change run, false to refuse it. Only the administrator the conversation belongs to may send it, from their own console session.',
+  confirm:
+    'For a `C` approval that is approved: the exact `confirm_with` text of its card. A missing or different text is refused `400` and the approval stays pending. Ignored for a refusal and for `A` and `B`.',
+});
+describeFields(decideApprovalResponseSchema, {
+  state: 'What was recorded: `approved` or `denied`.',
+});
+describeFields(setConversationModeRequestSchema, {
+  mode: '`ask` for reads only, `act` to let the assistant propose changes that wait for approval.',
+});
+describeFields(setConversationModeResponseSchema, { mode: 'The mode the conversation is now in.' });
+describeFields(stopConversationResponseSchema, {
+  stopped: '`true` when this server was running a turn of the conversation and ended it.',
+});
+
+describeFields(listAssistantConversationsQuerySchema, {
+  archived:
+    '`true` lists the conversations the person hid; the default lists the ones they did not.',
+});
+
+describeFields(listAssistantActivityQuerySchema, {
+  person: 'Only conversations of this person, by subject id.',
+  conversation: 'Only this conversation, by id.',
+  tool: 'Only conversations in which the assistant called this tool, such as `list_clients`.',
+  outcome:
+    'Only conversations whose latest turn ended this way: `done`, `step_cap`, `awaiting_approval`, `budget_turn`, `budget_conversation`, `budget_admin`, `budget_tenant`, `aborted` or `error`.',
+  kind: 'Only conversations that had a change proposed for approval (`approval`), a turn stopped by a budget level (`budget_refusal`) or a tool that failed (`tool_error`).',
+});
+describeFields(assistantTokensBySlotSchema, {
+  fast: 'Tokens, input and output together, spent on the fast model slot.',
+  standard: 'Tokens, input and output together, spent on the standard model slot.',
+  deep: 'Tokens, input and output together, spent on the deep model slot.',
+});
+describeFields(assistantActivityConversationSchema, {
+  id: 'The conversation’s id.',
+  person: 'The subject id of the administrator the conversation belongs to.',
+  person_username: 'That person’s username, or null when they have none or are gone.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'The mode it is in now: `ask` reads only, `act` may also propose changes.',
+  title:
+    'A short title once it has one, otherwise null. A title is text: where the tenant has not let auditors read text it is replaced by a placeholder, and where it has, a list that returns one is recorded as `assistant.text_read`.',
+  started_at: 'When it was started.',
+  last_active_at: 'When it last took a message. Retention counts idleness from here.',
+  turns: 'How many turns the trace holds for it.',
+  steps: 'How many model calls those turns made.',
+  tokens: 'The tokens those calls used, by model slot.',
+  stop_reason:
+    'Why the latest turn ended, or null for a conversation with no turn, a turn still running or one whose reason is not recorded.',
+  tools: 'The distinct tools it called, in name order, at most 20.',
+  report_old: 'True for a conversation reported more than 180 days ago, which nothing removes.',
+  approvals: 'How many changes the assistant proposed in it for approval.',
+  reported_at:
+    'When a person reported it, or null. A reported conversation is kept past retention.',
+});
+describeFields(assistantReplayConversationSchema, {
+  id: 'The conversation’s id.',
+  person: 'The subject id of the administrator the conversation belongs to.',
+  person_username: 'That person’s username, or null when they have none or are gone.',
+  profile: 'The kind of conversation it was started as.',
+  mode: 'The mode it is in now: `ask` reads only, `act` may also propose changes.',
+  started_at: 'When it was started.',
+  last_active_at: 'When it last took a message. Retention counts idleness from here.',
+  reported_at:
+    'When a person reported it, or null. A reported conversation is kept past retention.',
+});
+describeFields(assistantReplayAskedSchema, {
+  at: 'When it was sent.',
+  text: 'What the person typed, joined from its text parts, with secrets hidden and, where the tenant masks them, email addresses.',
+});
+describeFields(assistantReplayStepSchema, {
+  id: 'The step’s id.',
+  parent_step_id: 'The step of another run that started this one, or null.',
+  slot: 'The model slot it ran on: `fast`, `standard` or `deep`.',
+  model: 'The provider and model id that answered.',
+  provider_request_id: 'The id the provider gave the request, or null.',
+  input_tokens: 'The input tokens the provider reported, or null if it reported none.',
+  output_tokens: 'The output tokens the provider reported, or null if it reported none.',
+  started_at: 'When the call began.',
+  ended_at: 'When it ended, or null for one that never closed.',
+});
+describeFields(assistantReplayEventSchema, {
+  seq: 'The event’s place in the turn, from 0.',
+  step_id: 'The step it belongs to, or null for a choice made before a model call.',
+  kind: 'What it records: `model_call`, `text`, `tool_call`, `tool_result`, `tool_error`, `error`, `slot_chosen`, `reservation`, `narrowing`, `policy`, `trimming` or `truncated`.',
+  at: 'When it happened.',
+  payload:
+    'What the event holds, as the trace stored it with secrets masked and cut to 8 KiB. A tool’s input and result and the model’s words are here; the system prompt and the provider key never are.',
+});
+describeFields(assistantWhyModelSchema, {
+  slot: 'The slot chosen.',
+  reason: 'Why: the server’s own word for the rule that chose it.',
+  model: 'The provider and model id that answer, when they are known.',
+});
+describeFields(assistantReplayTurnSchema, {
+  id: 'The turn’s id.',
+  prompt_hash: 'A SHA-256 of the system prompt it ran with. The prompt is not stored.',
+  started_at: 'When it began.',
+  ended_at: 'When it ended, or null for one still running or never closed.',
+  stop_reason: 'Why it ended, or null.',
+  why_model: 'The model choices the server recorded for it.',
+  why_stopped:
+    'What the stop reason meant for this turn, in the server’s words, from the choices and failures it recorded: the level that refused a call, the change it waited on, the error it met.',
+  steps: 'Its model calls, in order.',
+  events: 'What it recorded, in the order it happened.',
+});
+describeFields(assistantReplayApprovalSchema, {
+  id: 'The approval’s id.',
+  tool_call_id: 'The model call it was proposed by.',
+  tool: 'The change tool.',
+  title: 'What the change did, in the server’s words, or null once its card is gone.',
+  target: 'What it changed, as its kind and name, or null once its card is gone.',
+  state: 'Where the approval stands: `pending`, `approved`, `denied`, `expired` or `consumed`.',
+  decided_at: 'When the person decided, or null.',
+});
+describeFields(assistantActivityReplaySchema, {
+  conversation: 'The conversation: who, what kind and when. Its counts are in the list.',
+  asked:
+    'The latest messages the person sent, oldest first, at most 100, masked. They come from the conversation, which the trace does not hold.',
+  turns: 'The latest 25 turns, oldest first.',
+  turns_omitted: 'How many earlier turns the conversation has that are not here.',
+  text_visible:
+    'True when the text is in this answer. False when the tenant has not let auditors read it: kinds, tools, timings, token counts and sizes are shown and text is replaced by a placeholder.',
+  approvals: 'The changes proposed in it with where each stands, newest first.',
+});
+describeFields(assistantPromptfooCaseSchema, {
+  description: 'A line naming the conversation the case was made from.',
+  vars: 'What the case feeds the model: the profile, the mode and the person’s messages.',
+  assert: 'The assertions. Always empty: whoever files the case writes them.',
+  metadata:
+    'Where the case came from, what it holds and leaves out, and what the assistant did when it ran.',
+});
+describeFields(assistantPromptfooMessageSchema, {
+  role: 'Always `user`: the case holds what the person said.',
+  content: 'The message, masked as the replay masks it.',
+});
+describeFields(assistantPromptfooVarsSchema, {
+  profile: 'The kind of conversation it was.',
+  mode: 'The mode it was in when it was exported.',
+  prompt: 'The first message the person sent, for a case with one prompt.',
+  messages: 'Every message the person sent, oldest first, at most 100.',
+});
+describeFields(assistantPromptfooToolCallSchema, {
+  tool: 'The tool the assistant called.',
+  input: 'What it gave the tool, as the trace stored it, masked.',
+});
+describeFields(assistantPromptfooObservedSchema, {
+  stop_reasons: 'Why each turn ended, in order; null for one with no reason recorded.',
+  tool_calls: 'Every tool call the exported turns made, in order. Their results are not here.',
+  answers: 'What the assistant said in each turn, as the trace stored it, masked.',
+});
+describeFields(assistantPromptfooMetadataSchema, {
+  source: 'Always `odudu-assistant-trace`.',
+  version: 'The version of this shape, 1.',
+  conversation: 'The id of the conversation the case was made from.',
+  turns: 'How many turns the case covers: the conversation’s latest 25.',
+  turns_omitted: 'How many earlier turns the conversation has that the case leaves out.',
+  contains: 'What the case holds, in words.',
+  excludes: 'What the case leaves out, in words.',
+  observed: 'What the assistant did in those turns.',
+});
+describeFields(reportConversationResponseSchema, {
+  reported_at:
+    'When the conversation was reported, which is the first time if it was reported before.',
+  reported_count: 'How many conversations the tenant keeps reported, this one included.',
+  near_limit: 'True from 80 reported conversations on: the tenant keeps at most 100.',
+});
+
 const GROUP_WORDS: Fields = {
   id: 'The group’s identifier, a UUID.',
   name: 'The group’s own name, unique among the groups beside it. Fixed once the group is made.',
@@ -1298,6 +1658,29 @@ describeFields(mailMessageSchema, {
   sent_at: 'When it was delivered, or null if it has not been.',
 });
 
+describeFields(assistantSettingsSchema, {
+  assistant_enabled:
+    'Whether the tenant’s administrators are offered the assistant. False reads as `{ "enabled": false }` from the status route for this tenant alone, and starting a conversation or sending a message is refused as a path never served.',
+  assistant_default_mode:
+    'The mode a person starts in: `ask` reads only, `act` may also propose changes that wait for the person’s approval.',
+  assistant_mask_emails:
+    'Whether an email address the assistant reads is replaced by its first character, three asterisks and its domain before it is sent to the model provider.',
+  assistant_trace_retention_days:
+    'How many days the step-by-step trace of a conversation is kept, from 1 to 365, and how long a conversation may sit idle before it is removed with its messages. A conversation a person reported is kept. The audit trail follows its own retention.',
+  assistant_auditor_visible:
+    'Whether people who can read assistant activity may also read the text of conversations: what was asked and answered, and what the tools were given and returned. Off by default; they always see who, when, which tools, the tokens and how each answer ended. Each read of text is recorded as `assistant.text_read`.',
+  assistant_monthly_tokens_fast:
+    'The tokens the tenant may spend each month on the fast model slot, from 0 to 1,000,000,000. The assistant stops when it is used and names the limit.',
+  assistant_monthly_tokens_standard:
+    'The tokens the tenant may spend each month on the standard model slot, from 0 to 1,000,000,000.',
+  assistant_monthly_tokens_deep:
+    'The tokens the tenant may spend each month on the deep model slot, from 0 to 1,000,000,000.',
+  assistant_max_concurrent:
+    'How many answers the tenant may have in progress at the same time, on any server, from 1 to 50. A further message is refused with `429`.',
+  assistant_max_steps_per_turn:
+    'The most model and tool calls one answer may take before it stops, from 1 to 100.',
+});
+
 describeFields(smtpConfigSchema, {
   configured: 'Whether the tenant has a relay of its own saved.',
   host: 'The relay’s host, or null when the tenant has none.',
@@ -1348,6 +1731,8 @@ describeFields(whoamiResponseSchema, {
     'The admin capabilities the caller holds in its own tenant, directly, through a group or nested in a role. A composite such as `tenant-admin` is reported as the capabilities it carries.',
   crossTenant:
     'True when the caller’s tenant is not the tenant in the path, which only a holder of `manage-tenants` may be.',
+  assistant_available:
+    'True when this deployment resolved a standard model for the console assistant, which is when its settings routes are served. False, they answer as a path that was never served. Left out of the answer to an AI agent’s token.',
 });
 
 describeFields(themeBodyRequestSchema, {

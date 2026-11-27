@@ -22,6 +22,7 @@ import {
   backchannelLogoutDeliveries,
   BACKCHANNEL_LOGOUT_MAX_ATTEMPTS,
   provisionAdminClient,
+  provisionAssistantClient,
   provisionMcpClient,
   type ClientJwks,
 } from '@odudu/protocol-oidc';
@@ -168,6 +169,7 @@ export async function insertProvisionedTenant(
     consoleClientJwks: console.clientJwks,
   });
   await provisionMcpClient(tx, row.id);
+  await provisionAssistantClient(tx, row.id);
   await mintSigningKey(tx, row.id, kek);
   return created;
 }

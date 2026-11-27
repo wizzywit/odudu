@@ -1,4 +1,8 @@
-import { type MessageCatalogueResponse } from '@odudu/contracts/admin';
+import {
+  type AssistantSettings,
+  type AssistantStatus,
+  type MessageCatalogueResponse,
+} from '@odudu/contracts/admin';
 import { type MailLookResolver } from '@odudu/email';
 import { sessionRepository } from '@odudu/authn-flows';
 import { signingKeyRepository } from '@odudu/crypto';
@@ -6,7 +10,12 @@ import { type DatabaseHandle, type TenantScopedDatabase, withTenant } from '@odu
 import { auditRepository, type AdminMutationAction } from '@odudu/domain-audit';
 import { effectiveRoles } from '@odudu/domain-authz';
 import { hashPassword, subjectIsEnabled, subjectRepository } from '@odudu/domain-identity';
-import { ADMIN_CLIENT_ID, clientRepository, hostState } from '@odudu/domain-tenant';
+import {
+  ADMIN_CLIENT_ID,
+  clientRepository,
+  hostState,
+  tenantSettingsRepository,
+} from '@odudu/domain-tenant';
 import { type inspectImage } from '@odudu/domain-theme';
 import {
   type ClaimMapperRegistry,
@@ -36,6 +45,15 @@ import { type Audit as ScopeMapperAudit } from '#/usecase/scope-mappers';
 import { type Audit as SettingsAudit } from '#/usecase/settings';
 import { type Audit as ThemeAudit } from '#/usecase/theme';
 import { type Audit as MessageOverrideAudit } from '#/usecase/message-overrides';
+import {
+  type Audit as AssistantSettingsAudit,
+  type AssistantSettingsStore,
+} from '#/usecase/assistant-settings';
+export type {
+  ActivityPage as AssistantActivityPage,
+  AssistantActivityStore,
+  ReportResult as AssistantReportResult,
+} from '#/usecase/assistant-activity';
 import { type Audit as ThemeAssetAudit } from '#/usecase/theme-assets';
 import { type Audit as TenantExportAudit } from '#/usecase/tenant-export';
 import { type Audit as TenantImportAudit } from '#/usecase/tenant-import';
@@ -231,6 +249,36 @@ import {
   readTenantHandler,
   type TenantsRouteDeps,
 } from '#/view/routes/tenants';
+import {
+  assistantStatusHandler,
+  putAssistantSettingsHandler,
+  readAssistantSettingsHandler,
+  type AssistantRouteDeps,
+  createConversationHandler,
+  decideApprovalHandler,
+  deleteConversationHandler,
+  exportConversationHandler,
+  exportConversationMarkdownHandler,
+  lastConversationHandler,
+  listApprovalsHandler,
+  listConversationsHandler,
+  loadConversationHandler,
+  setConversationArchivedHandler,
+  resumeConversationHandler,
+  sendMessageHandler,
+  setConversationModeHandler,
+  stopConversationHandler,
+  tenantOffersAssistant,
+  type AssistantChatPort,
+} from '#/view/routes/assistant';
+import {
+  exportAssistantConversationHandler,
+  listAssistantActivityHandler,
+  replayAssistantConversationHandler,
+  reportAssistantConversationHandler,
+  type AssistantActivityRouteDeps,
+} from '#/view/routes/assistant-activity';
+import { type AssistantActivityStore } from '#/usecase/assistant-activity';
 import { whoamiHandler } from '#/view/routes/whoami';
 import {
   evaluateClaimsHandler,
@@ -307,6 +355,8 @@ export {
   INSTANCE_READS,
   type AgentWriteRoute,
 } from '#/service/agent-scope';
+export { ASSISTANT_WRITE_ROUTES, agentWriteRoutes } from '#/service/assistant-write-routes';
+export { targetAdminReach, type ReachTarget } from '#/service/capability-ceiling';
 export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
 export {
@@ -427,6 +477,22 @@ export interface AdminRoutesDeps {
   // How long an audit read may run before it is refused as too broad;
   // `AUDIT_READ_TIMEOUT_MS` unless a test shortens it.
   auditReadTimeoutMs?: number;
+  // What `GET …/assistant/status` answers for a tenant with these settings,
+  // which @odudu/assistant computes from the environment and the composition
+  // root hands over: the assistant sits above this package and cannot be
+  // imported here. Omitted, it is off.
+  assistantStatus?: (settings: AssistantSettings) => AssistantStatus;
+  // Where a tenant's assistant settings are read and written, again from the
+  // package this one cannot import. Omitted, the deployment has no assistant:
+  // the settings routes answer 404 and the status reads `enabled: false`.
+  assistantSettings?: AssistantSettingsStore;
+  // What the conversation routes call, which @odudu/assistant supplies. Omitted,
+  // they answer 404 as if they were not served.
+  assistantChat?: AssistantChatPort;
+  // The activity list, replay, export and report over the conversations and the
+  // trace beneath them, from the package this one cannot import. Omitted, those
+  // routes answer as paths that were never served.
+  assistantActivity?: AssistantActivityStore;
 }
 
 export type AdminAuthParts = Pick<AdminRoutesDeps, 'database' | 'ownerDatabase' | 'publicBaseUrl'>;
@@ -455,6 +521,7 @@ export function adminAuthDeps(deps: AdminAuthParts): AuthenticateAdminDeps {
               enabled: client.enabled,
               builtinMcp: client.builtinMcp,
               builtinAdmin: client.builtinAdmin,
+              builtinAssistant: client.builtinAssistant,
               serviceSubjectId: client.serviceSubjectId,
             };
       }),
@@ -554,6 +621,7 @@ function buildAdminRoutes(
     const settingsAudit: SettingsAudit = recordAudit;
     const themeAudit: ThemeAudit = recordAudit;
     const messageOverrideAudit: MessageOverrideAudit = recordAudit;
+    const assistantSettingsAudit: AssistantSettingsAudit = recordAudit;
     const themeAssetAudit: ThemeAssetAudit = recordAudit;
     const tenantExportAudit: TenantExportAudit = recordAudit;
     const tenantImportAudit: TenantImportAudit = recordAudit;
@@ -681,6 +749,26 @@ function buildAdminRoutes(
       isKnownKey: deps.messageOverrides.isKnownKey,
       messageProblem: deps.messageOverrides.messageProblem,
       invalidate: deps.messageOverrides.invalidate,
+    };
+    const assistantDeps: AssistantRouteDeps = {
+      database: deps.database.db,
+      audit: assistantSettingsAudit,
+      lock: async (tx, tenantId) => {
+        await tenantSettingsRepository(tx).lockById(tenantId);
+      },
+      now: () => clock.now(),
+      status: deps.assistantStatus ?? (() => ({ enabled: false })),
+      ...(deps.assistantSettings === undefined ? {} : { store: deps.assistantSettings }),
+    };
+    const activityDeps: AssistantActivityRouteDeps = {
+      database: deps.database.db,
+      cursorKey: deps.cursorKey,
+      audit: recordAudit,
+      now: () => clock.now(),
+      callerCapabilities,
+      ...(deps.assistantActivity === undefined || deps.assistantSettings === undefined
+        ? {}
+        : { store: deps.assistantActivity, settings: deps.assistantSettings }),
     };
     const tenantTheme = themeHandlers(themeDeps, 'tenant');
     const clientTheme = themeHandlers(themeDeps, 'client');
@@ -817,8 +905,50 @@ function buildAdminRoutes(
       ownerDatabase: deps.ownerDatabase.db,
       now: () => clock.now(),
     };
+    const chatDeps = {
+      chat: deps.assistantChat,
+      cursorKey: deps.cursorKey,
+      offered: tenantOffersAssistant(assistantDeps),
+    };
     const handlers: AdminRouteHandlers = {
-      'GET /admin/tenants/:tenant/whoami': whoamiHandler({ callerCapabilities }),
+      'GET /admin/tenants/:tenant/whoami': whoamiHandler({
+        callerCapabilities,
+        assistantAvailable: deps.assistantSettings !== undefined,
+      }),
+      'GET /admin/tenants/:tenant/assistant/status': assistantStatusHandler(assistantDeps),
+      'GET /admin/tenants/:tenant/assistant/settings': readAssistantSettingsHandler(assistantDeps),
+      'PUT /admin/tenants/:tenant/assistant/settings': putAssistantSettingsHandler(assistantDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations': createConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations': listConversationsHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/last-conversation': lastConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id': loadConversationHandler(chatDeps),
+      'DELETE /admin/tenants/:tenant/assistant/conversations/:id':
+        deleteConversationHandler(chatDeps),
+      'PUT /admin/tenants/:tenant/assistant/conversations/:id/archived':
+        setConversationArchivedHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/export':
+        exportConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/export/markdown':
+        exportConversationMarkdownHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
+        sendMessageHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
+        stopConversationHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
+        listApprovalsHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
+        decideApprovalHandler(chatDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
+        resumeConversationHandler(chatDeps),
+      'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
+        setConversationModeHandler(chatDeps),
+      'GET /admin/tenants/:tenant/assistant/activity': listAssistantActivityHandler(activityDeps),
+      'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
+        replayAssistantConversationHandler(activityDeps),
+      'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
+        exportAssistantConversationHandler(activityDeps),
+      'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
+        reportAssistantConversationHandler(activityDeps),
       'GET /admin/tenants/:tenant/subjects': listSubjectsHandler(subjectsDeps),
       'GET /admin/tenants/:tenant/subjects/count': countSubjectsHandler(countsDeps),
       'GET /admin/tenants/:tenant/subjects/username-policy':

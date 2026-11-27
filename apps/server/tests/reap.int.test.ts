@@ -11,6 +11,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   reap,
+  reapExitCode,
   REAP_LOCK_KEY,
   REAP_ORDER,
   RETENTION_RULES,
@@ -663,6 +664,151 @@ describe('audit_events retention', () => {
       SELECT id FROM audit_events WHERE tenant_id = ${tenantId}
     `);
     expect(remaining.map((row) => row.id)).toEqual([freshId]);
+  });
+});
+
+describe('assistant budget upkeep inside the pass', () => {
+  async function tenantWithStaleAudit(): Promise<{ tenantId: string; staleId: string }> {
+    const tenantId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO tenants (id, name, audit_retention_days) VALUES (${tenantId}, ${`upkeep-${tenantId}`}, 30)
+    `);
+    const staleId = newId();
+    await owner.db.execute(sql`
+      INSERT INTO audit_events (id, tenant_id, occurred_at, event_type, action, outcome)
+      VALUES (${staleId}, ${tenantId}, ${at(-40 * DAY)}::timestamptz, 'admin_mutation', 'client.create', 'allowed')
+    `);
+    return { tenantId, staleId };
+  }
+
+  it('keeps the retention deletes when the upkeep throws, and tells which tenant failed', async () => {
+    const { tenantId, staleId } = await tenantWithStaleAudit();
+    const told: Record<string, unknown>[] = [];
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        upkeep: () => Promise.reject(new Error('the sweep timed out')),
+        log: (_event, detail) => told.push(detail),
+      },
+      NOW,
+      POLICY,
+    );
+    expect(ran(outcome).audit_events).toBeGreaterThanOrEqual(1);
+    expect(outcome.ran && outcome.assistant?.failed).toBeGreaterThanOrEqual(1);
+    expect(reapExitCode(outcome)).toBe(1);
+    const left = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM audit_events WHERE id = ${staleId}`,
+    );
+    expect(left).toHaveLength(0);
+    expect(told.some((detail) => detail.tenantId === tenantId)).toBe(true);
+  });
+
+  it('resolves a stale sent reservation and reports it under assistant, only then', async () => {
+    const { tenantId } = await tenantWithStaleAudit();
+    await owner.db.execute(sql`
+      INSERT INTO assistant_reservations (tenant_id, id, turn_id, slot, reserved, levels, sent, created_at)
+      VALUES (${tenantId}, ${newId()}, ${newId()}, 'standard', 10,
+              '[{"level":"turn","scopeKey":"k","slot":null,"windowStart":"2026-01-01T00:00:00.000Z"}]'::jsonb,
+              true, ${at(-2 * HOUR)}::timestamptz)
+    `);
+    const outcome = await runPass();
+    expect(outcome.ran && outcome.assistant?.reservationsCharged).toBe(1);
+    const again = await runPass();
+    expect(again.ran && again.assistant).toBeFalsy();
+  });
+});
+
+describe('assistant trace retention inside the pass', () => {
+  async function tenantWithTrace(): Promise<{ tenantId: string; oldTurn: string }> {
+    const tenantId = newId();
+    const subjectId = newId();
+    const conversationId = newId();
+    const oldTurn = newId();
+    await owner.db.execute(
+      sql`INSERT INTO tenants (id, name) VALUES (${tenantId}, ${`trace-${tenantId}`})`,
+    );
+    await owner.db.execute(
+      sql`INSERT INTO subjects (id, tenant_id, type) VALUES (${subjectId}, ${tenantId}, 'user')`,
+    );
+    await owner.db.execute(sql`
+      INSERT INTO assistant_conversations
+        (tenant_id, id, owner_subject_id, instance_id, profile, mode, last_active_at)
+      VALUES (${tenantId}, ${conversationId}, ${subjectId}, ${newId()}, 'free-chat', 'ask',
+              ${at(-1 * HOUR)}::timestamptz)
+    `);
+    await owner.db.execute(sql`
+      INSERT INTO assistant_turns (tenant_id, id, conversation_id, profile, prompt_hash, started_at)
+      VALUES (${tenantId}, ${oldTurn}, ${conversationId}, 'free-chat', ${'d'.repeat(64)},
+              ${at(-40 * DAY)}::timestamptz),
+             (${tenantId}, ${newId()}, ${conversationId}, 'free-chat', ${'d'.repeat(64)},
+              ${at(-1 * HOUR)}::timestamptz)
+    `);
+    return { tenantId, oldTurn };
+  }
+
+  it('removes the turns past the tenant’s window, reports them under assistant and does so once', async () => {
+    const { tenantId, oldTurn } = await tenantWithTrace();
+    const outcome = await runPass();
+    expect(outcome.ran && outcome.assistant?.turnsDeleted).toBeGreaterThanOrEqual(1);
+    const left = await owner.db.execute<{ id: string }>(
+      sql`SELECT id FROM assistant_turns WHERE tenant_id = ${tenantId}`,
+    );
+    expect(left).toHaveLength(1);
+    expect(left.map((row) => row.id)).not.toContain(oldTurn);
+    const again = await runPass();
+    expect(again.ran && (again.assistant?.turnsDeleted ?? 0)).toBe(0);
+  });
+
+  it('keeps the budget upkeep and the other tenants when the trace pass throws, and counts the tenant once', async () => {
+    const { tenantId } = await tenantWithTrace();
+    const told: { event: string; tenantId: unknown }[] = [];
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        traceUpkeep: () => Promise.reject(new Error('the delete timed out')),
+        upkeep: () => Promise.reject(new Error('the sweep timed out')),
+        log: (event, detail) => told.push({ event, tenantId: detail.tenantId }),
+      },
+      NOW,
+      POLICY,
+    );
+    const failed = outcome.ran ? (outcome.assistant?.failed ?? 0) : 0;
+    const tenants = await owner.db.execute<{ n: number }>(
+      sql`SELECT count(*)::int AS n FROM tenants`,
+    );
+    expect(failed).toBe(tenants[0]?.n);
+    expect(reapExitCode(outcome)).toBe(1);
+    const events = told.filter((entry) => entry.tenantId === tenantId).map((entry) => entry.event);
+    expect(events.sort()).toEqual(['assistant_trace_reap_failed', 'assistant_upkeep_failed']);
+  });
+
+  it('exits non-zero when only the trace pass failed, and still does the budget upkeep', async () => {
+    await tenantWithTrace();
+    let budgetRan = 0;
+    const outcome = await reap(
+      {
+        database: appDb,
+        ownerDatabase: owner,
+        traceUpkeep: () => Promise.reject(new Error('the delete timed out')),
+        upkeep: () => {
+          budgetRan += 1;
+          return Promise.resolve({
+            reservationsReleased: 0,
+            reservationsCharged: 0,
+            reservationsDeleted: 0,
+            countersDeleted: 0,
+            leasesDeleted: 0,
+            writeGrantsRevoked: 0,
+          });
+        },
+      },
+      NOW,
+      POLICY,
+    );
+    expect(budgetRan).toBeGreaterThanOrEqual(1);
+    expect(reapExitCode(outcome)).toBe(1);
   });
 });
 
@@ -1789,7 +1935,10 @@ describe('odudu reap', () => {
   // A table that carries a lifecycle timestamp either has a retention rule
   // or is named here with a reason. `email_outbox` will arrive carrying
   // `sent_at`, and this is what will not let it arrive unreaped.
-  const NOT_REAPED: Record<string, string> = {};
+  const NOT_REAPED: Record<string, string> = {
+    assistant_turn_leases:
+      'deleted by the assistant budget upkeep that the pass runs for each tenant, which reports it apart from REAP_ORDER',
+  };
 
   it('accounts for every table carrying a lifecycle timestamp', async () => {
     const rows = await owner.db.execute<{ table_name: string }>(sql`

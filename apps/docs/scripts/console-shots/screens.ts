@@ -26,16 +26,144 @@ async function openArea(page: Page, context: Context, area: string): Promise<voi
 const TERMS_VIEW = { width: 1100, height: 1070 } as const;
 const AUTHENTICATORS_VIEW = { width: 1100, height: 1040 } as const;
 const PASSWORD_VIEW = { width: 1100, height: 890 } as const;
+const ASSISTANT_VIEW = { width: 1100, height: 1180 } as const;
+// Wide enough for the panel to have a column of its own beside the page.
+const PANEL_VIEW = { width: 1440, height: 900 } as const;
+const PANEL_PHONE_VIEW = { width: 390, height: 844 } as const;
 
 // Scrolled so the section's heading sits just under the strip of section links.
-async function openSection(page: Page, context: Context, heading: string): Promise<void> {
-  await openArea(page, context, `${DEMO}/settings`);
+async function openSection(
+  page: Page,
+  context: Context,
+  heading: string,
+  tenant = DEMO,
+): Promise<void> {
+  await openArea(page, context, `${tenant}/settings`);
   const title = page.getByRole('heading', { level: 2, name: heading, exact: true });
   await title.waitFor();
   await title.evaluate((element) => {
     const top = element.closest('section')?.getBoundingClientRect().top ?? 0;
     window.scrollTo(0, window.scrollY + top - 72);
   });
+}
+
+// The panel is the system tenant's own: the signed-in administrator belongs to
+// it, which is whose conversation it would be. The button is in the menu and,
+// on a narrow screen, in the top bar; either one opens it.
+async function openAssistant(page: Page, context: Context): Promise<void> {
+  await page.goto(`${context.base}/console/system/tenants`);
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
+  await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+  await page
+    .getByLabel('Message to the assistant', { exact: true })
+    .first()
+    .waitFor({ timeout: 40_000 });
+}
+
+// Asks a question and puts the answer away, so the conversation exists with
+// its title and the panel is ready for the next one. The capture's model is not
+// real: an answer the provider has refused has ended by itself, and one still
+// being written is stopped.
+async function askAndLeave(page: Page, question: string): Promise<void> {
+  const composer = page.getByRole('textbox', { name: 'Message to the assistant' });
+  await composer.fill(question);
+  await composer.press('Enter');
+  const stop = page.getByRole('button', { name: 'Stop', exact: true });
+  const fresh = page
+    .getByRole('button', { name: 'New conversation', exact: true })
+    .and(page.locator(':not([disabled])'));
+  await stop.or(fresh).first().waitFor();
+  // The turn ends by itself once the provider refuses; stopping it before it has
+  // stored the message would leave the conversation untitled at random.
+  if (await stop.isVisible()) {
+    await stop.waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => stop.click());
+  }
+  await fresh.waitFor();
+  await fresh.click();
+  await page.getByText('Ask about this tenant').waitFor();
+}
+
+// The panel over the system tenant's page, with three conversations of the
+// administrator's own, and the list of them showing.
+async function openConversations(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  // The notice is shown once per browser, and an earlier screen may have put it away.
+  const notice = page.getByRole('button', { name: 'Got it' });
+  if (await notice.isVisible()) await notice.click();
+  for (const question of [
+    'How many clients does this tenant have?',
+    'Which roles can approve a client?',
+    'Why was the last sign-in refused?',
+  ]) {
+    await askAndLeave(page, question);
+  }
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+  await page.getByRole('heading', { level: 2, name: 'Your conversations' }).waitFor();
+  await page.getByRole('grid', { name: 'Conversations' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+}
+
+// Takes the conversations the screen made out again, as a person would. A
+// screen is photographed in both themes, and the panel reopens on the latest
+// conversation, so one left behind would be in every picture after it.
+async function deleteConversations(page: Page): Promise<void> {
+  for (let left = 3; left > 0; left -= 1) {
+    await page
+      .getByRole('button', { name: /^Actions for / })
+      .first()
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete conversation', exact: true }).click();
+    await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
+  }
+}
+
+// Three conversations of the administrator's own, made as a person makes them,
+// and the activity list open on the system tenant.
+async function openActivity(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  const notice = page.getByRole('button', { name: 'Got it' });
+  if (await notice.isVisible()) await notice.click();
+  for (const question of [
+    'How many clients does this tenant have?',
+    'Which roles can approve a client?',
+    'Why was the last sign-in refused?',
+  ]) {
+    await askAndLeave(page, question);
+  }
+  await page.goto(`${context.base}/console/system/assistant-activity`);
+  await page.getByRole('heading', { level: 1, name: 'Assistant activity' }).waitFor();
+  await page.getByRole('grid', { name: 'Assistant activity' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+}
+
+// The first conversation of the list, replayed.
+async function openReplay(page: Page, context: Context): Promise<void> {
+  await openActivity(page, context);
+  await page
+    .getByRole('link', { name: /^Replay / })
+    .first()
+    .click();
+  await page.getByRole('heading', { level: 1, name: 'Conversation replay' }).waitFor();
+  await page.getByRole('article', { name: 'Answer 1' }).waitFor();
+}
+
+// Takes the conversations out again through the panel, as the panel screens do.
+async function leaveActivity(page: Page, context: Context): Promise<void> {
+  await openAssistant(page, context);
+  await page.getByRole('button', { name: 'Conversations', exact: true }).click();
+  await page.getByRole('grid', { name: 'Conversations' }).waitFor();
+  await page.getByRole('row').nth(3).waitFor();
+  await deleteConversations(page);
+}
+
+async function openAssistantIn(page: Page, context: Context, tenant: string): Promise<void> {
+  await page.goto(`${context.base}/console/${tenant}/clients`);
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  await page.getByRole('button', { name: 'Ask the assistant' }).first().click();
+  await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+  await page.getByText(`Acting in ${tenant}`, { exact: true }).waitFor();
 }
 
 async function openList(page: Page, context: Context, area: string): Promise<void> {
@@ -122,13 +250,13 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'clients',
-    alt: "The demo tenant's Clients list: the built-in odudu-admin and odudu-mcp clients and my-app, with a Create a client button.",
-    caption: 'The demo tenant lists my-app beside its two built-in clients.',
+    alt: "The demo tenant's Clients list: the three built-in clients, odudu-admin, odudu-mcp and odudu-assistant, and my-app, with a Create a client button.",
+    caption: 'The demo tenant lists my-app beside its three built-in clients.',
     signedIn: true,
     expect: [
       { heading: 'Clients' },
       { role: 'link', name: 'Create a client' },
-      { rows: ['odudu-admin', 'odudu-mcp', CLIENT] },
+      { rows: ['odudu-admin', 'odudu-mcp', 'odudu-assistant', CLIENT] },
     ],
     open: (page, context) => openList(page, context, 'clients'),
   },
@@ -186,7 +314,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'overview',
-    alt: "The demo tenant's Overview: nothing needs attention, the counts of its subjects, clients, groups, roles and scopes, and its discovery addresses, with the console's menu on the left.",
+    alt: "The demo tenant's Overview: nothing needs attention, the counts of its subjects, clients, groups, roles and scopes, and its discovery addresses, with the console's menu on the left and the Ask the assistant button at its foot.",
     caption: 'A tenant opens on its Overview: what needs attention, the counts and its addresses.',
     signedIn: true,
     expect: [{ heading: 'Overview' }, { heading: 'Needs attention' }, { heading: 'Counts' }],
@@ -240,7 +368,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'roles',
-    alt: "The demo tenant's Roles list: the ten built-in roles of the admin client, each marked as an admin capability, and a Create a role button.",
+    alt: "The demo tenant's Roles list: the thirteen built-in roles of the admin client, each marked as an admin capability, and a Create a role button.",
     caption: 'Every tenant starts with the admin capabilities as roles.',
     signedIn: true,
     expect: [
@@ -258,12 +386,15 @@ export const SCREENS: readonly Screen[] = [
           'view-audit',
           'view-domains',
           'manage-domains',
+          'use-assistant',
+          'read-assistant-activity',
+          'manage-assistant',
         ],
       },
     ],
     open: async (page, context) => {
       await openArea(page, context, `${DEMO}/roles`);
-      await page.getByText('10 roles').waitFor();
+      await page.getByText('13 roles').waitFor();
     },
   },
   {
@@ -401,7 +532,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings',
-    alt: 'The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
+    alt: 'The Settings page: a strip of section links from General to Console assistant, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min.',
     caption: 'Every section of the settings saves on its own.',
     signedIn: true,
     expect: [
@@ -413,7 +544,7 @@ export const SCREENS: readonly Screen[] = [
   },
   {
     name: 'settings-rail',
-    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked.',
+    alt: 'The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications, Records and Assistant, with the section in view marked.',
     caption:
       'On a wide screen the list stays beside the sections, grouped, with the section in view marked.',
     signedIn: true,
@@ -452,6 +583,144 @@ export const SCREENS: readonly Screen[] = [
     viewport: PASSWORD_VIEW,
     expect: [{ heading: 'Password policy' }, { label: 'Check against known breaches' }],
     open: (page, context) => openSection(page, context, 'Password policy'),
+  },
+  {
+    name: 'settings-assistant',
+    alt: 'The Console assistant section of the Settings page, in three groups: Availability with a switch for offering the assistant and the mode it starts in, Privacy and records with email masking, auditor access and trace retention, and Limits with the monthly tokens of each model slot, the answers at once and the steps in one answer. Each setting says its default.',
+    caption: 'The assistant’s settings, each with its default beside it.',
+    signedIn: true,
+    viewport: ASSISTANT_VIEW,
+    expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
+    open: (page, context) => openSection(page, context, 'Console assistant'),
+  },
+  {
+    name: 'settings-assistant-phone',
+    alt: 'The Console assistant section of the Settings page on a phone: the same groups in a single column, with each setting’s switch or field above its default and range.',
+    caption: 'On a narrow screen the assistant’s settings stack in one column.',
+    signedIn: true,
+    viewport: { width: 390, height: 1500 },
+    expect: [{ heading: 'Console assistant' }, { label: 'Offer the assistant' }],
+    open: (page, context) => openSection(page, context, 'Console assistant'),
+  },
+  {
+    name: 'assistant-panel',
+    alt: 'The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act beside it and a sentence about what Act leaves to you, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button.',
+    caption: 'The panel opens beside the page, with a notice the first time it is used.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: (page, context) => openAssistant(page, context),
+  },
+  {
+    name: 'assistant-panel-other-tenant',
+    alt: 'The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act available, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text.',
+    caption: 'In another tenant the panel names it, and Act makes its changes there.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: (page, context) => openAssistantIn(page, context, DEMO),
+  },
+  {
+    name: 'assistant-task',
+    alt: 'The record of ada, a person of the demo tenant, seen by a system administrator, with the button Why can’t they sign in? beside the name and the assistant’s panel open beside it: a tag reading Acting in demo, the first-run notice, and a message field that already holds the question Why can’t this person sign in?, with chips naming the page, subject, and the task above it.',
+    caption: 'The button on a person’s record opens the assistant with its question ready to send.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Got it' },
+    ],
+    open: async (page, context) => {
+      await openList(page, context, 'subjects');
+      await page.getByRole('row', { name: new RegExp(PERSON, 'u') }).click();
+      await page.getByRole('button', { name: 'Why can’t they sign in?' }).click();
+      await page.getByRole('heading', { level: 2, name: 'Assistant', exact: true }).waitFor();
+      await page.getByText('Why can’t this person sign in?', { exact: true }).first().waitFor();
+    },
+  },
+  {
+    name: 'assistant-panel-phone',
+    alt: 'The assistant’s panel on a phone, filling the screen: the same Conversations and New conversation buttons, mode switch, notice, description and message field in one column, with Close at the top right.',
+    caption: 'On a phone the panel fills the screen and the page behind it is out of reach.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [
+      { heading: 'Assistant' },
+      { label: 'Message to the assistant' },
+      { role: 'button', name: 'Close' },
+    ],
+    open: (page, context) => openAssistant(page, context),
+  },
+  {
+    name: 'assistant-conversations',
+    alt: 'The assistant’s panel showing Your conversations, with Back and New conversation at the top and three conversations under the heading Today, each named Untitled conversation, with when it was last active, an Ask tag and an Actions button on its right.',
+    caption: 'Your conversations, newest first, grouped by day; the one that is open is marked.',
+    signedIn: true,
+    viewport: PANEL_VIEW,
+    expect: [
+      { heading: 'Your conversations' },
+      { role: 'button', name: 'New conversation' },
+      { label: 'Conversations' },
+    ],
+    open: (page, context) => openConversations(page, context),
+    leave: (page) => deleteConversations(page),
+  },
+  {
+    name: 'assistant-conversations-phone',
+    alt: 'The same list of conversations on a phone, filling the screen: Back, the heading and a short New button at the top, and each conversation named Untitled conversation on one line with its time, its Ask tag and Actions.',
+    caption: 'On a phone the list takes the panel’s whole height, and its rows stay one line each.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [
+      { heading: 'Your conversations' },
+      { role: 'button', name: 'New conversation' },
+      { label: 'Conversations' },
+    ],
+    open: (page, context) => openConversations(page, context),
+    leave: (page) => deleteConversations(page),
+  },
+  {
+    name: 'assistant-activity',
+    alt: 'The system tenant’s Assistant activity page: filters for the kind of conversation, the last outcome, a tool, a person and a conversation, and a table of three conversations of one administrator, each with a placeholder for its title because the tenant keeps conversation text from auditors, its profile, when it was last active, its answers, the tokens it used and how it ended, here Failed.',
+    caption: 'Every conversation of the tenant, newest first, with how it ended.',
+    signedIn: true,
+    viewport: { width: 1440, height: 900 },
+    expect: [{ heading: 'Assistant activity' }, { label: 'Tool' }, { label: 'Last outcome' }],
+    open: (page, context) => openActivity(page, context),
+    leave: (page, context) => leaveActivity(page, context),
+  },
+  {
+    name: 'assistant-activity-phone',
+    alt: 'The Assistant activity page on a phone: the filters stacked above, then each conversation as its own card with labelled lines for the person, when it was last active, how it ended and whether it is kept.',
+    caption: 'On a phone each conversation is a card, not a row.',
+    signedIn: true,
+    viewport: PANEL_PHONE_VIEW,
+    expect: [{ heading: 'Assistant activity' }, { label: 'Tool' }],
+    open: (page, context) => openActivity(page, context),
+    leave: (page, context) => leaveActivity(page, context),
+  },
+  {
+    name: 'assistant-replay',
+    alt: 'The replay of one conversation: Export as test case and Report this answer buttons, a note that the tenant keeps conversation text from auditors, the conversation’s person, profile and times, a placeholder where the question would be, a note that it proposed no change, and the first answer opened, which failed, with why it stopped, why this model and its decisions.',
+    caption: 'One conversation, replayed: what was asked, and how the answer went.',
+    signedIn: true,
+    viewport: { width: 1440, height: 1100 },
+    expect: [
+      { heading: 'Conversation replay' },
+      { role: 'button', name: 'Export as test case' },
+      { role: 'button', name: 'Report this answer' },
+    ],
+    open: (page, context) => openReplay(page, context),
+    leave: (page, context) => leaveActivity(page, context),
   },
   {
     name: 'email',

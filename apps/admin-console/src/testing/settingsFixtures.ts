@@ -1,3 +1,4 @@
+import { ASSISTANT_SETTING_DEFAULTS } from '@odudu/contracts/admin';
 import { C, CLIENTS } from '#/testing/clientsFixtures';
 import { json, type Answer } from '#/testing/fakeTransport';
 import { ACME_ADMIN } from '#/testing/tenantPaths';
@@ -5,6 +6,7 @@ import { graceRoutes } from '#/testing/renderConsole';
 import { EVERY_TENANT_CAPABILITY } from '#/testing/roleAnswers';
 export const ST = `${ACME_ADMIN}/settings`;
 export const SM = `${ACME_ADMIN}/smtp`;
+export const AS = `${ACME_ADMIN}/assistant/settings`;
 export const MAIL = `${ACME_ADMIN}/mail`;
 
 // What a tenant starts with: the migrations' own defaults.
@@ -85,6 +87,11 @@ export const SETTINGS = {
 
 export function settingsAnswer(changes: Record<string, unknown> = {}, etag = '"s1"'): Answer {
   return json({ ...SETTINGS, ...changes }, 200, { etag });
+}
+
+// What an assistant that nobody has configured reads.
+export function assistantAnswer(changes: Record<string, unknown> = {}, etag = '"a1"'): Answer {
+  return json({ ...ASSISTANT_SETTING_DEFAULTS, ...changes }, 200, { etag });
 }
 
 // grace of acme holding the capabilities given, with the settings above.

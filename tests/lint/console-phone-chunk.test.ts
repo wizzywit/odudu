@@ -20,18 +20,21 @@ const FEATURE_ONLY = [
 ] as const;
 
 // The entry chunk's gzip size, in bytes (ADR 0041). Set at 145,018 B, the
-// size once the React Compiler was on, plus 5%, rounded up to a whole kB of
-// 1,000 B. A larger entry is a decision: raise this beside the reason.
-const ENTRY_GZIP_BUDGET = 153_000;
+// size once the React Compiler was on, plus 5%; lowered to 127,700 B when the
+// assistant panel became a lazy chunk (126,661 B measured, from 145,474 B);
+// raised to 129,000 B for the conversation list (128,586 B measured) while the
+// first load fell, so the list's grid code moved between chunks.
+// A larger entry is a decision: raise this beside the reason.
+const ENTRY_GZIP_BUDGET = 129_000;
 
 // The same bound over everything loaded first: the entry and each chunk it
-// imports statically. Set at 229,800 B, plus 5%, rounded up to a whole kB;
-// reset to 244,911 B (the failure screens: the root fallback, the panel and the
-// copy button must load first, since the fallback draws with nothing else
-// loaded) plus 5%, rounded up; raised by 1 kB when the contracts' free-text
-// fields gained a pattern that refuses a NUL character, which the console's
-// forms share (258,018 B measured). Lazy chunks are not budgeted.
-const FIRST_LOAD_GZIP_BUDGET = 259_000;
+// imports statically. 244,911 B (failure screens) plus 5%, then raised for the
+// contracts' free-text pattern (258,018 B) and the shell's assistant button
+// (261,569 B). 267,400 for the lazy assistant panel: 266,322 B measured, from
+// 261,906 B at its parent (258,813 B at the baseline). zod is +1.6 kB (the chat
+// client's schemas) and the re-split shared chunks +2.8 kB; minShareCount on
+// the zod group did not move it, and the contracts schemas are not first load.
+const FIRST_LOAD_GZIP_BUDGET = 267_400;
 
 interface Chunk {
   readonly name: string;

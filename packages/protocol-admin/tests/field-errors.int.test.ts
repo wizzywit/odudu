@@ -1,3 +1,4 @@
+import { ASSISTANT_SETTING_DEFAULTS } from '@odudu/contracts/admin';
 import { MANAGE_TENANTS, TENANT_CAPABILITIES } from '@odudu/domain-tenant';
 import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
@@ -5,11 +6,46 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
+import { type AssistantActivityStore } from '#/usecase/assistant-activity';
+import { type AssistantChatPort } from '#/view/routes/assistant';
 
 let fixtureHandle: AdminFixture | undefined;
 let fixture: AdminFixture;
+// The activity and conversation routes answer 404 where no assistant is wired,
+// so a cursor check on them needs a store and a chat port; neither is reached
+// for a cursor it refuses.
+const emptyActivity: AssistantActivityStore = {
+  list: () => Promise.resolve({ items: [], next: null }),
+  replay: () => Promise.resolve(null),
+  export: () => Promise.resolve(null),
+  report: () => Promise.resolve({ kind: 'missing' }),
+};
+const notReached = (): Promise<never> => Promise.reject(new Error('not reached'));
+const unusedChat: AssistantChatPort = {
+  create: notReached,
+  load: notReached,
+  list: notReached,
+  last: notReached,
+  setArchived: notReached,
+  remove: notReached,
+  export: notReached,
+  send: notReached,
+  stop: notReached,
+  approvals: notReached,
+  answerApproval: notReached,
+  resume: notReached,
+  setMode: notReached,
+};
+
 beforeAll(async () => {
-  fixtureHandle = await startAdminFixture();
+  fixtureHandle = await startAdminFixture({
+    assistantActivity: emptyActivity,
+    assistantChat: unusedChat,
+    assistantSettings: {
+      read: () => Promise.resolve({ ...ASSISTANT_SETTING_DEFAULTS }),
+      write: () => Promise.resolve(),
+    },
+  });
   fixture = fixtureHandle;
 }, 180_000);
 afterAll(async () => {

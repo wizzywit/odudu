@@ -12,7 +12,7 @@ Most of what makes one tenant behave differently from another is a setting: how 
 
 <ConsoleShot
   name="settings"
-  alt="The Settings page: a strip of section links from General to Audit retention, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min."
+  alt="The Settings page: a strip of section links from General to Console assistant, then the General and Sessions sections, with the idle timeout shown as 30 and a unit menu set to min."
   caption="Every section of the settings saves on its own."
 />
 
@@ -25,12 +25,13 @@ The list of sections is made of links, so a section can be opened from a bookmar
 - **Sessions and tokens**: **Sessions**, **Remember me** and **Token lifetimes**.
 - **Applications**: **Client registration** and **Agents**.
 - **Records**: **Audit retention**.
+- **Assistant**: **Console assistant**, listed last and only where the assistant is on.
 
 Choosing a name moves to that section and puts the focus on its heading. The section in view is marked, and a section with changes you have not saved has a dot, so one scrolled out of sight is not forgotten.
 
 <ConsoleShot
   name="settings-rail"
-  alt="The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications and Records, with the section in view marked."
+  alt="The Settings page on a wide screen: a rail of section links beside the sections, grouped under Tenant, Sign-in, Sessions and tokens, Applications, Records and Assistant, with the section in view marked."
   caption="On a wide screen the list stays beside the sections, grouped, with the section in view marked."
 />
 
@@ -244,6 +245,43 @@ The limits on agent instances and on what an agent may write under a person's gr
 - **Keep events for** (`audit_retention_days`): 1 to 3650 days.
 - **Events recorded** (`audit_event_types`): **Changes by administrators** and **Reads by administrators** are always recorded. You choose **Sign-ins and refused sign-ins**, **Sessions starting and ending**, **Tokens issued and revoked**, and **Passwords, keys and codes set or changed**.
 
+### Console assistant
+
+<ConsoleShot
+  name="settings-assistant"
+  alt="The Console assistant section of the Settings page, in three groups: Availability with a switch for offering the assistant and the mode it starts in, Privacy and records with email masking, auditor access and trace retention, and Limits with the monthly tokens of each model slot, the answers at once and the steps in one answer. Each setting says its default."
+  caption="The assistant’s settings, each with its default beside it."
+/>
+
+<ConsoleShot
+  name="settings-assistant-phone"
+  alt="The Console assistant section of the Settings page on a phone: the same groups in a single column, with each setting’s switch or field above its default and range."
+  caption="On a narrow screen the assistant’s settings stack in one column."
+/>
+
+The last section of the page, and only where the server has the assistant switched on: an operator who configured no model leaves it out, and nobody sees a section or a link for it. It needs `manage-assistant` to change. A system administrator who holds `manage-tenants` and `manage-assistant` can read and change another tenant's assistant settings through the admin API, as for any other tenant setting; the conversations themselves belong to the administrator who started them. A person with `read-assistant-activity` and not `manage-assistant` sees every value as text under a note that names the capability, and a person with neither sees no section and the console asks nothing of the server for it. The settings are a tenant's own, and each starts at a default a tenant that has never opened this page already runs on. The section names the default beside each setting, and a save sends all ten settings at once, on the ETag it was read with, so another administrator's change is shown beside yours and is not overwritten.
+
+**Availability**
+
+- **Offer the assistant** (`assistant_enabled`): on by default. Off, the status route answers `{ "enabled": false }` for this tenant alone, and every other tenant of the deployment is unchanged. Starting a conversation and sending a message are then refused with the answer of a path that was never served, in this tenant only. What is already recorded stays, and a person can still read a conversation and stop a running turn.
+- **Starts in** (`assistant_default_mode`): **Ask: the assistant only reads** or **Act: it may propose changes, each waiting for approval**. Ask is the default. A person can switch the mode in the panel.
+
+**Privacy and records**
+
+- **Mask email addresses** (`assistant_mask_emails`): off by default. On, an email address in what the assistant reads, and in the page text it is given, is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. The setting is read for each turn, so a change applies to the next message. Addresses a person types themselves, and messages from before the change, are not rewritten.
+- **Let auditors read conversation text** (`assistant_auditor_visible`): off by default. People who hold `read-assistant-activity` always see who used the assistant, when, which tools it called, the tokens it used and how each answer ended. On, they can also read what was asked and answered and what the tools were given and returned. Each such read of someone else's conversation is recorded in the audit trail as `assistant.text_read`, naming the reader and the owner and never the text. Nothing tells the person yet. They read it on [Assistant activity](./assistant-activity.mdx). The default changed before anything shipped, and every saved value was set to off, so no tenant holds an on it did not choose.
+- **Keep traces for** (`assistant_trace_retention_days`): 1 to 365 days and 30 by default. A trace is the step-by-step record of a conversation. `odudu reap` removes turns older than this, and conversations idle for longer, except those a person reported; shortening the setting removes more on the next pass. The panel's **Conversations** list says that idle conversations are removed, and leaves the number to this setting. The audit trail keeps its own rows for as long as its retention says. [The assistant's trace](../operating/assistant-trace.md) has the detail.
+
+**Limits**
+
+- **Fast model, each month** (`assistant_monthly_tokens_fast`), **Standard model, each month** (`assistant_monthly_tokens_standard`) and **Deep model, each month** (`assistant_monthly_tokens_deep`): the tokens the tenant may spend each month on each model slot, 0 to 1,000,000,000. They start at 2,000,000, 5,000,000 and 1,000,000. The assistant stops when a month's allowance for a model is used: the answer ends with a message that names the limit and says who can change it, and the assistant never falls back to a cheaper model on its own. Each model call sets aside what it could cost, up to about 132,000 tokens, until it finishes and its real cost replaces that, so an allowance below about 150,000 tokens refuses every answer and one below about 530,000 can refuse some. A month is a calendar month in UTC. The panel warns when a limit passes 80 percent. Two limits sit beside these and have no setting: one administrator may use a quarter of a month's allowance for a model in one UTC day, and one answer may use 1,000,000 tokens and one conversation 2,000,000 in a month. [Operating the assistant's budget](../operating/assistant-budget.md) says how a call that was cut off is counted.
+- **Answers at once** (`assistant_max_concurrent`): how many answers the tenant may have in progress together, on all of its servers, 1 to 50 and 5 by default. A further message is refused with `429` and a `Retry-After` until one ends.
+- **Steps in one answer** (`assistant_max_steps_per_turn`): the most model and tool calls one answer may take before it stops, 1 to 100 and 20 by default. A kind of answer with a lower step limit of its own keeps it; free chat's is 8.
+
+A system administrator who uses the assistant in your tenant, from another tenant's console session, is bound by your settings as well as their own. The assistant must be on in both tenants, email masking applies if either tenant has it on, and Act mode applies only if both allow it. Their own tenant's limits apply and their tenant pays. The conversation's text, with what the tools returned from your tenant, is kept in their tenant under their retention and auditor setting, not yours. Each tool they call leaves an `agent.tool_call` event in your audit trail naming them; the conversation itself stays in their tenant and your administrators do not see it.
+
+A change leaves an `assistant.config` audit event, under the **Admin change** family, whose detail gives each setting that changed as its value before and after. A save that changes nothing leaves none. The assistant holds no key of its own, so no setting here can carry one: the model keys are read from the server's environment and never reach the console.
+
 ## Things that cannot be undone, or that end somebody's work
 
 - Turning **Enabled** off under **General** disables the whole tenant. You type the tenant's name to confirm, every session ends and nobody can sign in until you turn it on again.
@@ -253,4 +291,4 @@ The limits on agent instances and on what an agent may write under a person's gr
 
 ## Do the same through the API
 
-The calls are in the [settings area of the admin API](../reference/generated/admin-api/settings/index.md), with the lockout call in [lockouts](../reference/generated/admin-api/lockouts/index.md). The settings of the whole deployment, which no tenant changes, are in the [configuration reference](../reference/generated/configuration.md). From the command line, `odudu seed tenant --set` changes one for a first installation.
+The calls are in the [settings area of the admin API](../reference/generated/admin-api/settings/index.md), with the lockout call in [lockouts](../reference/generated/admin-api/lockouts/index.md) and the assistant's settings in the [assistant area](../reference/generated/admin-api/assistant/index.md). The settings of the whole deployment, which no tenant changes, are in the [configuration reference](../reference/generated/configuration.md). From the command line, `odudu seed tenant --set` changes one for a first installation.

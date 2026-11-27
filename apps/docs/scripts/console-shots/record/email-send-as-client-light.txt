@@ -28,6 +28,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
  from 
@@ -38,10 +39,24 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · acme
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Menu
 System
 Acting in 
@@ -78,6 +93,8 @@ Odudu administration
 odudu-admin · confidential
 Odudu MCP
 odudu-mcp · public
+Odudu assistant
+odudu-assistant · public
 Storefront
 storefront · public
 The message wears the tenant’s published theme. Choose a client to send the mail its sign-in would send: its theme over the tenant’s.

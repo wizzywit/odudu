@@ -1,0 +1,6 @@
+.mark {
+  flex: none;
+  inline-size: 12px;
+  block-size: 12px;
+  fill: var(--signal-active-ink);
+}

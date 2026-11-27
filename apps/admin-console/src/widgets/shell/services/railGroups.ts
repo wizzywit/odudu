@@ -1,4 +1,4 @@
-import { readable } from '#/shared/lib/services/access';
+import { assistantPresent, readable } from '#/shared/lib/services/access';
 import { recordAddress } from '#/shared/lib/services/address';
 import { SYSTEM_TENANT, type Authority } from '#/shared/lib/services/principal';
 import { type Area, OVERVIEW, SYSTEM_AREAS, TENANT_AREAS, areaAt, areaHref } from '#/entities/area';
@@ -32,7 +32,9 @@ export function railGroups(
 ): readonly RailSection[] {
   const groups = withSystem ? [SYSTEM_AREAS, ...TENANT_AREAS] : TENANT_AREAS;
   const shown = (a: Area): boolean =>
-    checking && authority === undefined ? a.capability === null : readable(authority, a.capability);
+    checking && authority === undefined
+      ? a.capability === null
+      : readable(authority, a.capability) && assistantPresent(authority, a);
   return groups.flatMap((group) => {
     const areas = group.areas.filter(shown);
     if (areas.length === 0) return [];

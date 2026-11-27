@@ -1,3 +1,10 @@
+import {
+  reapTrace,
+  traceRetentionDays,
+  upkeepBudget,
+  type BudgetUpkeepReport,
+  type TraceReapReport,
+} from '@odudu/assistant';
 import { CONSOLE_SESSION_IDLE_SECONDS } from '@odudu/console-gateway';
 import { lineageRootCtes } from '@odudu/domain-agents';
 import {
@@ -6,6 +13,7 @@ import {
   tenantIdPages,
   tenants,
   withEachTenantExclusive,
+  withTenant,
   type DatabaseHandle,
   type TenantScopedDatabase,
 } from '@odudu/db';
@@ -76,7 +84,17 @@ export type ReapSkipReason =
 
 export type ReapOutcome =
   | { readonly ran: false; readonly reason: ReapSkipReason }
-  | { readonly ran: true; readonly deleted: ReapReport; readonly cleared: ClearReport };
+  | {
+      readonly ran: true;
+      readonly deleted: ReapReport;
+      readonly cleared: ClearReport;
+      /**
+       * What the console assistant's budget upkeep did. Present only when it did
+       * something, so an install that never uses the assistant reads the same
+       * report as before.
+       */
+      readonly assistant?: AssistantReapReport;
+    };
 
 /**
  * One window per table that has one of its own, in seconds. `refresh_tokens`
@@ -716,6 +734,70 @@ export function assertReapOrder(order: readonly TableName[] = REAP_ORDER): void 
   }
 }
 
+/**
+ * The assistant's upkeep summed over tenants: its budget upkeep, the trace
+ * retention pass, and how many tenants either failed for.
+ */
+export interface AssistantReapReport extends BudgetUpkeepReport, TraceReapReport {
+  readonly failed: number;
+}
+
+const NO_UPKEEP: AssistantReapReport = {
+  reservationsReleased: 0,
+  reservationsCharged: 0,
+  reservationsDeleted: 0,
+  countersDeleted: 0,
+  leasesDeleted: 0,
+  writeGrantsRevoked: 0,
+  turnsDeleted: 0,
+  approvalCardsDeleted: 0,
+  conversationsDeleted: 0,
+  failed: 0,
+};
+
+const NO_BUDGET: BudgetUpkeepReport = {
+  reservationsReleased: 0,
+  reservationsCharged: 0,
+  reservationsDeleted: 0,
+  countersDeleted: 0,
+  leasesDeleted: 0,
+  writeGrantsRevoked: 0,
+};
+
+const NO_TRACE: TraceReapReport = {
+  turnsDeleted: 0,
+  approvalCardsDeleted: 0,
+  conversationsDeleted: 0,
+};
+
+function addUpkeep(
+  a: AssistantReapReport,
+  b: BudgetUpkeepReport,
+  trace: TraceReapReport,
+): AssistantReapReport {
+  return {
+    reservationsReleased: a.reservationsReleased + b.reservationsReleased,
+    reservationsCharged: a.reservationsCharged + b.reservationsCharged,
+    reservationsDeleted: a.reservationsDeleted + b.reservationsDeleted,
+    countersDeleted: a.countersDeleted + b.countersDeleted,
+    leasesDeleted: a.leasesDeleted + b.leasesDeleted,
+    writeGrantsRevoked: a.writeGrantsRevoked + b.writeGrantsRevoked,
+    turnsDeleted: a.turnsDeleted + trace.turnsDeleted,
+    approvalCardsDeleted: a.approvalCardsDeleted + trace.approvalCardsDeleted,
+    conversationsDeleted: a.conversationsDeleted + trace.conversationsDeleted,
+    failed: a.failed,
+  };
+}
+
+function didAnything(report: AssistantReapReport): boolean {
+  return Object.values(report).some((count) => count > 0);
+}
+
+/** 1 when any tenant's assistant upkeep failed, else 0, so a scheduler sees the failure. */
+export function reapExitCode(outcome: ReapOutcome): number {
+  return outcome.ran && (outcome.assistant?.failed ?? 0) > 0 ? 1 : 0;
+}
+
 function emptyReport(): ReapReport {
   const report = {} as Record<TableName, number>;
   for (const table of REAP_ORDER) report[table] = 0;
@@ -771,6 +853,16 @@ export interface ReapDeps {
    * concurrency.
    */
   readonly onLockAttempt?: (acquired: boolean) => Promise<void> | void;
+  /** Where a tenant's failed assistant upkeep is told; a pass goes on to the next tenant. */
+  readonly log?: (event: string, detail: Record<string, unknown>) => void;
+  /** The assistant's budget upkeep for one tenant; only a test replaces it. */
+  readonly upkeep?: (tx: TenantScopedDatabase, now: Date) => Promise<BudgetUpkeepReport>;
+  /** The assistant's trace retention for one tenant; only a test replaces it. */
+  readonly traceUpkeep?: (
+    tx: TenantScopedDatabase,
+    now: Date,
+    daysOfTenant: (tenantId: string) => Promise<number>,
+  ) => Promise<TraceReapReport>;
 }
 
 async function* allTenantIds(owner: DatabaseHandle): AsyncGenerator<string> {
@@ -799,6 +891,50 @@ async function assertRolesAreRight(deps: ReapDeps): Promise<void> {
         'ODUDU_APP_DATABASE_URL names a SUPERUSER or BYPASSRLS role',
     );
   }
+}
+
+// The assistant's upkeep, after the retention pass has committed: the budget's,
+// then the trace's retention, each in a short transaction of its own for each
+// tenant. A failure of either is logged and counted once for that tenant and
+// costs no other tenant's work, nor the other half for that tenant.
+// It runs outside the reap lock, so another instance's upkeep may overlap this
+// one. That is safe: the sweep skips rows another transaction holds, and a prune
+// delete that waits on the other's rows gives up after the lock timeout, is
+// counted as failed for this pass and is taken by the next.
+async function upkeepEachTenant(deps: ReapDeps, now: Date): Promise<AssistantReapReport> {
+  const upkeep = deps.upkeep ?? upkeepBudget;
+  const traceUpkeep = deps.traceUpkeep ?? reapTrace;
+  let total = NO_UPKEEP;
+  for await (const tenantId of allTenantIds(deps.ownerDatabase)) {
+    const state = { failed: false };
+    const attempt = async <T>(event: string, work: Promise<T>): Promise<T | undefined> => {
+      try {
+        return await work;
+      } catch (error) {
+        state.failed = true;
+        deps.log?.(event, {
+          tenantId,
+          error: error instanceof Error ? error.message : 'unknown',
+        });
+        return undefined;
+      }
+    };
+    const budget = await attempt(
+      'assistant_upkeep_failed',
+      withTenant(deps.database.db, tenantId, (tx) => upkeep(tx, now)),
+    );
+    const trace = await attempt(
+      'assistant_trace_reap_failed',
+      withTenant(deps.database.db, tenantId, (tx) =>
+        traceUpkeep(tx, now, (other) =>
+          withTenant(deps.database.db, other, (otherTx) => traceRetentionDays(otherTx)),
+        ),
+      ),
+    );
+    total = addUpkeep(total, budget ?? NO_BUDGET, trace ?? NO_TRACE);
+    if (state.failed) total = { ...total, failed: total.failed + 1 };
+  }
+  return total;
 }
 
 /**
@@ -837,7 +973,13 @@ export async function reap(
     for (const table of REAP_ORDER) deleted[table] += tenantReport.deleted[table];
     clientPreviousSecrets += tenantReport.cleared.client_previous_secrets;
   }
-  return { ran: true, deleted, cleared: { client_previous_secrets: clientPreviousSecrets } };
+  const assistant = await upkeepEachTenant(deps, now);
+  return {
+    ran: true,
+    deleted,
+    cleared: { client_previous_secrets: clientPreviousSecrets },
+    ...(didAnything(assistant) ? { assistant } : {}),
+  };
 }
 
 // Reads its own configuration and opens its own connections, the way the
@@ -866,7 +1008,13 @@ export async function reapCommand(): Promise<ReapOutcome> {
 
   try {
     return await reap(
-      { database: runtime, ownerDatabase: owner },
+      {
+        database: runtime,
+        ownerDatabase: owner,
+        log: (event, detail) => {
+          process.stderr.write(`${JSON.stringify({ event, ...detail })}\n`);
+        },
+      },
       new Date(),
       retentionPolicyFromConfig(config),
     );

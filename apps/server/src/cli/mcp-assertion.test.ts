@@ -54,6 +54,7 @@ function capturing(): { assertions: string[]; fetch: typeof fetch } {
         issuerTenantName: 'acme',
         capabilities: [],
         crossTenant: false,
+        assistant_available: false,
       }),
     );
   };

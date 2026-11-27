@@ -21,7 +21,20 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [
-            { name: 'zod', test: /[\\/]node_modules[\\/]zod[\\/]|[\\/]src[\\/]zodConfig\.ts$/u },
+            {
+              name: 'zod',
+              // Not zod's mini build, which only the chat client of the assistant
+              // panel uses, and which is wanted when the panel is opened.
+              test: /[\\/]node_modules[\\/]zod[\\/](?!.*mini)|[\\/]src[\\/]zodConfig\.ts$/u,
+            },
+            {
+              // The modal every dialog is drawn in. Left to the default split it
+              // lands in the entry chunk or beside the shared page code
+              // depending on how many pages import it, which moved the entry
+              // past its budget when a list page was added.
+              name: 'dialog',
+              test: /[\\/]shared[\\/]ui[\\/](DialogFrame|dialogPresence)|react-aria-components[\\/]dist[\\/]private[\\/]Modal|react-aria[\\/]dist[\\/]private[\\/](overlays[\\/]useModalOverlay|utils[\\/]useViewportSize)/u,
+            },
           ],
         },
       },

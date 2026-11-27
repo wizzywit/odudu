@@ -29,6 +29,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
  from 
@@ -39,10 +40,24 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · acme
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Menu
 System
 Acting in 

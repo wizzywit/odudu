@@ -5,6 +5,8 @@ import { type AdminRequest, type AdminRouteHandler } from '#/view/routes/router'
 
 export interface WhoamiRouteDeps {
   callerCapabilities(issuerTenantId: string, subjectId: string): Promise<ReadonlySet<string>>;
+  // Whether the deployment has an assistant (a model resolved at start).
+  readonly assistantAvailable: boolean;
 }
 
 // `callerCapabilities` returns every admin-client role the caller holds,
@@ -34,6 +36,7 @@ export function whoamiHandler(deps: WhoamiRouteDeps): AdminRouteHandler {
       issuerTenantName: principal.issuerTenantName,
       capabilities: [...capabilities].filter((c) => ADMIN_CAPABILITY_VOCABULARY.has(c)).sort(),
       crossTenant: principal.issuerTenantId !== targetTenantId,
+      ...(principal.agent === undefined ? { assistant_available: deps.assistantAvailable } : {}),
     });
   };
 }

@@ -1,0 +1,156 @@
+---
+title: The assistant in the console
+description: Ask the assistant about a tenant or from a record's button, approve or refuse its changes, and reopen, archive, export or delete conversations.
+sidebar_position: 18
+---
+
+import { ConsoleShot } from '@site/src/shared/ui/ConsoleShot';
+
+# The assistant in the console
+
+The assistant is a panel that opens beside any page of the console. You ask a question in plain words, and it reads what it needs from the tenant, as you could, and answers. It is not an area with a menu entry. It needs the `use-assistant` capability. A system administrator who is looking at another tenant has it there too, in Ask mode only, when they also hold `manage-tenants` ([below](#4-in-another-tenant)).
+
+The button is **Ask the assistant**, in the menu and, on a narrow screen, in the top bar, where it reads **Ask** to leave room for the name of the tenant and the menu button. It is drawn only where the server has the assistant switched on, the tenant offers it and you may use it. Where any of those is not true there is no button, no shortcut and nothing asked of the server. The tenant's own switch and limits are in [Settings](./settings.mdx), under **Console assistant**.
+
+<ConsoleShot
+  name="assistant-panel"
+  alt="The Tenants page of the system tenant with the assistant’s panel open beside it: Conversations and New conversation buttons under the title, the mode switch set to Ask with Act beside it and a sentence about what Act leaves to you, a notice naming where messages are sent and who can read the conversation, a short description of what the assistant can read, and a message field with a Send button."
+  caption="The panel opens beside the page, with a notice the first time it is used."
+/>
+
+## 1. Open it
+
+Choose **Ask the assistant**, or press Command and K on a Mac, Control and K elsewhere. The panel takes the focus to its heading, so a screen reader starts at the top, and the message field is one Tab away. Escape or **Close** puts the panel away and the focus goes back to whatever opened it. Putting it away does not end an answer that is being written: the answer goes on, and is there when you open the panel again. Opened again, it comes back to the conversation you had, and after a reload it reopens your latest one with its messages ([section 7](#7-your-conversations)). **New conversation**, under the title, starts one when no answer is being written.
+
+Where the console is wide enough, the panel has a column of its own beside the page and stays there as you move between pages. Where it is not, the panel lies over the page as a dialog: the page behind it is out of reach, Tab stays inside it, and on a phone it fills the screen.
+
+<ConsoleShot
+  name="assistant-panel-phone"
+  alt="The assistant’s panel on a phone, filling the screen: the same Conversations and New conversation buttons, mode switch, notice, description and message field in one column, with Close at the top right."
+  caption="On a phone the panel fills the screen and the page behind it is out of reach."
+/>
+
+The first time you use it in a browser, a notice says where your messages go and who can read the conversation. It names the provider that receives your messages and the tenant data the assistant reads to answer them, or, for a model your operator runs, the host that does. It says that you can read the conversation again later, and that people who can read the tenant's audit trail can read it too unless an administrator has turned that off in Settings. Choose **Got it** and it does not come back in that browser. Where a browser cannot remember that, the notice shows again.
+
+## 2. Ask a question
+
+Type in the message field and press Enter. Shift and Enter start a new line. Next to the field a chip says where you are, such as `client my-app` on a client's page: that is sent with your first message, as the address of the page and, on a page of one record, its kind and id, and never as text you typed. The assistant can read what you can read there: clients, subjects, roles, settings and the audit trail.
+
+The conversation starts with your first message, not when the panel opens, so opening it and closing it again costs nothing. Your words appear as you typed them. The answer appears as it is written, with emphasis, lists, code and tables. A table that is wider than the panel scrolls sideways inside the answer, with the arrow keys once you have tabbed to it, and the page does not move. A link to a console page stays a link; any other address is shown as text, and an image is not shown, since an answer can carry text a tenant wrote.
+
+### Start from a screen
+
+Two screens carry a button of their own, drawn only where the assistant is. A person's record has **Why can’t they sign in?**, and a client's record has **Review with the assistant**. Choosing one opens the panel on a new conversation for that task, with its question ready in the message field and the chip naming the task beside the one that names the page. It sends nothing: the question is yours to read, change and send. The task makes the assistant read the few things that answer it. For a person that is the account, any lockout, the actions the next sign-in still asks for, the sessions, and the roles and groups. For a client it is its redirect addresses, grants, PKCE and scopes.
+
+<ConsoleShot
+  name="assistant-task"
+  alt="The record of ada, a person of the demo tenant, seen by a system administrator, with the button Why can’t they sign in? beside the name and the assistant’s panel open beside it: a tag reading Acting in demo, the first-run notice, and a message field that already holds the question Why can’t this person sign in?, with chips naming the page, subject, and the task above it."
+  caption="The button on a person’s record opens the assistant with its question ready to send."
+/>
+
+A task only reads, so **Act** is not offered in its conversation, and a conversation about a task keeps its name, which the panel shows when you open it again. Another click on the button starts another new conversation. It ends an answer still being written in the one before it, which stays in **Conversations**, and says so above the field. A message you had begun typing is kept as it is and the question is not filled in over it; the question goes into an empty field only. **New conversation** goes back to an open question.
+
+## 3. Ask and Act
+
+**Ask** is the mode: the assistant reads and explains, and changes nothing. **Act** lets it propose changes, and it never makes one on its own. Each change it wants to make appears as a card in the answer, and nothing is changed until you approve it.
+
+Every conversation starts in Ask, whatever the tenant's own setting says. Choose **Act** on the **Mode** switch before you send the first message, or switch a conversation that has already started. The switch is still while an answer is being written, and a conversation that cannot take a message, such as an archived one, cannot be switched. Where the tenant does not offer Act the switch is not drawn, and in another tenant Act is offered only where both tenants offer it ([section 4](#4-in-another-tenant)).
+
+The card is built from what the server stored of the change when the assistant proposed it, not from the assistant's own words about it. It shows, in this order:
+
+- what the change is, in plain words, such as "Create a group";
+- what it touches: the kind and the name, and the id, which you can copy;
+- exactly what would change, field by field, with each value now beside its value after. Whether a field is added, removed or changed is written on its row as well as drawn, and on a narrow panel the two values stack, now above after;
+- for a change that replaces a list, the names it adds and the names it removes, each shown whole and under a heading that says which, with a count; a change whose names do not fit is not proposed;
+- who decides: **You, as** and your username, with a note that this is your decision and the assistant cannot answer it;
+- the time left, counted by the server's clock and not your computer's. A screen reader is told once when a minute is left and once at expiry, and never every second.
+
+**Approve** and **Refuse** are the only two ways to answer, and neither one has the focus when the card appears. A new card is announced once in the status line as **Approval needed:** with its title, and does not take the focus; **Jump to approval**, under the conversation, moves you to it when you want. While a change waits, the message field gives way to the card, since a new message would withdraw the change; what you had typed is kept.
+
+Approving makes the change as you, with your own access, and the assistant carries on with its answer. Refusing changes nothing: the card says so, and the assistant is told you refused. Either way the buttons give way to what was decided, and the card stays in the answer as the record of it. When the time runs out the card says **Expired** and its buttons go; waiting never approves anything. If the server says the change was already decided or has expired, the card says that in an alert and offers no second try, and the same goes for a sign-in that may not decide it, since only your own console sign-in can. How much a card asks of you is decided by the server from the change and what it touches, never by the assistant, and the card says it. A change that only adds or alters something you can alter back is answered on the card. A change that removes something, which the server marks tier B, asks once more before the approval is sent. A change of who can sign in, of what a token carries or of what goes live, tier C, asks you to type the name the card names before the approval is sent, and the server refuses an approval that does not carry exactly that text. A change that would reach an administrator capability, change an administrator, a built-in client or the session the conversation depends on is never proposed: the assistant says so, and you make it in the console yourself. When what an approved change replaces has changed since the card was drawn, nothing is made: the approval is closed as not run, the audit record says the state moved, and the assistant is told to read the target again.
+
+A card appears once for each change, and several changes in one answer are decided one at a time, never together. There is no way to approve ahead of a change or to let the assistant make a kind of change without asking. Reopen the conversation later and each change shows what became of it, approved or not approved, without the field-by-field detail, which the server hands out only while the change waits. Every decision is recorded in the audit trail ([Consent and audit](../concepts/consent-and-audit.mdx)).
+
+## 4. In another tenant
+
+A system administrator who has opened another tenant, such as `demo` while signed in to `system`, sees **Ask the assistant** there when they hold both `use-assistant` and `manage-tenants`, the server has the assistant on, and `demo` has not switched it off. The tenant's own administrators are unaffected, and an administrator without `manage-tenants` is offered nothing in another tenant.
+
+<ConsoleShot
+  name="assistant-panel-other-tenant"
+  alt="The demo tenant’s Clients list, seen by a system administrator, with the assistant’s panel open beside it: the Conversations and New conversation buttons, a tag reading Acting in demo, the mode switch set to Ask with Act available, and a notice saying that the administrator’s own tenant pays and the demo tenant’s administrators see actions, not text."
+  caption="In another tenant the panel names it, and Act makes its changes there."
+/>
+
+The panel says where it acts for as long as it is open, in a tag at the top: `Acting in demo`. The assistant reads what you can read in that tenant, with your own authority, which the server checks on every call, so a role removed from you in the middle of a conversation takes effect on the next step. Every conversation starts in Ask.
+
+Choose **Act** and the panel says where it will make changes: “Act makes changes in demo, not in your own tenant.” Each card then names the tenant in its first line, “Change in demo waiting for your approval”, and in a **Tenant** row at the top, so you see where a change lands before you approve it. A change that removes something asks once more, and that question names the tenant too. Approving is still your decision alone, from your own sign-in, and the change is made as you in `demo`, with the access the server checks there. If `demo` does not offer Act, the switch says so (“demo does not offer Act, so this conversation stays in Ask.”) and the conversation stays in Ask; a conversation already in Act drops back to Ask at its next message if `demo` stops offering it. The decision is in your audit trail and, once approved, in `demo`'s too, naming you, the tool and the approval and never the conversation.
+
+A few things differ from your own tenant, and the first-run notice for another tenant, which is remembered apart from the other one, says them.
+
+- Your own tenant pays. The conversation, its allowance and its record belong to your own tenant. The tenant's switch, its masking of email addresses and its Act setting apply as well as your tenant's, and the stricter of the two wins.
+- They see actions, not text. The administrators of `demo` can see in their audit trail that you used the assistant there and which tools it ran, and never what you wrote or what it answered.
+- The conversation is separate. A conversation made in `demo` is not offered in `system`, or in another tenant.
+
+If the assistant cannot be used there, the panel says why in plain words. The tenant, or your own, has switched it off: “The assistant is not available in demo. demo may have switched it off, or your own tenant has.” You no longer hold what the server asks: “You need use-assistant and manage-tenants to use the assistant in demo. Ask an administrator of your own tenant.” A tool the server refuses mid-answer is listed in the answer as **Refused**.
+
+## 5. Watch it work
+
+Under the conversation one short line says what the assistant is doing: **Connecting** while the server takes your message, **Thinking** while it works out an answer, the step it is on while it reads (**Listing clients**), **Waiting for you**, **Stopped** or **Finished**. A failure is shown in a notice of its own, not on that line. A screen reader is told when that line changes, and never hears the words of the answer as they are written. Each step the assistant took is listed in its answer as a short phrase, such as **Listing clients** or "Checking lockout state", with what became of it (running, done, failed, waiting for you or refused) and, once the panel has watched it finish, how long it took. A step the panel did not watch, such as one in a conversation you reopen, shows no time. The list is open while the answer is being written or waits for you, and is put away once the answer is finished: **Show steps** brings it back and **Hide steps** puts it away again. A step that failed or was refused stays in view when the list is put away. **Show the call** on a step opens the call as it was sent, the tool and the arguments the assistant gave it and the error it ended in, so you can see what it asked for. The result is not shown there, since it is the tenant's data and the answer says what it found.
+
+**Stop** takes the place of **Send** for as long as an answer is being written, and the message field keeps the focus, so you can go on typing the next question. Choosing **Stop** ends the answer here and on the server, which stops the spend, and says so: **Stopped. Nothing further was run.** Stop is the only thing that ends an answer: putting the panel away does not, and leaving the console does.
+
+## 6. Read why it stopped
+
+An answer ends in one of a few ways, and the panel names which.
+
+- **Finished.** The answer is complete.
+- **Stopped at the step limit.** One answer may take only so many model and tool calls, which [Settings](./settings.mdx) names. Ask again, with a narrower question, to carry on.
+- **Stopped: allowance used.** The assistant has four limits: the tenant's month for the model, your share of one day, one conversation's month and one answer. The panel names the one that was reached, in the server's words, which say what resets it and who can change it. The assistant never falls back to a cheaper model. A conversation or an answer that reached its own limit has no setting; start a new conversation or ask a narrower question.
+- **Stopped**, with a note that the connection closed before the answer finished. The stream ended without saying how the answer ended, as when a proxy cut it. What was written is kept, and nothing is claimed as finished.
+- **Failed.** The panel says in plain words what could not be done, and gives the request's own reference to copy when it has one, for whoever looks into it. It never shows an error's stack.
+
+The panel says nothing about your allowance until the server does. When a limit passes 80 percent during an answer, a line at the top says how much of which limit is used and what happens at the limit, and when one is reached it names it. Both stay until an answer ends well. The server sends the share at which it warned and not a running count, so the panel shows no more than that.
+
+## 7. Your conversations
+
+**Conversations**, under the title, shows every conversation of yours in this tenant, newest first, under **Today**, **Yesterday**, **Earlier this week** and **Earlier**. The list takes the panel's whole height and slides in over the conversation, which stays where it was, so an answer that is being written goes on behind it. **Back**, or Escape, returns to it. Each row is one line: the title, when the conversation was last active, its mode, and, when you are acting in another tenant, the tenant's name. The conversation that is open is marked. A title is made from the first thing you asked, with addresses, links, long numbers and anything that looks like a secret taken out. Use the arrow keys to move through the rows, Enter to open one, and type a few letters of a title to jump to it.
+
+<ConsoleShot
+  name="assistant-conversations"
+  alt="The assistant’s panel showing Your conversations, with Back and New conversation at the top and three conversations under the heading Today, each named Untitled conversation, with when it was last active, an Ask tag and an Actions button on its right."
+  caption="Your conversations, newest first, grouped by day; the one that is open is marked."
+/>
+
+On a phone the list is the same, and **New conversation** shortens to **New**.
+
+<ConsoleShot
+  name="assistant-conversations-phone"
+  alt="The same list of conversations on a phone, filling the screen: Back, the heading and a short New button at the top, and each conversation named Untitled conversation on one line with its time, its Ask tag and Actions."
+  caption="On a phone the list takes the panel’s whole height, and its rows stay one line each."
+/>
+
+A conversation belongs to one tenant: the list shows the conversations you had in the tenant you are looking at, and a system administrator acting in another tenant sees that tenant's own list.
+
+Opening: The panel opens on your latest conversation that is not archived, with its messages, and after a reload or a new sign-in does the same. Choose a row to open another. If an answer is still being written, a note asks whether to **Stop and switch**, which ends the answer here and on the server and then opens the one you chose, or **Keep waiting**, which leaves everything as it was. Choosing the conversation that is already open just takes you back to it.
+
+Row actions: **Actions**, on each row, opens a menu.
+
+- **Archive** hides the conversation at once and offers **Undo** for as long as you stay in the list. Nothing is removed. An **Archived** section at the foot of the list, with its count, holds what you hid; open one and the composer is replaced by a note and **Restore**.
+- **Export as Markdown** and **Export as JSON** save the conversation as a file: its first 500 messages, with secrets hidden, and the names of the tools an answer called but not what they were given or returned. Each export is recorded in the audit trail as an action, never with the text.
+- **Delete** asks first, naming the conversation. Its messages, its steps and its approval cards are removed and cannot be brought back, and the server keeps a record, without any text, that a conversation was deleted. **Delete conversation** is refused in plain words while an answer is running in it, and for a conversation that was reported, which is kept for review: you can archive it, and its menu shows **Delete** dimmed with the reason. A reported conversation carries a **Reported** tag.
+
+Carrying a conversation on after you sign in again: Send a message to an older conversation and it carries on, with its messages kept. The server makes a new grant for it from the sign-in you hold now, with the access you have now and nothing from the earlier one, and ends the old grant. The assistant is told that what its tools returned earlier was read under an earlier sign-in and may be out of date, so it reads again before relying on it. This works for a conversation that is yours and not archived, where your earlier sign-in ended because you signed out or it lapsed. In another tenant it also needs you to still hold `manage-tenants` and `use-assistant`, and that tenant to still offer the assistant.
+
+Some conversations stay read-only. One that is archived shows a note and **Restore**; restore it, then send again. One whose sign-in was ended for another reason than your signing out, such as a refresh token used twice or an administrator ending the session, is never revived by a later sign-in: the panel says so in place of the message field and offers **Start a new conversation**. If the server cannot carry one on with the sign-in you hold now (the assistant is switched off, or you no longer have the access it needs), the panel says that nothing was sent and keeps the message field. Nothing is lost in any of these cases: the conversation can still be read, exported and deleted.
+
+If the assistant is switched off meanwhile: When an administrator turns the assistant off for the tenant while a conversation is running, a tool's next call is refused and the panel says so, in a note under the conversation: the assistant was switched off, nothing further was run, and an administrator can switch it on again. What was already said is kept.
+
+A conversation is removed after it has had no new message for the number of days the tenant sets under **Keep traces for** in [Settings](./settings.mdx), 30 by default, and shortening it applies at the next pass of `odudu reap`. The list says so in a line under it, without the number, because the number is the administrators' to read. [The assistant's trace](../operating/assistant-trace.md) has the detail.
+
+## Things that cannot be undone
+
+**Stop** cannot take back what has been sent. The request to the model provider is made as soon as you send a message, and what the provider has received stays with it. A step that has already run has run; in Ask mode every step only reads, and a change you approved in Act is made and recorded, and is undone only by changing it back. The conversation is recorded, so putting the panel away does not delete it: it stays readable to you and to those the first-run notice names. Deleting it yourself, from **Conversations**, removes its text for good; archiving only hides it.
+
+## Do the same through the API
+
+The conversation, its messages and its stream are in the [assistant area of the admin API](../reference/generated/admin-api/assistant/index.md): starting a conversation sends the page you are on, a message is answered as a stream, a turn is stopped with its own call, and the mode is switched with another. The changes waiting for your decision are listed with `GET .../approvals`, one is decided with `POST .../approvals/<id>` (only your own console sign-in may decide, and an agent's token is refused), and `POST .../resume` carries the answer on once it is decided. The list, the latest conversation, hiding, exporting and deleting are routes of your own conversations that answer for you and for nobody else, and the panel's **Conversations** uses them. The console reads the stream through the same gateway as every other call, so it carries the same session and the same refusals.

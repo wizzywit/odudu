@@ -568,3 +568,5 @@ A tenant holds at most 10,000 keys that have not expired, past which a new key i
 shown here, since which of them meets the other is a matter of timing: the one that arrives while the first runs is
 answered `409` (`about:blank#idempotency-in-flight`), and the next is replayed. A stored response is a copy of the one sent, kept 24 hours; it can hold subject data and erasing the subject does not purge it; the integration tests hold a call
 open to show it. [Retention](../request-paths/retention-what-odudu-reap-removes.md) shows the keys being deleted.
+
+The lists of admin capabilities in this page's blocks keep their capture from before the three assistant capabilities (`use-assistant`, `read-assistant-activity` and `manage-assistant`) joined the built-in roles, and were not run again: a server now answers each of them with the three added, and with thirteen built-in roles of `odudu-admin` where a role list is shown.

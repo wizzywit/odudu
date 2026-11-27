@@ -11,6 +11,7 @@ import { render } from '@testing-library/react';
 import { NavigationGuard } from '#/app/NavigationGuard';
 import { Providers } from '#/app/Providers';
 import { UnsavedGuardLayer } from '#/app/UnsavedGuardLayer';
+import { AssistantPanel } from '#/widgets/assistant-panel';
 import { SessionGate } from '#/widgets/session-gate';
 import { TenantShell } from '#/widgets/shell';
 import { createReadCache } from '#/shared/lib/repository/readCache';
@@ -36,7 +37,10 @@ export function mountGuardedPage(routes: Record<string, Answer>, page: RouteComp
     path: '$tenant',
     component: function Tenant() {
       return (
-        <TenantShell tenant={tenant.useParams().tenant}>
+        <TenantShell
+          tenant={tenant.useParams().tenant}
+          renderAssistantPanel={(slot) => <AssistantPanel {...slot} />}
+        >
           <Outlet />
         </TenantShell>
       );

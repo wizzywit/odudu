@@ -10,6 +10,7 @@ from attrs import define as _attrs_define
 from ..models.get_admin_tenants_tenant_whoami_response_200_capabilities_item import (
     GetAdminTenantsTenantWhoamiResponse200CapabilitiesItem,
 )
+from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="GetAdminTenantsTenantWhoamiResponse200")
 
@@ -27,6 +28,9 @@ class GetAdminTenantsTenantWhoamiResponse200:
             reported as the capabilities it carries.
         cross_tenant (bool): True when the caller’s tenant is not the tenant in the path, which only a holder of
             `manage-tenants` may be.
+        assistant_available (bool | Unset): True when this deployment resolved a standard model for the console
+            assistant, which is when its settings routes are served. False, they answer as a path that was never served.
+            Left out of the answer to an AI agent’s token.
     """
 
     subject_id: str
@@ -34,6 +38,7 @@ class GetAdminTenantsTenantWhoamiResponse200:
     issuer_tenant_name: str
     capabilities: list[GetAdminTenantsTenantWhoamiResponse200CapabilitiesItem]
     cross_tenant: bool
+    assistant_available: bool | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         subject_id = self.subject_id
@@ -49,6 +54,8 @@ class GetAdminTenantsTenantWhoamiResponse200:
 
         cross_tenant = self.cross_tenant
 
+        assistant_available = self.assistant_available
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -60,6 +67,8 @@ class GetAdminTenantsTenantWhoamiResponse200:
                 "crossTenant": cross_tenant,
             }
         )
+        if assistant_available is not UNSET:
+            field_dict["assistant_available"] = assistant_available
 
         return field_dict
 
@@ -83,12 +92,15 @@ class GetAdminTenantsTenantWhoamiResponse200:
 
         cross_tenant = d.pop("crossTenant")
 
+        assistant_available = d.pop("assistant_available", UNSET)
+
         get_admin_tenants_tenant_whoami_response_200 = cls(
             subject_id=subject_id,
             issuer_tenant_id=issuer_tenant_id,
             issuer_tenant_name=issuer_tenant_name,
             capabilities=capabilities,
             cross_tenant=cross_tenant,
+            assistant_available=assistant_available,
         )
 
         return get_admin_tenants_tenant_whoami_response_200

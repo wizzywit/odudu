@@ -10,7 +10,7 @@ import {
 } from '#/service/admin-capabilities';
 
 describe('admin capabilities', () => {
-  it('names the nine per-tenant capabilities', () => {
+  it('names the twelve per-tenant capabilities', () => {
     expect([...TENANT_CAPABILITIES]).toEqual([
       'view-users',
       'manage-users',
@@ -21,6 +21,9 @@ describe('admin capabilities', () => {
       'view-audit',
       'view-domains',
       'manage-domains',
+      'use-assistant',
+      'read-assistant-activity',
+      'manage-assistant',
     ]);
   });
 

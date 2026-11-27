@@ -19,6 +19,7 @@
     "@fastify/formbody": "9.0.2",
     "@odudu-io/mcp-stdio": "workspace:*",
     "@odudu/account": "workspace:*",
+    "@odudu/assistant": "workspace:*",
     "@odudu/authn-flows": "workspace:*",
     "@odudu/console-gateway": "workspace:*",
     "@odudu/contracts": "workspace:*",

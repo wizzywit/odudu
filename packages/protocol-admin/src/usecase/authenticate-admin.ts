@@ -18,6 +18,8 @@ export interface AdminPrincipal {
   // The name of that tenant, as the token's issuer resolved it.
   readonly issuerTenantName: string;
   readonly clientDbId: string;
+  // The grant the token was issued under, which an agent instance is derived from.
+  readonly grantId?: string;
   // The token's `scope` claim, split; empty when it carries none.
   readonly scopes: readonly string[];
   // Present when the token was minted for an AI agent acting for `subjectId`.
@@ -34,6 +36,12 @@ export interface AdminAgent {
   // Set when the owner is the client's own service account: no person signed in to
   // that grant, so nothing counts what it creates against anybody's sign-in.
   readonly ownerIsServiceAccount?: true;
+  // Set when the grant belongs to the built-in assistant client, which the door
+  // admits to writes of its own beside the ones every agent may make.
+  readonly assistant?: true;
+  // The tenant the grant names, set only when the grant belongs to the built-in
+  // assistant client: no other client's grant is read for a target.
+  readonly assistantTarget?: string;
 }
 
 // A genuine token from another tenant of this deployment, presented at a
@@ -64,6 +72,7 @@ export interface ClientState {
   readonly enabled: boolean;
   readonly builtinMcp: boolean;
   readonly builtinAdmin: boolean;
+  readonly builtinAssistant: boolean;
   // The client's service account, when it has one.
   readonly serviceSubjectId?: string | null;
 }
@@ -387,6 +396,7 @@ export async function authenticateAdmin(
     issuerTenantId: matched.id,
     issuerTenantName: matched.name,
     clientDbId: grant.clientId,
+    grantId: grant.id,
     scopes: claims.scopes,
   };
   if (!isAgent) return { kind: 'authenticated', principal: base };
@@ -408,6 +418,10 @@ export async function authenticateAdmin(
         ...(claims.endpointMinted ? { viaEndpoint: true as const } : {}),
         ...(client.serviceSubjectId === payload.sub
           ? { ownerIsServiceAccount: true as const }
+          : {}),
+        ...(client.builtinAssistant ? { assistant: true as const } : {}),
+        ...(client.builtinAssistant && grant.targetTenantId !== null
+          ? { assistantTarget: grant.targetTenantId }
           : {}),
       },
     },

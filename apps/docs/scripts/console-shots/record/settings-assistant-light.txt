@@ -1,0 +1,515 @@
+@layer {
+  [data-react-aria-pressable] {
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+}
+Odudu console
+Skip to content
+odudu · demo
+Overview
+Identity
+Subjects
+Groups
+Roles
+Applications
+Clients
+Scopes
+Registration tokens
+Security
+Sign-in flow
+Signing keys
+Sessions
+Agents
+Tenant
+Settings
+Branding
+Email
+Domains
+Export
+Observe
+Audit trail
+Assistant activity
+Signed in as 
+admin@odudu.local
+ from 
+system
+Theme
+System
+Light
+Dark
+Switch tenant
+Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Collapse menu
+or press 
+[
+odudu · demo
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
+Menu
+System
+Acting in 
+demo
+ with system authority
+Back to system
+demo
+Settings
+How this tenant signs people in, what it asks of their passwords, and how long it keeps what it records. Every section saves on its own.
+Tenant
+General
+Terms
+Profile
+Sign-in
+Usernames
+Registration and recovery
+Authenticators
+Passkey requirement
+Password policy
+Brute force
+Sessions and tokens
+Sessions
+Remember me
+Token lifetimes
+Applications
+Client registration
+Agents
+Records
+Audit retention
+Assistant
+Console assistant
+General
+What this tenant's own pages call it, and whether it is in service.
+Display name
+Leave it empty to use the tenant name.
+Enabled
+On
+Off stops every sign-in in this tenant. Saving it off asks you to type the tenant name first.
+Terms
+The terms a person accepts when asked to. Setting them asks nobody: an administrator asks a person from the Required actions tab of their record, and again when the terms change.
+Terms address
+An https address, or http to this machine, with no fragment. Leave it empty for no terms.
+Terms version
+Up to 64 characters. A person accepts one version. Changing it asks nobody again by itself.
+Profile
+What a person has to fill in when their sign-in asks them to complete their profile. The page lists every field a person can edit and marks these; the others stay optional.
+Required profile fields
+Name
+Full name
+Given name
+Family name
+Middle name
+Nickname
+Preferred username
+On the web
+Profile page
+Picture address
+Website
+About the person
+Gender
+Birthdate
+Time zone
+Language
+Contact
+Phone number
+Address
+Address
+Street
+City
+Region
+Postal code
+Country
+Choose none and the page is only reviewed and submitted. Full name or given and family name are the usual ones to ask for.
+Usernames
+How a person is named, and what they type to sign in.
+Usernames can be renamed
+Off
+An administrator may change a subject’s username.
+Sign in with a verified email address
+Off
+The sign-in form takes a verified email address in place of a username.
+Registration and recovery
+Whether people can create an account and get back into one themselves.
+Self-registration
+Off
+Anybody may create an account on the sign-in page.
+Verify email addresses
+Off
+The account is created when the person confirms their address from a mail.
+Verification link lifetime
+h
+▾
+s
+min
+h
+d
+A verification link stops working after this long. Allowed: 1 minute to 7 days.
+Username at registration
+Required
+▾
+Whether the registration form asks for a username. Optional and Generated need both “Sign in with a verified email address” and “Verify email addresses” on, and keep them on; Generated asks for no username at all and assigns one. The server refuses the change otherwise.
+Required
+Optional
+Generated
+Password reset by mail
+Off
+A person who forgot their password may ask for a reset link.
+Reset link lifetime
+min
+▾
+s
+min
+h
+d
+A reset link stops working after this long. Allowed: 1 minute to 1 day.
+Authenticators
+What a new authenticator app, passkey or recovery set is made with. One already enrolled keeps the values it was made with.
+Authenticator app
+Algorithm
+SHA1
+▾
+SHA1 works in every authenticator app.
+SHA1
+SHA256
+SHA512
+More
+A person’s app must support another algorithm, digit count and period before they can use it; the enrolment page says so.
+Code length
+6 digits
+▾
+6 digits
+8 digits
+Code period
+30 seconds
+▾
+30 seconds
+60 seconds
+Passkeys
+User verification
+Required
+▾
+Whether a new passkey checks the person with a PIN or biometric.
+Required
+Preferred
+Discouraged
+More
+A passkey made without it signs in as one factor, so a second factor is still asked for.
+Stored on the device
+Required
+▾
+A passkey that is not stored on the device cannot sign in a person who has not typed a username.
+Required
+Preferred
+Discouraged
+Recovery codes
+Codes in a set
+codes
+A set already issued keeps its size. Allowed: 8 to 16 codes.
+Warn when fewer than
+codes
+An application can then ask the person to issue a new set. 0 turns the warning off. Allowed: 0 to 10 codes.
+More
+The list of a person’s credentials, which an application reads for them, flags a person with fewer unspent recovery codes than this.
+Passkey requirement
+Whether sign-in asks everyone for a passkey. A person without one is asked to add one at their next sign-in and cannot skip it.
+Require a passkey
+Off
+Sessions already open are not touched.
+More
+Does nothing where the deployment has no public base URL, or one that is an IP address, unless the tenant has a domain of its own: nobody is asked. Turning this off does not clear an action already owed; clear it on the person’s record.
+Password policy
+What a password must satisfy when somebody sets or changes one.
+Length and complexity
+Minimum length
+characters
+Allowed: 8 to 256 characters.
+Require a digit
+Off
+Require an uppercase letter
+Off
+Require a lowercase letter
+Off
+Require a special character
+Off
+Must not contain
+Refuse the username
+On
+Refuse the email address
+On
+Reuse and age
+Passwords remembered
+passwords
+A new password may not repeat one of this many before it. 0 remembers none. Allowed: 0 to 24 passwords.
+Password lifetime
+days
+A password older than this has to be changed. 0 never expires one. Allowed: 0 to 3650 days.
+Breached passwords
+Check against known breaches
+Dataset loaded on the server
+▾
+A new password that passed the rules above is refused if it is known from breaches.
+Off
+Dataset loaded on the server
+Remote range lookup
+More
+The dataset is the hash list an operator loaded into the server, and nothing leaves it. Remote asks a range service for the first five characters of the SHA-1 hash and nothing else. Off skips the check, and the audit trail records that.
+When a remote lookup fails
+Accept the password
+▾
+Applies to the remote lookup only.
+Accept the password
+Refuse it and ask to try again
+Brute force
+When repeated wrong passwords or wrong second-factor codes lock an account, and for how long.
+Failures before a lockout
+failures
+Allowed: 1 to 100 failures.
+First lockout
+min
+▾
+s
+min
+h
+d
+How long the first lockout lasts. At most the longest lockout. Allowed: 1 second to 1 day.
+Longest lockout
+min
+▾
+s
+min
+h
+d
+Lockouts grow with each repeat, up to this.
+Failures forgotten after
+h
+▾
+s
+min
+h
+d
+Failures this old stop counting toward a lockout. Allowed: 1 minute to 30 days.
+Clear all lockouts
+Forgets every failed sign-in on record in this tenant at once, for accounts that are locked and for accounts still counting toward a lockout. One account’s lockout is cleared on that subject’s own page.
+Clear all lockouts
+Sessions
+How long a sign-in lasts, and how long a person has to finish one.
+Idle timeout
+min
+▾
+s
+min
+h
+d
+A session ends after this long without activity. At most the maximum. Allowed: 1 minute to 30 days.
+Maximum lifetime
+h
+▾
+s
+min
+h
+d
+A session ends this long after sign-in, however active it has been. Allowed: 1 minute to 30 days.
+Sessions per browser
+sessions
+How many sessions one browser may hold at once. Allowed: 1 to 32 sessions.
+Time to finish a sign-in
+min
+▾
+s
+min
+h
+d
+A sign-in left unfinished this long has to be started again. Allowed: 1 minute to 1 day.
+Recent sign-in window
+min
+▾
+s
+min
+h
+d
+How recently a person must have signed in to change something sensitive. Allowed: 30 seconds to 1 hour.
+More
+A person must have signed in this recently to change their address or username, end all their other sessions, withdraw a consent or remove an authenticator.
+Remember me
+A longer session for a person who asks to stay signed in.
+Offer remember me
+Off
+The sign-in page shows the choice only while this is on.
+Idle timeout
+d
+▾
+s
+min
+h
+d
+Without activity this long, a remembered session ends. At most the maximum. Allowed: 1 minute to 365 days.
+Maximum lifetime
+d
+▾
+s
+min
+h
+d
+A remembered session ends this long after sign-in. Allowed: 1 minute to 365 days.
+Token lifetimes
+What a client gets unless it carries lifetimes of its own.
+Access token
+min
+▾
+s
+min
+h
+d
+Allowed: 1 second to 1 hour.
+ID token
+min
+▾
+s
+min
+h
+d
+Allowed: 1 second to 1 hour.
+Refresh token
+d
+▾
+s
+min
+h
+d
+Allowed: at least 1 second.
+Authorization code
+min
+▾
+s
+min
+h
+d
+A client has this long to trade a code for tokens. Allowed: 1 second to 10 minutes.
+Client registration
+How applications become clients of this tenant: by registering themselves, or by naming a metadata document.
+Policy
+Closed: only an administrator creates clients
+▾
+Closed: only an administrator creates clients
+With a registration token
+Open: any application may register
+MCP clients: public clients of the MCP server may register
+Accept client metadata documents
+Off
+A client may use an HTTPS address as its client_id, and the document served there describes it. Works under any policy; the MCP audience is granted only under the MCP policy.
+Most clients
+clients
+The most clients an administrator or a registration token can make. Clients that register themselves have limits of their own. Allowed: at least 0 clients.
+Agents
+The limits on agent instances and on what an agent may write under a person’s grant.
+Instances
+Delegation depth
+levels
+How many instances deep one delegation may go. Allowed: 1 to 8 levels.
+Children per instance
+instances
+How many live child instances one instance may have. Allowed: 1 to 200 instances.
+Live instances
+instances
+How many instances the tenant may hold at once. Allowed: 1 to 100000 instances.
+Instance lifetime
+min
+▾
+s
+min
+h
+d
+An instance ends this long after it is made, never after its owner’s session. Allowed: 1 minute to 1 day.
+Instance idle timeout
+min
+▾
+s
+min
+h
+d
+An instance ends after this long without a call, never after its owner’s session. Allowed: 1 minute to 1 day.
+Approvals
+Approval lifetime
+min
+▾
+s
+min
+h
+d
+A person has this long to approve one action an agent asked to take. Allowed: 1 minute to 15 minutes.
+Writes
+Writes per grant
+writes
+How many writes an agent may make under one grant, creates included. Allowed: 1 to 1000 writes.
+Creates per grant
+creates
+How many of those writes under one grant may create something. Allowed: 1 to 1000 creates.
+Writes per day
+writes
+How many writes one agent type may make for one person in a 24-hour UTC window, across their sign-ins. Allowed: 1 to 100000 writes.
+Audit retention
+How long the audit trail is kept, and which events it records.
+Keep events for
+days
+Allowed: 1 to 3650 days.
+Events recorded
+Changes by administrators
+Always recorded.
+Reads by administrators
+Always recorded.
+Sign-ins and refused sign-ins
+Sessions starting and ending
+Tokens issued and revoked
+Passwords, keys and codes set or changed
+Console assistant
+Whether this tenant’s administrators are offered the assistant, what it may do by default, what it keeps and how much it may spend. Every setting starts at a safe default.
+Availability
+Offer the assistant
+On
+Off refuses new conversations and messages for everyone in this tenant; what is already recorded stays, and can still be read. Default: on.
+Starts in
+Ask: the assistant only reads
+▾
+The mode a person starts in; they can switch it in the panel. Default: Ask.
+Ask: the assistant only reads
+Act: it may propose changes, each waiting for approval
+Privacy and records
+Mask email addresses
+Off
+An address in what the assistant reads is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. Default: off.
+Let auditors read conversation text
+Off
+People who can read assistant activity always see who used the assistant, when, which tools it called, the tokens it used and how each answer ended. This also lets them read what was asked and answered, and what the tools were given and returned; each such read is recorded in the audit trail (action assistant.text_read). Default: off.
+Keep traces for
+days
+How long a conversation is kept after its last message, with the step-by-step record of it: from 1 to 365 days. Default: 30 days. Allowed: 1 to 365 days.
+More
+A shorter setting takes effect at the next pass of the reaper, which removes what is then older. The audit trail keeps its own rows for as long as its retention says; a trace is the detail behind them and is the first to go.
+Limits
+Fast model, each month
+tokens
+Titles, summaries and small reads. Default: 2,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+More
+The assistant stops when a month’s allowance for a model is used, says which limit it reached, and never falls back to a cheaper model on its own. A call holds back up to about 132,000 tokens while it is in flight, so an allowance below about 150,000 refuses every answer and one below about 530,000 can refuse some.
+Standard model, each month
+tokens
+The main conversation. Default: 5,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+Deep model, each month
+tokens
+Planning and hard reasoning. Default: 1,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+Answers at once
+answers
+How many answers the tenant may have in progress together. Default: 5 answers. Allowed: 1 to 50 answers.
+Steps in one answer
+steps
+The most model and tool calls one answer may take before it stops. Default: 20 steps. Allowed: 1 to 100 steps.

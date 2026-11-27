@@ -31,6 +31,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
 Theme
@@ -39,10 +40,24 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · system
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Menu
 System
 System administrators
@@ -73,6 +88,9 @@ manage-sessions
 view-audit
 view-domains
 manage-domains
+use-assistant
+read-assistant-activity
+manage-assistant
 manage-tenants
 1 administrator
 admin@odudu.local
@@ -123,6 +141,15 @@ See the tenant’s domains and which one is its address.
 Carried by Full (tenant-admin).
 manage-domains
 Register, verify, switch to and remove the tenant’s domains. Carries view-domains.
+Carried by Full (tenant-admin).
+use-assistant
+Use the assistant panel, as yourself.
+Carried by Full (tenant-admin).
+read-assistant-activity
+Read the assistant’s conversations and traces.
+Carried by Full (tenant-admin).
+manage-assistant
+Switch the assistant on or off for the tenant and set its mode, masking and retention.
 Carried by Full (tenant-admin).
 manage-tenants
 Create, change and disable tenants, and act inside every one.

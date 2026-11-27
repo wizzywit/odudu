@@ -409,3 +409,35 @@ export async function subtreeAdminReach(
   const reached = await capabilitiesOfSubtree(tx, groupId);
   return ADMIN_CAPABILITIES.filter((name) => reached.has(name));
 }
+
+/** A record a change names, for the admin capabilities it reaches. */
+export type ReachTarget =
+  | { readonly kind: 'role' | 'group' | 'subject'; readonly id: string; readonly subtree?: boolean }
+  | { readonly kind: 'client'; readonly serviceSubjectId: string | null };
+
+/**
+ * What a change to `target` reaches of the admin capabilities, by the same
+ * queries the records' own `admin_reach` come from: through composites and group
+ * ancestors, and, for a removal of a group (`subtree`), its descendants. A
+ * client reaches what its service account holds; one with none reaches nothing.
+ */
+export async function targetAdminReach(
+  tx: TenantScopedDatabase,
+  target: ReachTarget,
+): Promise<readonly string[]> {
+  if (target.kind === 'client') {
+    if (target.serviceSubjectId === null) return [];
+    return (
+      (await adminReachOfSubjects(tx, [target.serviceSubjectId])).get(target.serviceSubjectId) ?? []
+    );
+  }
+  if (target.kind === 'role')
+    return (await adminReachOfRoles(tx, [target.id])).get(target.id) ?? [];
+  if (target.kind === 'subject') {
+    return (await adminReachOfSubjects(tx, [target.id])).get(target.id) ?? [];
+  }
+  const own = (await adminReachOfGroups(tx, [target.id])).get(target.id) ?? [];
+  if (target.subtree !== true) return own;
+  const reached = new Set([...own, ...(await subtreeAdminReach(tx, target.id))]);
+  return ADMIN_CAPABILITIES.filter((name) => reached.has(name));
+}

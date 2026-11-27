@@ -18,6 +18,7 @@ const sessionSchema = z
 const authoritySchema = whoamiResponseSchema.transform((body): Authority => ({
   capabilities: body.capabilities,
   crossTenant: body.crossTenant,
+  assistantAvailable: body.assistant_available === true,
 }));
 
 export function readSession(gateway: Gateway): Promise<GatewayResult<Principal>> {

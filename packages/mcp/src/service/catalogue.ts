@@ -272,6 +272,60 @@ const WITHHELD: readonly Entry[] = [
     'sensitive',
   ],
   [
+    "The console assistant's own status and configuration: not offered to an agent, which reads nothing of the assistant that may be running it.",
+    [R('GET', '/assistant/status'), R('GET', '/assistant/settings')],
+    'sensitive',
+  ],
+  [
+    `Access-changing: it sets the console assistant's own mode, budget and who may read its conversations, which an agent never edits; ${OWNER_APPROVAL}.`,
+    [R('PUT', '/assistant/settings')],
+    'access-changing',
+  ],
+  [
+    "The caller's own conversations with the console assistant, their list, the latest and an export, which are their owner's alone: not offered to an agent, which reads nothing of the assistant that may be running it.",
+    [
+      R('GET', '/assistant/conversations'),
+      R('GET', '/assistant/last-conversation'),
+      R('GET', '/assistant/conversations/:id'),
+      R('GET', '/assistant/conversations/:id/export'),
+      R('GET', '/assistant/conversations/:id/export/markdown'),
+    ],
+    'sensitive',
+  ],
+  [
+    'The changes the console assistant proposed to its owner and still waits on, with the state of each target as the server read it: not offered to an agent, which reads nothing of the assistant that may be running it.',
+    [R('GET', '/assistant/conversations/:id/approvals')],
+    'sensitive',
+  ],
+  [
+    "The console assistant's own calls, which start, feed, stop, switch the mode of and resume a conversation of the signed-in administrator, answer a stream and decide the changes it proposed: not offered to an agent, which starts none and never decides what is asked of its owner.",
+    [
+      R('POST', '/assistant/conversations'),
+      R('POST', '/assistant/conversations/:id/messages'),
+      R('POST', '/assistant/conversations/:id/stop'),
+      R('POST', '/assistant/conversations/:id/approvals/:approvalId'),
+      R('POST', '/assistant/conversations/:id/resume'),
+      R('PUT', '/assistant/conversations/:id/mode'),
+      R('PUT', '/assistant/conversations/:id/archived'),
+      R('POST', '/assistant/conversations/:id/report'),
+    ],
+    'not-useful',
+  ],
+  [
+    "Destructive: deletes the signed-in administrator's own console assistant conversation, with its messages and trace, and leaves a tombstone; not offered to an agent, which deletes nothing of what the assistant that may be running it holds.",
+    [R('DELETE', '/assistant/conversations/:id')],
+    'destructive',
+  ],
+  [
+    "What the console assistant's conversations say of the people who used it, and of what it did for them: who asked, when, which tools it called, the tokens, and, where the tenant allows it, the text. Not offered to an agent, which reads nothing of the assistant that may be running it nor of the people who use it.",
+    [
+      R('GET', '/assistant/activity'),
+      R('GET', '/assistant/activity/conversations/:id'),
+      R('GET', '/assistant/activity/conversations/:id/promptfoo'),
+    ],
+    'sensitive',
+  ],
+  [
     "Answers one subject's id token, access token and userinfo claims, which are personal data, under manage-clients, which does not include view-users; its open claim records have no schema to bound them.",
     [R('GET', '/clients/:id/evaluate')],
     'sensitive',
@@ -287,3 +341,199 @@ export const NOT_TOOLS: Readonly<Record<string, string>> = Object.fromEntries(
 export const NOT_TOOL_KINDS: Readonly<Record<string, NotToolKind>> = Object.fromEntries(
   WITHHELD.flatMap(([, routes, kind]) => routes.map((key) => [key, kind])),
 );
+
+// Why the console assistant does not make a write itself. Each is the reason of a
+// group in ADR 0061, and a group has exactly one.
+export const HUMAN_ONLY_WHY = [
+  'secret-in-response',
+  'secret-in-request',
+  'admin-capability-reach',
+  'own-session',
+  'self-authority',
+  'control-plane',
+  'tenant-lifecycle',
+  'instance-level',
+  'binary-body',
+  'verified-claims',
+] as const;
+export type HumanOnlyWhy = (typeof HUMAN_ONLY_WHY)[number];
+
+// The group ids of the human-only table in ADR 0061, with the reason of each.
+export const HUMAN_ONLY_GROUPS = {
+  'secret-returned': 'secret-in-response',
+  'secret-supplied': 'secret-in-request',
+  'admin-capability-reach': 'admin-capability-reach',
+  'own-session': 'own-session',
+  'self-authority': 'self-authority',
+  'control-plane': 'control-plane',
+  'tenant-lifecycle': 'tenant-lifecycle',
+  'instance-level': 'instance-level',
+  'binary-body': 'binary-body',
+  'verified-claims': 'verified-claims',
+} as const satisfies Record<string, HumanOnlyWhy>;
+export type HumanOnlyGroup = keyof typeof HUMAN_ONLY_GROUPS;
+
+// Where the decision behind every human-only entry is written.
+export const HUMAN_ONLY_DECISION =
+  'docs/adr/0061-the-assistants-write-surface-tiers-human-only-operations-and-the-coverage-guard.md';
+
+// A write the console assistant never makes. `routes` are the routes it is
+// refused whole; a group decided by the target or by a body field (an
+// administrator's role, a verified claim) names none, because its routes are
+// tools whose proposals the server refuses per target.
+export interface HumanOnlyEntry {
+  readonly routes: readonly string[];
+  readonly kind: 'human-only';
+  readonly why: HumanOnlyWhy;
+  readonly group: HumanOnlyGroup;
+  readonly note: string;
+  readonly decision: string;
+}
+
+function humanOnly(group: HumanOnlyGroup, routes: readonly string[], note: string): HumanOnlyEntry {
+  return {
+    routes,
+    kind: 'human-only',
+    why: HUMAN_ONLY_GROUPS[group],
+    group,
+    note,
+    decision: HUMAN_ONLY_DECISION,
+  };
+}
+
+const CONVERSATIONS = '/assistant/conversations';
+
+export const HUMAN_ONLY: readonly HumanOnlyEntry[] = [
+  humanOnly(
+    'secret-returned',
+    [
+      R('POST', '/clients/:id/secret'),
+      R('POST', '/registration-tokens'),
+      R('POST', '/subjects/:id/password'),
+    ],
+    'The answer is a one-time secret, which would pass through the model, its stored messages, the trace, an export and the provider.',
+  ),
+  humanOnly(
+    'secret-supplied',
+    [R('PUT', '/smtp')],
+    'The relay password would arrive through the chat, and a redirected relay captures every mailed link.',
+  ),
+  humanOnly(
+    'admin-capability-reach',
+    [],
+    'Decided on the server for each target that reaches an administrator capability, through composites and group ancestors; the owner and any administrator are never a target.',
+  ),
+  humanOnly(
+    'own-session',
+    [R('DELETE', '/sessions')],
+    'The route has no way to spare the approver’s own session, so it would end the run.',
+  ),
+  humanOnly(
+    'self-authority',
+    [R('PUT', '/assistant/settings')],
+    'The assistant’s own mode, budget and write allowance are the administrator’s alone.',
+  ),
+  humanOnly(
+    'control-plane',
+    [
+      R('POST', CONVERSATIONS),
+      R('PUT', `${CONVERSATIONS}/:id/archived`),
+      R('DELETE', `${CONVERSATIONS}/:id`),
+      R('POST', `${CONVERSATIONS}/:id/messages`),
+      R('POST', `${CONVERSATIONS}/:id/stop`),
+      R('POST', `${CONVERSATIONS}/:id/approvals/:approvalId`),
+      R('POST', `${CONVERSATIONS}/:id/resume`),
+      R('PUT', `${CONVERSATIONS}/:id/mode`),
+      R('POST', `${CONVERSATIONS}/:id/report`),
+    ],
+    'The decision on an approval, and the controls around it, must not be reachable by the model.',
+  ),
+  humanOnly(
+    'tenant-lifecycle',
+    [R('PATCH', ''), R('DELETE', '')],
+    'Disabling a tenant ends every session, the conversation’s included, and deleting it loses the tenant.',
+  ),
+  humanOnly(
+    'instance-level',
+    ['POST /admin/tenants', 'POST /admin/tenant-imports'],
+    'There is no tenant to bind a grant to, and an import answers fresh secrets once. Offered once the assistant has a door at the instance level.',
+  ),
+  humanOnly(
+    'binary-body',
+    [R('POST', '/theme/assets')],
+    'The body is a raw image, which the model has no bytes of.',
+  ),
+  humanOnly(
+    'verified-claims',
+    [],
+    'The email and phone verified flags are set only by the mailed link, because relying parties trust them.',
+  ),
+];
+
+// The writes the MCP endpoint withholds that the console assistant does not make
+// yet and that are not human-only. Each is placed when a tool serves it, and the
+// entry is deleted in that same change; the list is gone when none is left.
+export const UNPLACED_WRITES: readonly string[] = [
+  R('POST', '/subjects'),
+  R('POST', '/subjects/bulk'),
+  R('PATCH', '/subjects/:id'),
+  R('PATCH', '/subjects/:id/profile'),
+  R('PUT', '/subjects/:id/required-actions'),
+  R('POST', '/subjects/:id/password-reset'),
+  R('POST', '/subjects/:id/verification'),
+  R('POST', '/subjects/:id/actions-email'),
+  R('POST', '/smtp/test'),
+  R('PUT', '/subjects/:id/roles'),
+  R('PUT', '/subjects/:id/groups'),
+  R('POST', '/roles/:id/composites'),
+  R('DELETE', '/roles/:id/composites/:childId'),
+  R('PUT', '/roles/:id/default'),
+  R('PUT', '/groups/:id/roles'),
+  R('PUT', '/groups/:id/default'),
+  R('POST', '/scopes/restore-builtins'),
+  R('PUT', '/scopes/:id/roles'),
+  R('PUT', '/scopes/:id/mappers'),
+  R('PUT', '/scopes/:id/clients/:clientId'),
+  R('DELETE', '/scopes/:id/clients/:clientId'),
+  R('PUT', '/flow/executions'),
+  R('POST', '/flows'),
+  R('PUT', '/flows/:id'),
+  R('POST', '/flows/:id/make-default'),
+  R('POST', '/domains'),
+  R('POST', '/domains/:id/verify'),
+  R('POST', '/domains/:id/activate'),
+  R('POST', '/domains/:id/deactivate'),
+  R('POST', '/theme/publish'),
+  R('POST', '/theme/versions/:versionId/restore'),
+  R('POST', '/clients/:id/theme/publish'),
+  R('POST', '/clients/:id/theme/versions/:versionId/restore'),
+  R('POST', '/clients'),
+  R('POST', '/keys'),
+  R('DELETE', '/subjects/:id/lockout'),
+  R('DELETE', '/lockouts'),
+  R('POST', '/keys/:id/promote'),
+  R('POST', '/keys/:id/retire'),
+  R('DELETE', '/keys/:id'),
+  R('DELETE', '/subjects/:id'),
+  R('DELETE', '/subjects/:id/credentials/:credentialId'),
+  R('DELETE', '/subjects/:id/consents/:clientId'),
+  R('DELETE', '/subjects/:id/recovery-codes'),
+  R('DELETE', '/subjects/:id/sessions'),
+  R('DELETE', '/subjects/:id/sessions/:sid'),
+  R('DELETE', '/subjects/:id/grants/:clientId'),
+  R('DELETE', '/theme/draft'),
+  R('DELETE', '/theme'),
+  R('DELETE', '/theme/assets/:assetId'),
+  R('DELETE', '/clients/:id'),
+  R('DELETE', '/clients/:id/theme/draft'),
+  R('DELETE', '/clients/:id/theme'),
+  R('DELETE', '/clients/:id/grants'),
+  R('DELETE', '/registration-tokens/:id'),
+  R('DELETE', '/domains/:id'),
+  R('DELETE', '/roles/:id'),
+  R('DELETE', '/groups/:id'),
+  R('DELETE', '/scopes/:id'),
+  R('DELETE', '/smtp'),
+  R('DELETE', '/flows/:id'),
+  R('DELETE', '/agents/:id'),
+];

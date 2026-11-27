@@ -118,7 +118,9 @@ it('shows a duration in the unit that fits it, and says the range once', async (
   renderConsoleAt(AT, settingsRoutes());
   const sessions = await section('Sessions');
   expect(within(sessions).getByRole('textbox', { name: 'Idle timeout' })).toHaveValue('30');
-  expect(within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' })).toHaveValue('min');
+  expect(within(sessions).getByRole('button', { name: /Idle timeout, unit/u })).toHaveTextContent(
+    'min',
+  );
   expect(within(sessions).queryByText('1800 s · 30 minutes')).toBeNull();
   expect(within(sessions).getAllByText(/Allowed: 1 minute to/u).length).toBeGreaterThan(0);
   const password = await section('Password policy');
@@ -135,14 +137,9 @@ it('sends seconds whichever unit a duration is typed in', async () => {
     }),
   );
   const sessions = await section('Sessions');
-  expect(
-    within(within(sessions).getByRole('combobox', { name: 'Idle timeout, unit' })).getByRole(
-      'option',
-      {
-        name: 'h',
-      },
-    ),
-  ).toBeDisabled();
+  await user.click(within(sessions).getByRole('button', { name: /Idle timeout, unit/u }));
+  expect(await screen.findByRole('option', { name: 'h' })).toHaveAttribute('aria-disabled', 'true');
+  await user.keyboard('{Escape}');
   const field = within(sessions).getByRole('textbox', { name: 'Idle timeout' });
   await user.clear(field);
   await user.type(field, '120');

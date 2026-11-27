@@ -103,6 +103,50 @@
     "width": 1100,
     "height": 890
   },
+  "settings-assistant": {
+    "width": 1100,
+    "height": 1180
+  },
+  "settings-assistant-phone": {
+    "width": 390,
+    "height": 1500
+  },
+  "assistant-panel": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-panel-other-tenant": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-task": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-panel-phone": {
+    "width": 390,
+    "height": 844
+  },
+  "assistant-conversations": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-conversations-phone": {
+    "width": 390,
+    "height": 844
+  },
+  "assistant-activity": {
+    "width": 1440,
+    "height": 900
+  },
+  "assistant-activity-phone": {
+    "width": 390,
+    "height": 844
+  },
+  "assistant-replay": {
+    "width": 1440,
+    "height": 1100
+  },
   "email": {
     "width": 1100,
     "height": 900

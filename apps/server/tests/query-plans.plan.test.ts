@@ -577,6 +577,48 @@ describe('the audit trail narrowed by a filter', () => {
 const NOT_DRIVEN: Readonly<Record<string, string>> = {
   'POST /admin/tenants/:tenant/smtp/test':
     'reads the tenant\u2019s one settings row and opens a socket to the SMTP host: no query depends on the volume',
+  'GET /admin/tenants/:tenant/assistant/status':
+    'answers from the server\u2019s resolved model configuration and one assistant_settings row read by its primary key: no query depends on the volume',
+  'GET /admin/tenants/:tenant/assistant/settings':
+    'reads one assistant_settings row by its primary key (tenant_id): no query depends on the volume',
+  'PUT /admin/tenants/:tenant/assistant/settings':
+    'reads and upserts one assistant_settings row by its primary key and writes one audit row: no query depends on the volume',
+  'POST /admin/tenants/:tenant/assistant/conversations':
+    'served only with a model configured, which this stack has none of; its two statements are a primary-key insert and an append locked on that key, whatever the volume',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id':
+    'served only with a model configured; reads one row by primary key and the latest MAX_LOAD messages of one conversation by its primary key, in descending order',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/messages':
+    'served only with a model configured, and its time is the model\u2019s; each statement is a primary-key read, an append or a tail replacement on one conversation, a point read or update of at most four budget counters by their unique key, a reservation by primary key, or the tenant\u2019s live leases counted through assistant_turn_leases_live and bounded by the tenant\u2019s own limit on answers at once, and the withdrawal of the conversation\u2019s pending changes (at most 5, read through assistant_approvals_recent, each decided by primary key in a transaction of its own) with the settling of the last message\u2019s change cards through assistant_approvals_call (at most 50) and the trace\u2019s writes, each its own short transaction: one turn insert, per model call a step insert and a step close by primary key with one batched insert of at most 500 events, and one turn close by primary key (the upkeep deletes are proved against their indexes in packages/assistant/tests/budget-upkeep.int.test.ts, and the trace\u2019s indexes at 40,000 turns in packages/assistant/tests/trace.int.test.ts)',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/stop':
+    'served only with a model configured; reads one conversation by primary key, touches an in-process map and withdraws the conversation\u2019s pending changes, at most 20, read through assistant_approvals_call (proved in packages/assistant/tests/approvals.int.test.ts) and decided by primary key',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/approvals':
+    'served only with a model configured; one conversation by primary key, then the conversation\u2019s pending cards through assistant_approvals_call joined to agent_approvals by primary key, limited to 20 (proved at 20,000 approvals in packages/assistant/tests/approvals.int.test.ts)',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/approvals/:approvalId':
+    'served only with a model configured; one grant, one conversation and one card by primary key, one conditional update of one agent_approvals row by primary key and one audit row',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/resume':
+    'served only with a model configured, and its time is the model\u2019s; the statements are those of a message, the cards of the last message\u2019s tool calls read through assistant_approvals_call (at most 50), and for an approved change one conditional update of its approval, a grant insert and revoke by primary key and the write\u2019s own admin route',
+  'GET /admin/tenants/:tenant/assistant/activity':
+    'served only with a model configured; at most 200 conversations by assistant_conversations_activity (or the owner index), a filter that looks inside a conversation tried on at most 1,000 of them through assistant_turns_conversation and assistant_events_tool_calls, then five aggregate reads by conversation ids (proved at 100,000 turns in packages/assistant/tests/activity.int.test.ts)',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id':
+    'served only with a model configured; one conversation by primary key, its latest 25 turns through assistant_turns_conversation, their steps and events by turn id and the conversation\u2019s cards and messages by primary-key prefixes, all bounded',
+  'GET /admin/tenants/:tenant/assistant/activity/conversations/:id/promptfoo':
+    'served only with a model configured; the reads of the replay',
+  'POST /admin/tenants/:tenant/assistant/conversations/:id/report':
+    'served only with a model configured; one advisory lock, one conversation by primary key, a count of at most 100 rows through assistant_conversations_reported, one update by primary key and one audit row',
+  'GET /admin/tenants/:tenant/assistant/conversations':
+    'served only with a model configured; one read of at most 201 rows through assistant_conversations_owner_open or assistant_conversations_owner_archived, in order and without a sort, for the caller alone (proved at 8,000 conversations in packages/assistant/tests/conversation-management.int.test.ts)',
+  'GET /admin/tenants/:tenant/assistant/last-conversation':
+    'served only with a model configured; the first row of the same list read, one conversation by primary key and its latest MAX_LOAD messages by primary-key prefix',
+  'PUT /admin/tenants/:tenant/assistant/conversations/:id/archived':
+    'served only with a model configured; one conversation by primary key and one update of it by primary key',
+  'DELETE /admin/tenants/:tenant/assistant/conversations/:id':
+    'served only with a model configured; one conversation locked by primary key, the tenant’s live leases read through assistant_turn_leases_live (at most the tenant’s limit on answers at once), the conversation’s messages read 50 at a time by primary-key prefix, a count of its turns through assistant_turns_conversation, one tombstone insert, one delete of the conversation row (its messages, turns, steps, events and cards go by their foreign keys), one audit row and a grant revoke by primary key',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/export':
+    'served only with a model configured; one conversation by primary key and its messages read 50 at a time by primary-key prefix, at most 500 exported, with one audit row',
+  'GET /admin/tenants/:tenant/assistant/conversations/:id/export/markdown':
+    'served only with a model configured; the reads of the JSON export',
+  'PUT /admin/tenants/:tenant/assistant/conversations/:id/mode':
+    'served only with a model configured; reads and updates one conversation by primary key, and withdraws pending changes as the stop route does',
 };
 
 function routePattern(pattern: string): RegExp {

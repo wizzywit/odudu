@@ -95,7 +95,7 @@ module.exports = {
       },
       to: {
         pathNot:
-          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
+          '(^|/)apps/admin-console/src/(?:services|.*/services)(?:/|\\.tsx?$)|(^|/)apps/admin-console/src/entities/[^/]+/index\\.ts$|(^|/)apps/admin-console/src/(?:entities|features|pages)/[^/]+/types/|(^|/)apps/admin-console/src/widgets/assistant-panel/types/|(^|/)apps/admin-console/src/shared/lib/types/|(^|/)packages/contracts/|/node_modules/libphonenumber-js/',
       },
     },
     {
@@ -410,10 +410,56 @@ module.exports = {
       name: 'mcp-imported-only-by-server',
       severity: 'error',
       comment:
-        'Only apps/server composes the MCP package (ADR 0051); no other package or app reaches ' +
-        'into it, a protocol package included.',
-      from: { path: '(^|/)(?:packages|apps)/', pathNot: '(^|/)(?:packages/mcp|apps/server)/' },
+        'Only apps/server and the assistant package, which reads the MCP tool catalogue, ' +
+        'import the MCP package (ADR 0051); no other package or app reaches into it, a ' +
+        'protocol package included.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/(?:mcp|assistant)|apps/server)/',
+      },
       to: { path: '(^|/)packages/mcp/' },
+    },
+    {
+      name: 'assistant-allowlist',
+      severity: 'error',
+      comment:
+        'The assistant package sits above the protocol packages (ADR 0051), as the MCP package ' +
+        'does, and reaches the admin API through the MCP catalogue and its HTTP surface, so of ' +
+        'the workspace it may import the kernel, the contracts and the MCP package, and no ' +
+        'database, crypto, domain or protocol package. The rule covers src/ minus its *.test.ts files.',
+      from: { path: '(^|/)packages/assistant/src/', pathNot: '\\.test\\.ts$' },
+      to: {
+        path: '(^|/)packages/',
+        pathNot: '(^|/)node_modules/|(^|/)packages/(?:assistant|kernel|contracts|mcp)/',
+      },
+    },
+    {
+      name: 'assistant-imported-only-by-server',
+      severity: 'error',
+      comment:
+        'Only apps/server composes the assistant package; no other package or app reaches into ' +
+        'it, a protocol package included.',
+      from: {
+        path: '(^|/)(?:packages|apps)/',
+        pathNot: '(^|/)(?:packages/assistant|apps/server)/',
+      },
+      to: { path: '(^|/)packages/assistant/' },
+    },
+    {
+      name: 'ai-sdk-only-in-assistant',
+      severity: 'error',
+      comment:
+        'The AI SDK and the model provider packages are imported by @odudu/assistant alone, so ' +
+        'a second place cannot choose a model or hold a key. The one exception is the chat ' +
+        'client the console panel reads the stream with (`ai` and `@ai-sdk/react`): it holds ' +
+        "no key and chooses no model, and it is confined to the panel widget's adapter and " +
+        'repository folders.',
+      from: {
+        path: '(^|/)(?:packages|apps|tools|sdks)/',
+        pathNot:
+          '(^|/)(?:packages/assistant/|apps/admin-console/src/widgets/assistant-panel/(?:adapter|repository)/)',
+      },
+      to: { path: '^(ai|@ai-sdk/[^/]+)(/|$)|(^|/)node_modules/(ai|@ai-sdk/[^/]+)(/|$)' },
     },
     {
       name: 'sdks-import-no-server',

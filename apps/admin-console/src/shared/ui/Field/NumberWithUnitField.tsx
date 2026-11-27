@@ -1,5 +1,16 @@
 import { use, useState } from 'react';
-import { Group, Input, NumberField as AriaNumberField, Text } from 'react-aria-components';
+import {
+  Button as AriaButton,
+  Group,
+  Input,
+  ListBox,
+  ListBoxItem,
+  NumberField as AriaNumberField,
+  Popover,
+  Select,
+  SelectValue,
+  Text,
+} from 'react-aria-components';
 import {
   DURATION_UNITS,
   durationUnit,
@@ -87,22 +98,34 @@ export function NumberWithUnitField({
       <Group className={styles.unitGroup ?? ''} data-control>
         <Input className={styles.input ?? ''} data-mono />
         {picker ? (
-          <select
-            className={styles.unitSelect}
-            data-unit
+          <Select
             aria-label={unitLabel(label)}
-            disabled={isDisabled ?? false}
+            isDisabled={isDisabled ?? false}
             value={shown.id}
-            onChange={(event) => {
-              setPicked(durationUnit(event.target.value));
+            onChange={(key) => {
+              if (key !== null) setPicked(durationUnit(String(key)));
             }}
+            disabledKeys={DURATION_UNITS.filter((each) => !holds(value, each)).map(
+              (each) => each.id,
+            )}
+            className={styles.unitPicker ?? ''}
           >
-            {DURATION_UNITS.map((each) => (
-              <option key={each.id} value={each.id} disabled={!holds(value, each)}>
-                {each.id}
-              </option>
-            ))}
-          </select>
+            <AriaButton className={styles.unitSelect ?? ''} data-unit>
+              <SelectValue />
+              <span className={styles.chevron} aria-hidden="true">
+                ▾
+              </span>
+            </AriaButton>
+            <Popover className={styles.popover ?? ''} placement="bottom end">
+              <ListBox className={styles.listbox ?? ''} items={DURATION_UNITS}>
+                {(each) => (
+                  <ListBoxItem id={each.id} textValue={each.id} className={styles.option ?? ''}>
+                    {each.id}
+                  </ListBoxItem>
+                )}
+              </ListBox>
+            </Popover>
+          </Select>
         ) : (
           <span className={styles.unit} data-unit aria-hidden="true">
             {UNIT_SYMBOL[unit] ?? unit}

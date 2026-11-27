@@ -273,6 +273,80 @@ const EXPECTED_CHECKS: Record<string, string> = {
     "CHECK ((state = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])))",
   'clients.clients_previous_secret_confidential':
     "CHECK (((previous_secret_hash IS NULL) OR (type = 'confidential'::text)))",
+  'assistant_approvals.assistant_approvals_card_shape':
+    "CHECK (((jsonb_typeof(card) = 'object'::text) AND (octet_length((card)::text) <= 65536)))",
+  'assistant_approvals.assistant_approvals_tool_call_length':
+    'CHECK (((char_length(tool_call_id) >= 1) AND (char_length(tool_call_id) <= 256)))',
+  'assistant_approvals.assistant_approvals_tool_length':
+    'CHECK (((char_length(tool) >= 1) AND (char_length(tool) <= 64)))',
+  'assistant_events.assistant_events_kind_check':
+    "CHECK ((kind = ANY (ARRAY['model_call'::text, 'text'::text, 'tool_call'::text, 'tool_result'::text, 'tool_error'::text, 'error'::text, 'slot_chosen'::text, 'reservation'::text, 'narrowing'::text, 'policy'::text, 'trimming'::text, 'truncated'::text])))",
+  'assistant_events.assistant_events_payload_shape':
+    "CHECK (((jsonb_typeof(payload) = 'object'::text) AND (octet_length((payload)::text) <= 16384)))",
+  'assistant_events.assistant_events_seq_range': 'CHECK (((seq >= 0) AND (seq <= 499)))',
+  'assistant_steps.assistant_steps_model_length':
+    'CHECK (((char_length(model) >= 1) AND (char_length(model) <= 200)))',
+  'assistant_steps.assistant_steps_request_id_length':
+    'CHECK (((provider_request_id IS NULL) OR ((char_length(provider_request_id) >= 1) AND (char_length(provider_request_id) <= 256))))',
+  'assistant_steps.assistant_steps_slot_check':
+    "CHECK ((slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text])))",
+  'assistant_steps.assistant_steps_tokens_floor':
+    'CHECK ((((input_tokens IS NULL) OR (input_tokens >= 0)) AND ((output_tokens IS NULL) OR (output_tokens >= 0))))',
+  'assistant_turns.assistant_turns_profile_length':
+    'CHECK (((char_length(profile) >= 1) AND (char_length(profile) <= 64)))',
+  'assistant_turns.assistant_turns_prompt_hash_shape':
+    "CHECK ((prompt_hash ~ '^[0-9a-f]{64}$'::text))",
+  'assistant_turns.assistant_turns_stop_reason_length':
+    'CHECK (((stop_reason IS NULL) OR ((char_length(stop_reason) >= 1) AND (char_length(stop_reason) <= 64))))',
+  'assistant_budget_counters.assistant_budget_counters_key_length':
+    'CHECK (((char_length(scope_key) >= 1) AND (char_length(scope_key) <= 128)))',
+  'assistant_budget_counters.assistant_budget_counters_kind_check':
+    "CHECK ((scope_kind = ANY (ARRAY['tenant_month'::text, 'admin_day'::text, 'conversation'::text, 'turn'::text])))",
+  'assistant_budget_counters.assistant_budget_counters_limit_floor': 'CHECK ((limit_tokens >= 0))',
+  'assistant_budget_counters.assistant_budget_counters_slot_check':
+    "CHECK (((slot IS NULL) OR (slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text]))))",
+  'assistant_budget_counters.assistant_budget_counters_used_floor': 'CHECK ((used >= 0))',
+  'assistant_reservations.assistant_reservations_levels_shape':
+    "CHECK (((jsonb_typeof(levels) = 'array'::text) AND ((jsonb_array_length(levels) >= 1) AND (jsonb_array_length(levels) <= 4))))",
+  'assistant_reservations.assistant_reservations_reserved_floor': 'CHECK ((reserved >= 0))',
+  'assistant_reservations.assistant_reservations_slot_check':
+    "CHECK ((slot = ANY (ARRAY['fast'::text, 'standard'::text, 'deep'::text])))",
+  'assistant_turn_leases.assistant_turn_leases_lifetime': 'CHECK ((expires_at > created_at))',
+  'assistant_conversations.assistant_conversations_mode_check':
+    "CHECK ((mode = ANY (ARRAY['ask'::text, 'act'::text])))",
+  'assistant_conversations.assistant_conversations_profile_length':
+    'CHECK (((char_length(profile) >= 1) AND (char_length(profile) <= 64)))',
+  'assistant_conversations.assistant_conversations_run_generation_floor':
+    'CHECK ((run_generation >= 0))',
+  'assistant_conversations.assistant_conversations_title_length':
+    'CHECK (((title IS NULL) OR ((char_length(title) >= 1) AND (char_length(title) <= 200))))',
+  'assistant_conversations.assistant_conversations_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_counts_floor':
+    'CHECK (((message_count >= 0) AND (turn_count >= 0)))',
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_digest_shape':
+    "CHECK ((digest ~ '^[0-9a-f]{64}$'::text))",
+  'assistant_conversation_tombstones.assistant_conversation_tombstones_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'token_grants.token_grants_target_not_home':
+    'CHECK (((target_tenant_id IS NULL) OR (target_tenant_id <> tenant_id)))',
+  'token_grants.token_grants_revoked_cause_known':
+    "CHECK (((revoked_cause IS NULL) OR ((revoked_at IS NOT NULL) AND (revoked_cause = ANY (ARRAY['sign_out'::text, 'reattached'::text])))))",
+  'assistant_messages.assistant_messages_parts_shape':
+    "CHECK (((jsonb_typeof(parts) = 'array'::text) AND (octet_length((parts)::text) <= 1048576)))",
+  'assistant_messages.assistant_messages_role_check':
+    "CHECK ((role = ANY (ARRAY['system'::text, 'user'::text, 'assistant'::text])))",
+  'assistant_messages.assistant_messages_seq_floor': 'CHECK ((seq >= 1))',
+  'assistant_settings.assistant_settings_mode_check':
+    "CHECK ((assistant_default_mode = ANY (ARRAY['ask'::text, 'act'::text])))",
+  'assistant_settings.assistant_settings_retention_range':
+    'CHECK (((assistant_trace_retention_days >= 1) AND (assistant_trace_retention_days <= 365)))',
+  'assistant_settings.assistant_settings_tokens_range':
+    'CHECK ((((assistant_monthly_tokens_fast >= 0) AND (assistant_monthly_tokens_fast <= 1000000000)) AND ((assistant_monthly_tokens_standard >= 0) AND (assistant_monthly_tokens_standard <= 1000000000)) AND ((assistant_monthly_tokens_deep >= 0) AND (assistant_monthly_tokens_deep <= 1000000000))))',
+  'assistant_settings.assistant_settings_concurrent_range':
+    'CHECK (((assistant_max_concurrent >= 1) AND (assistant_max_concurrent <= 50)))',
+  'assistant_settings.assistant_settings_steps_range':
+    'CHECK (((assistant_max_steps_per_turn >= 1) AND (assistant_max_steps_per_turn <= 100)))',
 };
 
 interface ColumnRow {

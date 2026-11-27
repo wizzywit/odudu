@@ -1,0 +1,11 @@
+# Turns the console assistant on for the browser tests, against the stand-in
+# model server that e2e/run.sh starts on the host (apps/server/src/testing/
+# provider-stub.ts). The stub replays fixtures and calls no model.
+# COMPOSE_FILE=compose.yaml:compose.e2e-assistant.yaml
+services:
+  odudu:
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    environment:
+      ODUDU_ASSISTANT_MODELS: standard=openai-compatible:stub-model
+      ODUDU_ASSISTANT_OPENAI_COMPATIBLE_BASE_URL: http://host.docker.internal:${PROVIDER_STUB_PORT:-4100}/v1

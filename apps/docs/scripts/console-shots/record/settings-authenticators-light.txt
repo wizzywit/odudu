@@ -28,6 +28,7 @@ Domains
 Export
 Observe
 Audit trail
+Assistant activity
 Signed in as 
 admin@odudu.local
  from 
@@ -38,10 +39,24 @@ Light
 Dark
 Switch tenant
 Sign out
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Collapse menu
 or press 
 [
 odudu · demo
+Ask the assistant
+Ask
+or press 
+⌘
+Command
++
+K
 Menu
 System
 Acting in 
@@ -71,6 +86,8 @@ Client registration
 Agents
 Records
 Audit retention
+Assistant
+Console assistant
 General
 What this tenant's own pages call it, and whether it is in service.
 Display name
@@ -130,6 +147,8 @@ Verify email addresses
 Off
 The account is created when the person confirms their address from a mail.
 Verification link lifetime
+h
+▾
 s
 min
 h
@@ -146,6 +165,8 @@ Password reset by mail
 Off
 A person who forgot their password may ask for a reset link.
 Reset link lifetime
+min
+▾
 s
 min
 h
@@ -254,18 +275,24 @@ Failures before a lockout
 failures
 Allowed: 1 to 100 failures.
 First lockout
+min
+▾
 s
 min
 h
 d
 How long the first lockout lasts. At most the longest lockout. Allowed: 1 second to 1 day.
 Longest lockout
+min
+▾
 s
 min
 h
 d
 Lockouts grow with each repeat, up to this.
 Failures forgotten after
+h
+▾
 s
 min
 h
@@ -277,12 +304,16 @@ Clear all lockouts
 Sessions
 How long a sign-in lasts, and how long a person has to finish one.
 Idle timeout
+min
+▾
 s
 min
 h
 d
 A session ends after this long without activity. At most the maximum. Allowed: 1 minute to 30 days.
 Maximum lifetime
+h
+▾
 s
 min
 h
@@ -292,12 +323,16 @@ Sessions per browser
 sessions
 How many sessions one browser may hold at once. Allowed: 1 to 32 sessions.
 Time to finish a sign-in
+min
+▾
 s
 min
 h
 d
 A sign-in left unfinished this long has to be started again. Allowed: 1 minute to 1 day.
 Recent sign-in window
+min
+▾
 s
 min
 h
@@ -311,12 +346,16 @@ Offer remember me
 Off
 The sign-in page shows the choice only while this is on.
 Idle timeout
+d
+▾
 s
 min
 h
 d
 Without activity this long, a remembered session ends. At most the maximum. Allowed: 1 minute to 365 days.
 Maximum lifetime
+d
+▾
 s
 min
 h
@@ -325,24 +364,32 @@ A remembered session ends this long after sign-in. Allowed: 1 minute to 365 days
 Token lifetimes
 What a client gets unless it carries lifetimes of its own.
 Access token
+min
+▾
 s
 min
 h
 d
 Allowed: 1 second to 1 hour.
 ID token
+min
+▾
 s
 min
 h
 d
 Allowed: 1 second to 1 hour.
 Refresh token
+d
+▾
 s
 min
 h
 d
 Allowed: at least 1 second.
 Authorization code
+min
+▾
 s
 min
 h
@@ -376,12 +423,16 @@ Live instances
 instances
 How many instances the tenant may hold at once. Allowed: 1 to 100000 instances.
 Instance lifetime
+min
+▾
 s
 min
 h
 d
 An instance ends this long after it is made, never after its owner’s session. Allowed: 1 minute to 1 day.
 Instance idle timeout
+min
+▾
 s
 min
 h
@@ -389,6 +440,8 @@ d
 An instance ends after this long without a call, never after its owner’s session. Allowed: 1 minute to 1 day.
 Approvals
 Approval lifetime
+min
+▾
 s
 min
 h
@@ -418,3 +471,45 @@ Sign-ins and refused sign-ins
 Sessions starting and ending
 Tokens issued and revoked
 Passwords, keys and codes set or changed
+Console assistant
+Whether this tenant’s administrators are offered the assistant, what it may do by default, what it keeps and how much it may spend. Every setting starts at a safe default.
+Availability
+Offer the assistant
+On
+Off refuses new conversations and messages for everyone in this tenant; what is already recorded stays, and can still be read. Default: on.
+Starts in
+Ask: the assistant only reads
+▾
+The mode a person starts in; they can switch it in the panel. Default: Ask.
+Ask: the assistant only reads
+Act: it may propose changes, each waiting for approval
+Privacy and records
+Mask email addresses
+Off
+An address in what the assistant reads is replaced before it is sent to the model provider by its first letter, three asterisks and its domain, so the domain still shows. Default: off.
+Let auditors read conversation text
+Off
+People who can read assistant activity always see who used the assistant, when, which tools it called, the tokens it used and how each answer ended. This also lets them read what was asked and answered, and what the tools were given and returned; each such read is recorded in the audit trail (action assistant.text_read). Default: off.
+Keep traces for
+days
+How long a conversation is kept after its last message, with the step-by-step record of it: from 1 to 365 days. Default: 30 days. Allowed: 1 to 365 days.
+More
+A shorter setting takes effect at the next pass of the reaper, which removes what is then older. The audit trail keeps its own rows for as long as its retention says; a trace is the detail behind them and is the first to go.
+Limits
+Fast model, each month
+tokens
+Titles, summaries and small reads. Default: 2,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+More
+The assistant stops when a month’s allowance for a model is used, says which limit it reached, and never falls back to a cheaper model on its own. A call holds back up to about 132,000 tokens while it is in flight, so an allowance below about 150,000 refuses every answer and one below about 530,000 can refuse some.
+Standard model, each month
+tokens
+The main conversation. Default: 5,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+Deep model, each month
+tokens
+Planning and hard reasoning. Default: 1,000,000 tokens. Allowed: 0 to 1,000,000,000 tokens.
+Answers at once
+answers
+How many answers the tenant may have in progress together. Default: 5 answers. Allowed: 1 to 50 answers.
+Steps in one answer
+steps
+The most model and tool calls one answer may take before it stops. Default: 20 steps. Allowed: 1 to 100 steps.

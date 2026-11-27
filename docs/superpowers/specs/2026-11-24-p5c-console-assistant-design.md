@@ -38,15 +38,16 @@ one product. That combination is the claim this phase makes true.
 6. Two records of everything it does (ADR 0058) and a screen to investigate them.
 7. Off, silently, when no provider is configured.
 
-**Non-goals.** No tool beyond P5a's 64 reads and 12 writes (P5b widens them for the
-MCP endpoint and the assistant together). No web, fetch or outbound tools. No
+**Non-goals.** No tool beyond the 64 reads and, for writes, the surface section 5.3a fixes
+(P5b widens the MCP endpoint's separately). No web, fetch or outbound tools. No
 proactive, scheduled or whole-tenant review, anomaly detection or policy
 suggestion: that is the paid managed assistant (ADR 0055). No voice, files or
 images in. No memory across conversations in the first scope. No agent gallery.
 
 **Anti-goals.** An assistant with a door of its own. A model that can approve its
 own change. A spend nobody bounded. A trace the agent can read or edit. A screen
-that shows AI to a person whose operator never configured it.
+that shows AI to a person whose operator never configured it. An assistant that
+reaches a tenant its conversation was not created for.
 
 ## 3. What already exists and is reused
 
@@ -142,13 +143,52 @@ Entitlements are an interface the paid layer replaces:
 maxConcurrent, maxStepsPerTurn }`. The open default reads tenant settings. The open
 product never depends on the paid implementation.
 
+Where a system administrator uses the assistant in another tenant, that tenant's switch,
+email masking and Act setting apply as well as their own tenant's, and the stricter wins:
+both must have the assistant on, either may mask, and a mode is offered only where both
+offer it. The token limits and the four budget levels are the administrator's tenant's,
+which pays. Trace retention and whether auditors see conversations are the administrator's
+tenant's, because the conversation's text lives there; enforcing the shorter of the two
+retentions waits for the trace pass (docs/NEXT.md, "What P5c inherits").
+
 ### 5.3 The engine
 
 A conversation is one agent _instance_ of P5, owned by the signed-in administrator,
 with a sliding idle lifetime that never passes their session; each model-driven tool
 call gets a short admin token from `mintAgentToken` (P5 section 5.1), whose `act.sub`
 is that instance, so its scopes, expiry and budget slice are P5's invariants and a
-sub-agent is a child instance. No grant is made. A turn is a `ToolLoopAgent` run.
+sub-agent is a child instance.
+
+The conversation's identity is derived from the administrator's console session
+(ADR 0060). When a conversation is created, the server makes one grant for the
+built-in client `odudu-assistant` that every tenant has: the same subject and session as
+the console grant, `exchangedFromGrantId` the console grant, and a scope that is
+`mcp:read` in Ask mode and nothing wider. The grant is made from the verified console
+principal, never from the request body, and is stored under the conversation's id, in the
+transaction that creates the conversation. `mintAgentToken` is called with that grant,
+unchanged, so the instance, its expiry, its budget slice and its revocation are P5's, and
+its `scope_widened` rule is the ceiling. Ending the console session or revoking the
+console grant ends every conversation under it. A conversation that rests past the
+instance's idle lifetime is not ended: its run key is the conversation's id and a
+generation, and the next tool call finds the instance lapsed, moves the conversation to the
+next generation once and mints a new instance for it, while the old one stays ended. No
+other refusal moves it on. Changing a conversation to a mode that
+writes is a new grant with its own scope and its own approval, not a widening of this
+one. Audit rows name `odudu-assistant` as the actor client and the administrator as the
+actor subject. Cost: one grant row per conversation, removed with its session by the same
+reaper that removes any grant; administrators are few and a conversation is a human act.
+
+When the administrator is a system administrator acting in another tenant (the owner's
+decision of 2026-11-26, ADR 0060's last amendment, which reverses P5a's decision 3 for the
+assistant alone), the conversation, its grant, instance, approvals, budget and trace belong
+to their own tenant, and the conversation names the tenant it acts in, fixed at creation from
+the verified path. The tool calls are made in that tenant with the administrator's own
+authority: the admin API checks `manage-tenants` and the route's capability on every call,
+and admits the assistant's token at that one tenant's routes only. The assistant names no
+tenant in a tool call, and `odudu mcp` and external agents keep the same-tenant rule. A
+conversation in another tenant is Ask only in its first scope.
+A tenant that lists `delegated_actors` on its console client must name `odudu-assistant`
+there, or the assistant fails closed. A turn is a `ToolLoopAgent` run.
 Our code lives in the SDK's hooks:
 
 - `prepareStep`: reserve budget (5.5); pick the slot from the task profile and
@@ -159,7 +199,7 @@ Our code lives in the SDK's hooks:
   are automatic; a write in Ask mode is denied with a reason the model sees; a write
   in Act mode is `user-approval`, which stores an `agent_approvals` row (P5) and
   surfaces the card. The decision arrives from the person's authenticated request,
-  never from the agent's token. A write outside the 12 is not in the tool list.
+  never from the agent's token. A write outside section 5.3a's surface is not in the tool list.
   **Resuming:** the conversation's messages, including the pending
   `tool-approval-request`, are stored in PostgreSQL. On a decision any server instance
   loads them, appends the `tool-approval-response` and calls the agent again, which is
@@ -176,9 +216,63 @@ Our code lives in the SDK's hooks:
   carries conversation and turn ids. If the row cannot be written the call does not
   run.
 
-Anything the model can do beyond the 12 writes it does by preparing, not performing:
+Anything the model can do beyond the surface below it does by preparing, not performing:
 "prepare a client for my app" returns a structured draft that opens the console's
 existing creation form pre-filled, and the person submits it.
+
+### 5.3a The write surface (owner ruling of 2026-11-27, amends the first scope's 12 writes)
+
+Act covers every console write except the human-only list below. The reasoning, the
+tiers and the guard are [ADR 0061](../../adr/0061-the-assistants-write-surface-tiers-human-only-operations-and-the-coverage-guard.md);
+the increments are [the plan](../plans/2026-11-27-p5c-act-surface.md). Tiers: **A** an
+approved card; **B** a card plus a confirmation of the removal; **C** a card, a set-diff
+where a list is replaced, and the target's name typed in the decision; **X** human-only.
+Every write stays approved by the person, audited, and never `auto`. A tier rises by
+target on the server: a target that reaches an administrator capability, the owner, a
+built-in client or the conversation's own grant is X.
+
+**Human-only, one line each** (owner may overturn: marked "yes" with what it waits for):
+
+- Secret-returning creates: a confidential client, a client secret, a registration token and
+  a subject's one-time password. The model would carry the secret into stored messages, trace
+  and provider. The assistant prefills the console form and the person submits. Yes, with a
+  reveal channel.
+- The mail relay (`PUT ~/smtp`): its password would arrive through chat. Prefilled form. Yes.
+- Anything reaching an administrator capability, decided per target on the server: role,
+  group, composite, default and group-role changes, subject roles and groups, and a change to
+  or deletion of an administrator or the owner. Yes, once a delegated-administrator rule exists.
+- `DELETE ~/sessions` for the tenant: it has no "except mine", so it ends the approver's own
+  session and the run. Yes, once the route can exclude the caller.
+- The assistant's own settings and evidence: its mode, budget and allowance, the built-in
+  clients, `audit_retention_days`, its own agent lineage. No.
+- The nine conversation routes: the approval decision must not be reachable by the model. No.
+- `PATCH ~` with `enabled` and `DELETE ~`: a disable ends the conversation's session, a delete
+  loses the tenant. No.
+- `POST /admin/tenants` and `POST /admin/tenant-imports`: no tenant to bind a grant to, and
+  the import returns fresh secrets. Placed on the next phase. Yes, with an instance-write door.
+- `POST ~/theme/assets` (a raw image body) and the two verified-claim fields of a subject's
+  profile (only the mail flow sets them). No.
+
+The audit trail is read, not withheld (owner, 2026-11-27): `list_audit` and `count_audit` are
+offered to a person who holds `view-audit`, and the server removes the assistant's own record
+(its client, grant and instances, and every `assistant.*` event) from both the list and the
+count, so section 5.8's rule that it cannot read its own audit holds without hiding the
+trail; the audit export stays refused. The Audit profile's "Explain this event" uses them.
+
+A human-only or not-yet write is never a bare refusal (owner, 2026-11-27; ADR 0061's
+amendment). Each such entry has a guidance record, kept in the registry that holds the entry:
+console area and route, the exact control names in order, three to seven steps, the
+capability needed, what the assistant prepares (prefilled values or the page link, never a
+secret), the one-line reason, and different steps when the person's capability or the
+tenant's settings (Act off, cross-tenant) forbid the write. A read-only tool `console_howto`
+returns it by operation or topic, and a human-only refusal names the guidance id; the panel
+renders the steps as a numbered list with a button to the page.
+
+Bulk subject creation (`POST ~/subjects/bulk`) is a tier C tool with a batch bound; the owner
+may overturn. The reads are accounted for the same way: every one is a tool or a registered
+exclusion with a reason, three gain a tool (registration tokens without the token, a subject's
+credential types, a masked mail relay status) and the assistant's own exclusions are a list
+(ADR 0061).
 
 ### 5.4 Modes, slots, sub-agents, routing
 
@@ -237,6 +331,15 @@ apply. Open defaults are conservative; the paid layer sets tier numbers.
 | Settings, messages    | Translate my wording                   | Act        | message overrides                                                                     |
 | Flows                 | Build this flow from a description     | Ask        | only if the flow editor accepts a pre-filled draft; otherwise dropped from this scope |
 
+A profile is a record of the server (`packages/assistant/src/service/profiles.ts`): its id, the modes it
+runs in, its slot, the tools it is given (a list of the reads, or every tool the mode offers), whether it may
+use sub-agents, its step and per-call output caps, and a line telling the model the task. The ids built so far
+are `free-chat`, `why-cant-sign-in` and `review-client`. A conversation names its profile when it is created
+and the profile fixes its tools for every turn; a read profile is Ask only, and a conversation asking for Act
+under one is refused with `400`. A screen's button asks for a profile and puts its question in the message
+field; it never sends it. "Explain this event" is withheld until the audit reads are offered to the assistant
+without its own record.
+
 Open versus paid (ADR 0055): per object, on demand, started by a person is open;
 whole-tenant, scheduled and proactive is paid.
 
@@ -278,7 +381,11 @@ provider is a tenant option. Prompt injection is tested against a real model, ni
 **Audit** (long retention, existing `audit_events`): `assistant.turn` (conversation,
 turn, profile, slots used, tokens by slot, steps, stop reason), `assistant.approval`,
 `assistant.budget`, `assistant.config`, and the existing `agent.tool_call` with the new
-ids. No message text.
+ids. No message text. A tool call made in another tenant leaves its
+`agent.tool_call` row in that tenant's trail, naming the administrator and the
+conversation; the turn, budget and refusal rows stay in the administrator's tenant and name
+the target, and an approval is recorded in both. The target's own administrators therefore
+see the actions, and never the conversation text.
 
 **Trace** (short retention, default 30 days, tenant-scoped tables):
 `assistant_conversations`, `assistant_turns`, `assistant_steps`, `assistant_events`. A
@@ -299,6 +406,76 @@ and "why it stopped"; a "report this answer" control on each turn keeps that
 conversation past retention; export a trace as a promptfoo test case so a defect
 becomes a permanent regression test. Retention removes traces through a command-first
 reaper (ADR 0024).
+
+### 5.9a A person's conversations: list, reopen, hide, export, delete (owner decisions of 2026-11-26)
+
+This adds to 5.9 what the plan's fourth gap (no self-delete) had left out, by the
+owner's decision of 2026-11-26, and states 5.9's retention once. What is built is below.
+
+- **The list and the reopen are the caller's own.** `GET .../assistant/conversations`
+  lists the caller's conversations, newest activity first, hidden or not by
+  `archived`, one indexed page of at most `limit` rows (partial indexes by owner for
+  each state; the tenant filter is the key's first column). `GET .../assistant/last-conversation`
+  returns the most recent one that is not hidden, with its messages, or null. Both
+  take `use-assistant` and filter on the token's subject, so another capability, an
+  auditor's included, reads none of it; a conversation made for another tenant lists
+  only at that tenant's path (`conversationIsCallers`). The title is derived once, on
+  the first message, by `titleOf`: the first line, with emails, links, long numbers
+  and masked secrets removed, 60 characters.
+- **Hide is `PUT .../archived`.** A timestamp, reversible, removes nothing, and does
+  not change retention.
+- **Delete is the owner's, with a tombstone.** `DELETE .../conversations/{id}` removes
+  messages, trace and approval cards in one transaction and keeps a row in
+  `assistant_conversation_tombstones` (ids, owner, times, who deleted it, message and
+  turn counts, an HMAC-SHA256 of the messages under a per-tenant key derived from the
+  KEK) beside an `assistant.conversation_deleted` audit row written in the same
+  transaction. It is refused with `409` while the conversation is reported or a turn
+  holds a live lease on it; a delete whose audit row fails deletes nothing. No audit row
+  is ever touched by a delete. The conversation's grant is revoked after the commit.
+- **Export is the owner's alone.** JSON or Markdown, the first 500 messages, secrets
+  hidden, tool names and no tool input or result, each export an
+  `assistant.conversation_exported` row. No route lets an operator or an auditor take a
+  conversation's text out; auditors read through the activity routes only, where the
+  setting and `assistant.text_read` apply.
+- **Retention** is unchanged in shape and stated here once: 30 days by default, 1 to 365,
+  counted from the last message, a shorter value applying at the next pass, a reported
+  conversation kept. Content retention and audit retention are independent: a delete or
+  an expiry never touches an audit row. The default of `assistant_auditor_visible` is off
+  (migration 0156), so auditors see metadata and read text only where a tenant allows it.
+- **Reopening after a sign-in carries the conversation on** (owner ruling of 2026-11-27, ADR 0060's
+  amendment). A conversation's grant is derived from the console grant that was live when it began
+  and ends with it. A message to a conversation the caller owns that is not archived, whose grant is
+  not live from the sign-in the request came on, is answered under a **new** grant made from the
+  current console grant by the same derivation as `grantAssistantAccess` (current capabilities only,
+  nothing from the old grant; across tenants the caller must still hold `manage-tenants` and
+  `use-assistant` and the target must still offer the assistant). The conversation row holds the new
+  grant in `grant_id` (null: the grant stored under its id), moves to the next `run_generation` (a new
+  agent instance; the lapse retry is unchanged) and the old grant ends, all in one transaction under
+  the conversation's row lock, with an `assistant.reattached` row (`admin_mutation`, like
+  `assistant.turn`) naming both grant ids, the conversation, the tenant, the target and the actor.
+  The model is told in its system instructions that earlier tool data was read under an earlier
+  sign-in and may be stale. Budgets and limits count by tenant, person and conversation and are
+  unchanged. Updating the revoked grant in place was rejected: it would revive a grant someone
+  revoked on purpose and break the budget lineage its instances hang from.
+  **The rule for a grant revoked for cause.** `token_grants.revoked_cause` is `sign_out` only where
+  the revoking path knows the person ended their own sign-in (the console revoking its own refresh
+  token, an RP-initiated logout, a person ending their own sessions); every other revocation leaves it
+  null. A conversation is carried on when its grant is live, or ended with the console grant it was
+  derived from, which carries `sign_out`, at the same instant (the sign-out's cascade stamps one
+  time); a sign-in that lapsed without a revocation is carried on too. Anything else, a grant
+  revoked earlier or for another reason, a missing grant or one of another subject, is refused `409`
+  `conversation-ended`, with an `assistant.access_refused` row. An archived conversation is refused
+  `409` `conversation-archived`, a sign-in that may not hold the new grant `409`
+  `conversation-access-refused`; a different owner, a deleted conversation and another tenant's path
+  are `404`. `last-conversation`'s `continuable` is true when a message would be answered.
+- **Bounds at 1,000,000 subjects and 100,000,000 audit events.** A list page is one read
+  by `(tenant_id, owner_subject_id, last_active_at, id)` of at most 201 rows. Reopening is
+  one list row and one message read of at most 100. Hiding, titling and a delete's lookup
+  are by primary key. A delete or an export walks the messages 50 at a time, so memory
+  is bounded by a page and the work by one conversation, which retention and the
+  token limits keep small; a delete walks all of it under the row lock and an export stops
+  at 500 messages. A tombstone is one row for each deleted conversation, removed with its
+  person or tenant, and no list reads it. Nothing here reads the audit table.
 
 ### 5.10 Testing and evals
 
@@ -322,6 +499,11 @@ activity list is paged under `MAX_LIMIT` and served by an index. Per-tenant
 concurrency and per-person rate limits bound load; a provider outage degrades to a
 clear message, with an optional fallback model per slot. Model IDs are pinned, never
 "latest".
+
+The assistant stream goes through a sibling `forwardStream` use case in the console
+gateway, not a streaming mode in `forward`, which every admin call shares. A stream
+has no body limit and no retry; its bound is the step cap and `maxTokens`, and a
+browser abort reaches the upstream through an `AbortSignal`.
 
 ## 6. Documentation owed
 
@@ -349,15 +531,20 @@ applies.
 2. Engine over `ToolLoopAgent` with the read tools, conversations in PostgreSQL, the
    streaming route, mock-model tests.
 3. Budget ledger, limits, entitlements interface, settings.
-4. Act mode: approvals, the card's server side, the 12 writes.
+4. Act mode: approvals, the card's server side, the first 12 writes.
 5. Trace recorder, audit rows, reaper, activity API.
 6. Console panel: chat, activity feed, meter, modes, ⌘K.
 7. Task profiles and AI buttons, prefilled drafts.
 8. Activity screen, report control, promptfoo export.
 9. Sub-agent tool and routing with escalation.
 10. Evals, injection suite, golden tasks in CI; documentation; closing pass.
+11. The write surface of section 5.3a and the reads' accounting, in the plan
+    `2026-11-27-p5c-act-surface.md`: W0 to W6 (door, tiers, the tools), W0b and W0c (the
+    guidance for what a person does themselves), R1a and R1b (reads, assistant exclusions,
+    injection coverage), R1c (the audit reads without the assistant's own record) and F1 (prefilled drafts of the human-only creates). 82 hours. The
+    activity follow-up I18b (un-report) adds 4 and two guidance goldens in the eval increment 1.
 
-Estimate 120 to 160 hours.
+Estimate 210 to 250 hours.
 
 ## 8. Exit criteria
 
@@ -375,7 +562,10 @@ configuration change proven by running the golden tasks on two hosted providers 
 one self-hosted model; every turn
 leaves an audit row and a trace that the activity screen replays, and if the row
 cannot be written the action does not run; the injection suite passes against a real
-model; every new table is probed with a foreign tenant; documentation, transcripts,
+model; every console write is an assistant tool of a tier or a registered human-only entry
+with a reason and a decision, and every read is a tool or a registered exclusion, both held by
+`tests/lint/mcp-tool-coverage.test.ts`; a write the assistant will not make is answered with the
+console's steps from a checked guidance record, never a bare refusal; every new table is probed with a foreign tenant; documentation, transcripts,
 screenshots and `CHANGELOG.md` are current.
 
 ## 9. Residual risk stated
@@ -386,6 +576,11 @@ provider the operator chose; the notice and masking are the control. A self-host
 model may be weaker at multi-step tool use than a hosted one; the supported list is
 what the golden tasks proved, and approval and the door bound what a weaker model can
 do.
+
+A system administrator's conversation holds the target tenant's data, as masked tool results
+in the operator's own messages and trace, under the operator's retention and auditor
+visibility; the target's retention and auditor setting are not applied to it yet. The
+target's administrators see the actions in their own audit trail and not the text.
 
 ## 10. Open decisions (my calls, for the owner to confirm)
 
@@ -400,6 +595,8 @@ do.
 
 ## 11. What stays for other phases
 
-More tools and the confirmation step for the withheld classes: P5b. The managed
+More tools and the confirmation step for the withheld classes on the MCP endpoint: P5b. The
+assistant's secret reveal channel, tenant creation and import, the delegated-administrator
+rule for admin-reach changes and sessions without the caller: P5d. The managed
 assistant, tiers, proactive work: the paid layer (ADR 0055). Memory across
 conversations, voice, files: not scheduled.
