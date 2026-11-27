@@ -1,3 +1,5 @@
+import { counted } from '#/shared/lib/services/format';
+
 // Every word the conversation draws, under a stable id. A count or a name is
 // a function beside this record, never a literal in a view.
 export const PANEL_WORDING = {
@@ -91,6 +93,16 @@ export const PANEL_WORDING = {
   removeConsequence:
     'The assistant would remove what this card names. Approving it makes the change straight away.',
   removeConfirm: 'Approve removal',
+  tierBNote: 'This removes something. You are asked once more before it is approved.',
+  tierCNote:
+    'This changes who can sign in, what a token carries or what goes live. You are asked to type the name it names before it is approved.',
+  typedTitle: 'Approve this change?',
+  typedConsequence:
+    'The assistant would make the change this card shows. Type the name it names to approve it. The change is made straight away.',
+  typedConfirm: 'Approve change',
+  setAdds: 'Adds',
+  setRemoves: 'Removes',
+  setNone: 'Nothing',
   feedLabel: 'Steps',
   feedShow: 'Show steps',
   feedHide: 'Hide steps',
@@ -190,6 +202,17 @@ export function removalIn(tenant: string): { title: string; consequence: string 
     title: `Approve this removal in ${tenant}?`,
     consequence: `The assistant would remove what this card names in ${tenant}, not in your own tenant. Approving it makes the change straight away.`,
   };
+}
+
+export function typedChangeIn(tenant: string): { title: string; consequence: string } {
+  return {
+    title: `Approve this change in ${tenant}?`,
+    consequence: `The assistant would make the change this card shows in ${tenant}, not in your own tenant. Type the name it names to approve it. The change is made straight away.`,
+  };
+}
+
+export function setHeading(label: string, count: number): string {
+  return `${label}: ${counted(count, 'name', 'names')}`;
 }
 
 export function actInNote(tenant: string): string {

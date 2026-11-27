@@ -19,6 +19,14 @@ carries the conversation on: the approved change is made under a grant of its ow
 call returns, and the assistant answers from its result. A refusal, an expired approval, another message or a stop closes the
 change without running it. In `ask` mode a change is refused with a reason the model reads and nothing is stored.
 
+A card also carries `tier` (`A`, `B` or `C`), `confirm_with` (the text a tier `C` decision must carry, otherwise `null`) and, for a
+change that replaces a list, `diff` (the names it adds and removes), and the decision body takes an optional `confirm`. A tier `C`
+approval is refused `400` and left pending unless `confirm` equals `confirm_with` exactly. The cards and decisions in the blocks
+below were captured before those fields existed and were not captured again, so none of them shows `tier`, `confirm_with` or
+`confirm`; the twelve changes of this page are tier `A`, except the removal of a message override, which is tier `B`, and
+`apps/server/tests/assistant-approvals.int.test.ts` and `packages/protocol-admin/tests/assistant-conversations.int.test.ts` run
+the `400`.
+
 The model here is the same kind of stand-in as on the [conversations page](./post-assistantconversations-and-the-conversation-routes.md):
 a small script behind `ODUDU_ASSISTANT_MODELS=standard=openai-compatible:demo-model` that reads the role a message names and then
 proposes changing its description to the quoted text, and says what the tool returned. What the server wrote, the cards, the

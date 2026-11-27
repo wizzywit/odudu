@@ -22,7 +22,7 @@ interface Recorded {
   callers: AssistantCaller[];
   signals: AbortSignal[];
   stopped: string[];
-  decided: { id: string; approvalId: string; approve: boolean }[];
+  decided: { id: string; approvalId: string; approve: boolean; confirm?: string }[];
   modes: { id: string; mode: string }[];
   lists: { archived: boolean; after: string | undefined; limit: number }[];
   archived: { id: string; archived: boolean }[];
@@ -34,6 +34,7 @@ const ID = '11111111-1111-4111-8111-111111111111';
 const FOREIGN = '22222222-2222-4222-8222-222222222222';
 const BUSY = '33333333-3333-4333-8333-333333333333';
 const HELD = '44444444-4444-4444-8444-444444444444';
+const NEEDS_TEXT = '66666666-6666-4666-8666-666666666666';
 // A position as PostgreSQL prints one, which is what a list resumes from.
 const POSITION = `2026-11-26 00:00:00+00|${ID}`;
 
@@ -42,6 +43,8 @@ const CARD = {
   tool_call_id: 'call-1',
   tool: 'update_client_metadata',
   title: 'Change the name or description of a client',
+  tier: 'A' as const,
+  confirm_with: null,
   target: { type: 'client', id: 'c1', name: 'Acme app' },
   before: { description: 'Old' },
   after: { description: 'New' },
@@ -100,9 +103,17 @@ function fakePort(recorded: Recorded): AssistantChatPort {
       recorded.callers.push(caller);
       return Promise.resolve(id.startsWith('2') ? null : [CARD]);
     },
-    answerApproval(caller, id, approvalId, approve) {
+    answerApproval(caller, id, approvalId, approve, confirm) {
       recorded.callers.push(caller);
-      recorded.decided.push({ id, approvalId, approve });
+      recorded.decided.push({
+        id,
+        approvalId,
+        approve,
+        ...(confirm === undefined ? {} : { confirm }),
+      });
+      if (id.startsWith('6') && approve && confirm !== 'auditors') {
+        return Promise.resolve({ kind: 'confirm_required' as const });
+      }
       if (id.startsWith('2')) return Promise.resolve({ kind: 'not_found' as const });
       if (id.startsWith('3')) return Promise.resolve({ kind: 'not_pending' as const });
       return Promise.resolve({ kind: 'decided' as const, state: approve ? 'approved' : 'denied' });
@@ -658,9 +669,44 @@ describe('the approval routes', () => {
     expect(decided.statusCode).toBe(409);
   });
 
-  it('refuses a body that is anything but { approve }, and an approval id that is not an id', async () => {
+  it('refuses a tier C approval without the exact text, 400, and records it with the text otherwise', async () => {
     const { tenant, headers } = await bearer();
-    for (const payload of [{}, { approve: 'yes' }, { approve: true, reason: 'because' }]) {
+    const url = `${BASE(tenant)}/${NEEDS_TEXT}/approvals/${APPROVAL}`;
+    for (const payload of [{ approve: true }, { approve: true, confirm: 'Auditors' }]) {
+      const res = await fx().http.inject({ method: 'POST', url, headers, payload });
+      expect(res.statusCode, JSON.stringify(payload)).toBe(400);
+      expect(res.json()).toMatchObject({ status: 400 });
+    }
+    const typed = await fx().http.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: { approve: true, confirm: 'auditors' },
+    });
+    expect(typed.statusCode, typed.body).toBe(200);
+    expect(recorded.decided.at(-1)).toEqual({
+      id: NEEDS_TEXT,
+      approvalId: APPROVAL,
+      approve: true,
+      confirm: 'auditors',
+    });
+    const refusal = await fx().http.inject({
+      method: 'POST',
+      url,
+      headers,
+      payload: { approve: false },
+    });
+    expect(refusal.json()).toEqual({ state: 'denied' });
+  });
+
+  it('refuses a body that is anything but { approve, confirm }, and an approval id that is not an id', async () => {
+    const { tenant, headers } = await bearer();
+    for (const payload of [
+      {},
+      { approve: 'yes' },
+      { approve: true, reason: 'because' },
+      { approve: true, confirm: 7 },
+    ]) {
       const res = await fx().http.inject({
         method: 'POST',
         url: `${BASE(tenant)}/${ID}/approvals/${APPROVAL}`,

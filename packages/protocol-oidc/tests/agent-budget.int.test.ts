@@ -730,3 +730,86 @@ describe('a foreign tenant', () => {
     });
   });
 });
+
+describe('writes that change who can sign in, counted apart', () => {
+  const LIMITS = { grant: { mutating: 3, creates: 3 }, instanceSlice: null, windowWrites: 3 };
+
+  async function used(w: World): Promise<{ grant: number; privileged: number; window: number }> {
+    return withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const rows = (await tx.execute(
+        sql`select
+              (select agent_writes from token_grants where id = ${w.grantId}) as grant_writes,
+              (select agent_privileged_writes from token_grants where id = ${w.grantId}) as privileged,
+              (select writes from agent_budget_windows where owner_subject_id = ${w.ownerId}
+                  and agent_client_id = ${w.clientId}) as window_writes`,
+      )) as unknown as Record<string, number>[];
+      return {
+        grant: Number(rows[0]?.grant_writes),
+        privileged: Number(rows[0]?.privileged),
+        window: Number(rows[0]?.window_writes),
+      };
+    });
+  }
+
+  async function windowPrivileged(w: World): Promise<number> {
+    return withTenant(stack.app.db, stack.tenantId, async (tx) => {
+      const rows = (await tx.execute(
+        sql`select privileged_writes from agent_budget_windows
+             where owner_subject_id = ${w.ownerId} and agent_client_id = ${w.clientId}`,
+      )) as unknown as { privileged_writes: number }[];
+      return Number(rows[0]?.privileged_writes);
+    });
+  }
+
+  it('are not starved by ordinary writes that spent their own limit', async () => {
+    const w = await world();
+    const ordinary = await Promise.all(
+      Array.from({ length: 5 }, () => spend(w, null, { limits: LIMITS })),
+    );
+    expect(admitted(ordinary)).toBe(3);
+    expect(refusedLevels(ordinary)).toEqual(['grant']);
+    const privileged = await Promise.all(
+      Array.from({ length: 5 }, () => spend(w, null, { limits: LIMITS, privileged: true })),
+    );
+    expect(admitted(privileged)).toBe(3);
+    expect(refusedLevels(privileged)).toEqual(['grant']);
+    expect(await used(w)).toMatchObject({ grant: 3, privileged: 3 });
+    expect(await windowPrivileged(w)).toBe(3);
+  });
+
+  it('do not spend the ordinary limit either', async () => {
+    const w = await world();
+    for (let i = 0; i < 3; i += 1) await spend(w, null, { limits: LIMITS, privileged: true });
+    expect((await spend(w, null, { limits: LIMITS })).kind).toBe('ok');
+    expect(await used(w)).toMatchObject({ grant: 1, privileged: 3, window: 1 });
+  });
+
+  it('have a daily window of their own', async () => {
+    const w = await world();
+    const narrow = { grant: { mutating: 50, creates: 50 }, instanceSlice: null, windowWrites: 2 };
+    const ordinary = await Promise.all(
+      Array.from({ length: 4 }, () => spend(w, null, { limits: narrow })),
+    );
+    expect(refusedLevels(ordinary)).toEqual(['window']);
+    expect((await spend(w, null, { limits: narrow, privileged: true })).kind).toBe('ok');
+  });
+
+  it('are given back on a release, and only from their own counter', async () => {
+    const w = await world();
+    await spend(w, null, { limits: LIMITS });
+    await spend(w, null, { limits: LIMITS, privileged: true });
+    await withTenant(stack.app.db, stack.tenantId, (tx) =>
+      agentBudgetRepository(tx).release({
+        grantId: w.grantId,
+        instanceId: null,
+        ownerSubjectId: w.ownerId,
+        agentClientId: w.clientId,
+        kind: 'mutating',
+        privileged: true,
+        now: NOON,
+      }),
+    );
+    expect(await used(w)).toMatchObject({ grant: 1, privileged: 0 });
+    expect(await windowPrivileged(w)).toBe(0);
+  });
+});

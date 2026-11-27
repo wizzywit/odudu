@@ -24,7 +24,7 @@ export interface Approvals {
   // is known, and nothing before, so a screen reader hears it once.
   waitingText: string;
   // Sends the person's decision on one card.
-  answer: (entry: Entry, approve: boolean) => void;
+  answer: (entry: Entry, approve: boolean, confirm?: string) => void;
 }
 
 // The changes a conversation waits on, and the person's decision on each. A
@@ -41,7 +41,7 @@ export function useApprovals(options: {
   const write = useDecideApproval(tenant, conversationId);
   const [held, setHeld] = useState<Held>(NOTHING_HELD);
   const entries = entriesOf(loadedData(list), held, conversationId);
-  const answer = (entry: Entry, approve: boolean): void => {
+  const answer = (entry: Entry, approve: boolean, confirm?: string): void => {
     if (!mayAnswer(entry.decision)) return;
     const base = { card: entry.card, offsetMs: entry.offsetMs };
     setHeld((previous) =>
@@ -51,7 +51,11 @@ export function useApprovals(options: {
       }),
     );
     write
-      .run({ approvalId: entry.card.approval_id, approve })
+      .run({
+        approvalId: entry.card.approval_id,
+        approve,
+        ...(confirm === undefined ? {} : { confirm }),
+      })
       .then((result) => {
         const decision = afterDecision(result);
         setHeld((previous) => withDecision(previous, conversationId, { ...base, decision }));

@@ -1,4 +1,10 @@
-import { CARD_FIELD_MAX } from '@odudu/contracts/admin';
+import {
+  CARD_FIELD_MAX,
+  SET_DIFF_MAX,
+  SET_DIFF_NAME_MAX,
+  type AssistantSetDiff,
+  type AssistantTier,
+} from '@odudu/contracts/admin';
 import type { RegisteredTool } from '@odudu/mcp';
 
 type Scalar = string | number | boolean | null;
@@ -16,10 +22,30 @@ export interface ReadStep {
   readonly args: Input;
 }
 
-interface Plan {
+// What kind of record a call names, for the facts the tier is decided on.
+export type TargetKind = 'role' | 'group' | 'subject' | 'client' | 'session' | 'other';
+
+type Names = readonly string[];
+
+// A tier C change is only decided by typing a text the server writes: the name
+// of what it changes, whole.
+type Tiering =
+  | { readonly tier: 'A' | 'B' }
+  | {
+      readonly tier: 'C';
+      readonly confirmWith: (input: Input, before: CardFields | null) => string;
+    };
+
+type Plan = Tiering & {
   // One line saying what the change does; a constant, never the model's words.
   readonly title: string;
   readonly target: string;
+  readonly kind?: TargetKind;
+  // The call replaces state the card read, with no precondition the write
+  // carries from the card: the read is made again when the approval is spent.
+  readonly replaces?: true;
+  // The names the call leaves in a list it replaces and the names there are now.
+  readonly diff?: (input: Input, data: unknown) => { before: Names; after: Names } | undefined;
   // Which input member names the target, where there is one.
   readonly idFrom?: (input: Input) => string | undefined;
   // How the target is read before it changes. A create reads nothing.
@@ -32,7 +58,7 @@ interface Plan {
   readonly mayCreate?: true;
   // The fields of the read that the call's fields are compared with.
   readonly pick?: (data: unknown, names: readonly string[], input: Input) => unknown;
-}
+};
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -75,38 +101,48 @@ const overrides = {
 
 export const WRITE_PLANS: Readonly<Record<string, Plan>> = {
   update_client_metadata: {
+    tier: 'A',
+    kind: 'client',
     title: 'Change the name or description of a client',
     target: 'client',
     idFrom: idOf,
     read: byId('get_client'),
   },
   update_scope_metadata: {
+    tier: 'A',
     title: 'Change the description of a scope',
     target: 'scope',
     idFrom: idOf,
     read: byId('get_scope'),
   },
   update_role_description: {
+    tier: 'A',
+    kind: 'role',
     title: 'Change the description of a role',
     target: 'role',
     idFrom: idOf,
     read: byId('get_role'),
   },
   update_group_description: {
+    tier: 'A',
+    kind: 'group',
     title: 'Change the description of a group',
     target: 'group',
     idFrom: idOf,
     read: byId('get_group'),
   },
-  create_role: { title: 'Create a role that grants nothing', target: 'role' },
-  create_group: { title: 'Create a group', target: 'group' },
-  create_scope: { title: 'Create a scope', target: 'scope' },
+  create_role: { tier: 'A', title: 'Create a role that grants nothing', target: 'role' },
+  create_group: { tier: 'A', title: 'Create a group', target: 'group' },
+  create_scope: { tier: 'A', title: 'Create a scope', target: 'scope' },
   update_tenant_text_settings: {
+    tier: 'A',
     title: 'Change the display name or the languages of the tenant',
     target: 'tenant settings',
     read: { tool: 'get_settings', args: () => ({}) },
   },
   set_message_override: {
+    tier: 'A',
+    replaces: true,
     title: 'Set the wording of one message in one language',
     target: 'message',
     idFrom: (input) => `${String(input.locale)} ${String(input.key)}`,
@@ -116,6 +152,7 @@ export const WRITE_PLANS: Readonly<Record<string, Plan>> = {
     pick: (page, _names, input) => overrideIn(page, input),
   },
   clear_message_override: {
+    tier: 'B',
     title: 'Remove the wording of one message in one language',
     target: 'message',
     idFrom: (input) => `${String(input.locale)} ${String(input.key)}`,
@@ -125,12 +162,16 @@ export const WRITE_PLANS: Readonly<Record<string, Plan>> = {
     pick: (page, _names, input) => overrideIn(page, input),
   },
   update_theme_draft: {
+    tier: 'A',
+    replaces: true,
     title: 'Save a draft of the tenant’s theme',
     target: 'theme draft',
     read: { tool: 'get_theme', args: () => ({}) },
     pick: (view, names) => Object.fromEntries(names.map((name) => [name, themePart(view, name)])),
   },
   update_client_theme_draft: {
+    tier: 'A',
+    replaces: true,
     title: 'Save a draft of a client’s theme',
     target: 'client theme draft',
     idFrom: idOf,
@@ -252,4 +293,78 @@ export function cursorOf(tool: string, answer: unknown): string | undefined {
   if (planOf(tool).pages !== true) return undefined;
   const next = asRecord(answer)?.next_cursor;
   return typeof next === 'string' ? next : undefined;
+}
+
+/** What the tool asks of the person before its tier rises by target. */
+export function tierOfTool(tool: string): AssistantTier {
+  return planOf(tool).tier;
+}
+
+/** What kind of record the tool's call names. */
+export function targetKindOf(tool: string): TargetKind {
+  return planOf(tool).kind ?? 'other';
+}
+
+/** Whether the tool removes what it names. */
+export function removesTarget(tool: string): boolean {
+  return planOf(tool).removes === true;
+}
+
+/** The text a tier C decision must carry, or null for a tool of a lower tier. */
+export function confirmTextOf(
+  tool: string,
+  input: unknown,
+  before: CardFields | null,
+): string | null {
+  const plan = planOf(tool);
+  return plan.tier === 'C' ? plan.confirmWith(asRecord(input) ?? {}, before) : null;
+}
+
+/** Whether the tool replaces state the card read and so reads it again when the approval is spent. */
+export function replacesState(tool: string): boolean {
+  return planOf(tool).replaces === true;
+}
+
+/**
+ * Whether the target no longer reads as the card showed it. The comparison is
+ * over the fields the call names, as the card carries them, so a field the call
+ * does not touch cannot close an approval.
+ */
+export function stateMoved(
+  tool: string,
+  names: readonly string[],
+  input: unknown,
+  stored: CardFields | null,
+  data: unknown,
+): boolean {
+  const now = beforeOf(tool, names, input, data);
+  return JSON.stringify(now ?? null) !== JSON.stringify(stored);
+}
+
+/**
+ * What a call that replaces a list adds and removes, names sorted, or
+ * `oversize` when either side or a name does not fit a card whole; undefined
+ * for a tool that replaces no list.
+ */
+export function diffOf(
+  tool: string,
+  input: unknown,
+  data: unknown,
+): AssistantSetDiff | 'oversize' | undefined {
+  const sides = planOf(tool).diff?.(asRecord(input) ?? {}, data);
+  return sides === undefined ? undefined : setDiff(sides.before, sides.after);
+}
+
+/** The names `after` has and `before` lacks, and the reverse, or `oversize`. */
+export function setDiff(
+  before: readonly string[],
+  after: readonly string[],
+): AssistantSetDiff | 'oversize' {
+  const had = new Set(before);
+  const has = new Set(after);
+  const added = [...has].filter((name) => !had.has(name)).sort();
+  const removed = [...had].filter((name) => !has.has(name)).sort();
+  const fits = (names: readonly string[]): boolean =>
+    names.length <= SET_DIFF_MAX && names.every((name) => name.length <= SET_DIFF_NAME_MAX);
+  return fits(added) && fits(removed) ? { kind: 'set', added, removed } : 'oversize';
 }

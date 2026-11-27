@@ -18,6 +18,10 @@ export const UNREADABLE_DENIAL =
 export const MISSING_DENIAL =
   'What this would change does not exist, so it was not proposed. Check the id with a read tool.';
 export const FAILED_DENIAL = 'This change could not be proposed. Say so, and do not retry it.';
+export const HUMAN_ONLY_DENIAL =
+  'This change is one the assistant never makes: what it would change gives a person administrator ' +
+  'access, is an administrator, is the assistant’s own configuration or is the session this run ' +
+  'depends on, so it was not proposed. Say so, and that the person can make it in the console.';
 
 /** Refused because a value would not show whole on the card the person decides on. */
 export function oversizeDenial(field: string): string {

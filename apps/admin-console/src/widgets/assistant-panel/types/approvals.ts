@@ -12,6 +12,13 @@ export interface DiffRow {
   change: 'added' | 'removed' | 'changed' | 'same';
 }
 
+// One side of a set change: its heading with the count, and every name whole.
+export interface SetSide {
+  heading: string;
+  names: readonly string[];
+  empty: string;
+}
+
 // What the person has done with a card in this panel.
 export type Decision =
   | { kind: 'deciding'; approve: boolean }
@@ -43,8 +50,14 @@ export interface CardModel {
   // The tenant the change is made in, when it is not the person's own.
   tenant: string | null;
   tenantNote: string | null;
-  // What the extra question of a removal says.
-  removal: { title: string; consequence: string };
+  tier: ApprovalCard['tier'];
+  // What the card says its tier asks of the person; null for tier A.
+  tierNote: string | null;
+  // The extra question a tier B or C change is asked before it is approved, and
+  // the text that holds the answer until typed, when there is one.
+  dialog: { title: string; consequence: string; confirmLabel: string; typed: string | null };
+  // What a change that replaces a list adds and removes; null for any other.
+  set: { added: SetSide; removed: SetSide } | null;
   title: string;
   targetType: string;
   targetName: string | null;

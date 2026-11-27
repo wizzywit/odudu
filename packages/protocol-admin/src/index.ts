@@ -355,6 +355,8 @@ export {
   INSTANCE_READS,
   type AgentWriteRoute,
 } from '#/service/agent-scope';
+export { ASSISTANT_WRITE_ROUTES, agentWriteRoutes } from '#/service/assistant-write-routes';
+export { targetAdminReach, type ReachTarget } from '#/service/capability-ceiling';
 export { COUNT_CAP } from '#/usecase/counts';
 export { idempotencyRepository } from '#/repository/idempotency';
 export {

@@ -42,6 +42,7 @@ import {
   type AssistantIdentity,
 } from '#/assistant-call';
 import { approvalPortsFor } from '#/assistant-approvals';
+import { targetFactsFor } from '#/assistant-tier-facts';
 
 export type { AssistantChatParts } from '#/assistant-call';
 
@@ -548,6 +549,7 @@ export function assistantChatFor(parts: AssistantChatParts): Chat {
     reattach: reattacher(parts),
     continuable: continuableCheck(parts),
     approvals: approvalPortsFor(parts),
+    targetFacts: (caller) => targetFactsFor(parts.database, caller),
     approvalSecret: deriveApprovalSecret(parts.kek),
     knownSecrets: parts.knownSecrets ?? [],
     now: parts.now ?? (() => new Date()),

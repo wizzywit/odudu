@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { TOOLS } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
 import { catalogueText } from '#/generate';
 import { CATALOGUE_FILE } from '#/location';
@@ -31,6 +32,14 @@ describe('the MCP tool catalogue', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain('update_client_metadata');
     expect(names).not.toContain('create_role');
+  }, 30_000);
+
+  it('lists no tool whose audience is the console assistant', () => {
+    const assistant = TOOLS.filter((tool) => tool.audience === 'assistant').map(
+      (tool) => tool.name,
+    );
+    const names = parsed().tools.map((tool) => tool.name);
+    for (const name of assistant) expect(names, name).not.toContain(name);
   }, 30_000);
 
   it('addresses each tool by method and path template, writes being PATCH only', () => {

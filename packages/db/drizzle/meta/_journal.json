@@ -1114,6 +1114,13 @@
       "when": 1793137183737,
       "tag": "0158_assistant_reattach",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1793223583737,
+      "tag": "0159_agent_privileged_budget",
+      "breakpoints": true
     }
   ]
 }

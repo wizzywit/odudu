@@ -69,6 +69,11 @@ export interface McpTool<I, O> {
   // agent allowlist admits for its route.
   readonly bodyFields?: readonly string[];
   readonly annotations: ToolAnnotations;
+  // Who may be offered the tool: every agent (the default) or the console
+  // assistant alone, which answers a write with a card the person decides. The
+  // MCP endpoint, a direct caller and the SDK catalogue never list or serve one
+  // of the assistant's.
+  readonly audience?: 'all' | 'assistant';
   // Left out by a tool with logic of its own, which no catalogue file can carry.
   readonly wire?: ToolWire;
   // The schema the admin route answers with, which `output` is built from.

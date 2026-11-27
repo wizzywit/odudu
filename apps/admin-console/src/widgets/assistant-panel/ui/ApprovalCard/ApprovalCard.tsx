@@ -5,6 +5,7 @@ import { Problem } from '#/shared/ui/Message';
 import type { CardModel } from '#/widgets/assistant-panel/types/approvals';
 import type { PanelWords } from '#/widgets/assistant-panel/types/words';
 import { ChangeDiff } from '#/widgets/assistant-panel/ui/ChangeDiff';
+import { SetDiff } from '#/widgets/assistant-panel/ui/SetDiff';
 import { Countdown } from '#/widgets/assistant-panel/ui/Countdown';
 import styles from '#/widgets/assistant-panel/ui/ApprovalCard/ApprovalCard.module.css';
 
@@ -80,6 +81,12 @@ export function ApprovalCard({
           </dd>
         </div>
       </dl>
+      {model.tierNote === null ? null : (
+        <p className={styles.tier} data-tier={model.tier}>
+          {model.tierNote}
+        </p>
+      )}
+      {model.set === null ? null : <SetDiff set={model.set} label={words.cardChanges} />}
       <ChangeDiff rows={model.rows} creating={model.creating} words={words} />
       <Problem>{model.problem}</Problem>
       {open || busy ? (

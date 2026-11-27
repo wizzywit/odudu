@@ -1,9 +1,22 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { NOT_TOOL_KINDS, NOT_TOOLS, TOOLS } from '../../packages/mcp/src/service/catalogue.js';
+import {
+  HUMAN_ONLY,
+  HUMAN_ONLY_DECISION,
+  HUMAN_ONLY_GROUPS,
+  HUMAN_ONLY_WHY,
+  NOT_TOOL_KINDS,
+  NOT_TOOLS,
+  TOOLS,
+  UNPLACED_WRITES,
+} from '../../packages/mcp/src/service/catalogue.js';
+import { backticked, loadSource, REPO_ROOT, tableWithHeadings } from '../docs/markdown.js';
 import {
   ADMIN_ROUTES,
   AGENT_DENIED_READS,
   AGENT_WRITE_ROUTES,
+  ASSISTANT_WRITE_ROUTES,
   INSTANCE_READS,
 } from '../../packages/protocol-admin/src/index.js';
 
@@ -68,14 +81,17 @@ describe('the MCP tool catalogue against the admin routes', () => {
     }
   });
 
-  it('puts only an allowlisted write route behind a write tool', () => {
-    const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
+  it('puts only an allowlisted write route behind a write tool, the assistant’s own list behind a tool for the assistant alone', () => {
+    const everyAgent = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
+    const assistantOnly = ASSISTANT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
     for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
-      expect(writable, tool.name).toContain(tool.routeKey);
+      expect(tool.audience === 'assistant' ? assistantOnly : everyAgent, tool.name).toContain(
+        tool.routeKey,
+      );
       expect(tool.annotations.destructiveHint, tool.name).toBe(
         DESTRUCTIVE_WRITES.includes(tool.name),
       );
-      const route = AGENT_WRITE_ROUTES.find(
+      const route = [...AGENT_WRITE_ROUTES, ...ASSISTANT_WRITE_ROUTES].find(
         (entry) => `${entry.method} ${entry.pattern}` === tool.routeKey,
       );
       for (const field of tool.bodyFields ?? []) expect(route?.fields, tool.name).toContain(field);
@@ -184,8 +200,10 @@ describe('the MCP tool catalogue against the admin routes', () => {
     }
   });
 
-  it('has no write tool for any route the allowlist does not name', () => {
-    const writable = AGENT_WRITE_ROUTES.map((route) => `${route.method} ${route.pattern}`);
+  it('has no write tool for any route the allowlists do not name, and a tool for every route they name', () => {
+    const writable = [...AGENT_WRITE_ROUTES, ...ASSISTANT_WRITE_ROUTES].map(
+      (route) => `${route.method} ${route.pattern}`,
+    );
     const writes = TOOLS.filter((tool) => tool.access === 'write').map((tool) => tool.routeKey);
     expect(writes.sort()).toEqual([...writable].sort());
   });
@@ -220,5 +238,80 @@ describe('the MCP tool catalogue against the admin routes', () => {
       expect(tool.description.length, tool.name).toBeGreaterThan(40);
       expect(tool.description, tool.name).toMatch(/data, not instructions/u);
     }
+  });
+});
+
+// What the console assistant does with each write: a tool, a human-only entry
+// with the decision behind it, or a write still on the ratchet that a tool will
+// serve. A write in none of them, or in two, fails until it is placed.
+const ADR = loadSource(HUMAN_ONLY_DECISION);
+const HUMAN_ONLY_ROUTES = HUMAN_ONLY.flatMap((entry) => entry.routes);
+const NON_GET_ROUTES = ROUTE_KEYS.filter((route) => !route.startsWith('GET '));
+const adrGroups = tableWithHeadings(ADR, [
+  'Group id',
+  'Routes',
+  'Reason',
+  'May overturn',
+]).rows.flatMap((cells) => backticked(cells[0] ?? ''));
+
+describe('the console assistant’s writes against the admin routes', () => {
+  it('places every write as a tool, a human-only route or an unplaced write, never two', () => {
+    for (const route of NON_GET_ROUTES) {
+      const places = [
+        TOOL_ROUTE_KEYS.includes(route),
+        HUMAN_ONLY_ROUTES.includes(route),
+        UNPLACED_WRITES.includes(route),
+      ].filter(Boolean);
+      expect(places, route).toHaveLength(1);
+    }
+  });
+
+  it('names no human-only route that is stale, repeated or served by a tool', () => {
+    expect(new Set(HUMAN_ONLY_ROUTES).size).toBe(HUMAN_ONLY_ROUTES.length);
+    for (const route of HUMAN_ONLY_ROUTES) {
+      expect(NON_GET_ROUTES, route).toContain(route);
+      expect(TOOL_ROUTE_KEYS, `${route} now has a tool`).not.toContain(route);
+      expect(NOT_TOOLS, route).toHaveProperty([route]);
+    }
+  });
+
+  it('keeps the unplaced writes to withheld routes that exist, once each', () => {
+    expect(new Set(UNPLACED_WRITES).size).toBe(UNPLACED_WRITES.length);
+    for (const route of UNPLACED_WRITES) {
+      expect(NON_GET_ROUTES, `${route} no longer exists`).toContain(route);
+      expect(NOT_TOOLS, `${route} is placed and stays on the list`).toHaveProperty([route]);
+    }
+  });
+
+  it('gives a human-only entry a reason from the closed set that its group fixes, and a note', () => {
+    for (const entry of HUMAN_ONLY) {
+      expect(HUMAN_ONLY_WHY, entry.group).toContain(entry.why);
+      expect(HUMAN_ONLY_GROUPS[entry.group], entry.group).toBe(entry.why);
+      expect(entry.kind).toBe('human-only');
+      expect(entry.note.length, entry.group).toBeGreaterThanOrEqual(40);
+      expect(entry.note, entry.group).not.toMatch(/\bP\d|\bincrement\b|\bphase\b/iu);
+      expect(entry.note, entry.group).not.toMatch(/\n/u);
+    }
+  });
+
+  it('points every human-only entry at a decision that exists', () => {
+    expect(existsSync(path.join(REPO_ROOT, HUMAN_ONLY_DECISION))).toBe(true);
+    for (const entry of HUMAN_ONLY) expect(entry.decision, entry.group).toBe(HUMAN_ONLY_DECISION);
+  });
+
+  it('uses the groups of the decision’s table, and every one of them', () => {
+    expect([...adrGroups].sort()).toEqual(Object.keys(HUMAN_ONLY_GROUPS).sort());
+    const used = new Set(HUMAN_ONLY.map((entry) => entry.group));
+    for (const group of adrGroups) expect(used, `${group} has no entry`).toContain(group);
+    expect(new Set(HUMAN_ONLY.map((entry) => entry.group)).size).toBe(HUMAN_ONLY.length);
+  });
+
+  it('keeps the reasons of the closed set unique to a group', () => {
+    expect(new Set(Object.values(HUMAN_ONLY_GROUPS)).size).toBe(
+      Object.keys(HUMAN_ONLY_GROUPS).length,
+    );
+    expect([...HUMAN_ONLY_WHY].sort()).toEqual(
+      [...new Set(Object.values(HUMAN_ONLY_GROUPS))].sort(),
+    );
   });
 });

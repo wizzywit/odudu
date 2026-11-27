@@ -7,12 +7,17 @@ import {
   afterOf,
   beforeOf,
   changedFields,
+  confirmTextOf,
   cursorOf,
+  diffOf,
   mayCreate,
   oversizeBefore,
   oversizeField,
   readStepOf,
+  removesTarget,
+  targetKindOf,
   targetOf,
+  tierOfTool,
   titleOf,
 } from '#/service/approval-card';
 import type { CapRefusal } from '#/service/approval-limits';
@@ -24,9 +29,11 @@ import {
   oversizeDenial,
   readFailure,
   beforeDenial,
+  HUMAN_ONLY_DENIAL,
   MISSING_DENIAL,
   UNREADABLE_DENIAL,
 } from '#/service/proposal-rules';
+import { tierOf, type FactsReader, type Tier } from '#/service/tier';
 import { approvalPolicy, ASK_MODE_DENIAL } from '#/service/approval-policy';
 import type { CallWrite } from '#/service/tool-bridge';
 import { policyDecision } from '#/service/trace-decisions';
@@ -47,7 +54,9 @@ export interface TurnApprovals {
     readonly input: unknown;
     readonly body: CardBody;
   }) => Promise<OpenOutcome>;
-  readonly write: CallWrite;
+  readonly write: (
+    ...call: [...Parameters<CallWrite>, read: PolicyDeps['read']]
+  ) => ReturnType<CallWrite>;
   /** A change now waits for the person: its card is sent, and the turn will end on it. */
   readonly proposed: (card: AssistantApprovalCard) => void;
 }
@@ -66,17 +75,26 @@ export interface PolicyDeps {
   readonly log?: (event: string, detail: Record<string, unknown>) => void;
   /** Where a change's verdict is recorded; a read, which always runs, is not. */
   readonly onDecision?: OnDecision;
+  /**
+   * What the server knows of a target, for the tier of a removal or a change of
+   * who may do what. Without it only a tier A change is proposed.
+   */
+  readonly facts?: FactsReader;
 }
 
 // A page of overrides holds at most 200 and a tenant at most 500 in all.
 const READ_PAGES = 3;
 
-type Found = { kind: 'data'; data: unknown } | { kind: 'missing' } | { kind: 'unreadable' };
+export type Found = { kind: 'data'; data: unknown } | { kind: 'missing' } | { kind: 'unreadable' };
 
 // Reads the target the way its plan says, following a cursor where the read is
 // a page. An error that is not a 404 is unreadable, which refuses the proposal:
 // the person is never asked to approve a change the server could not look at.
-async function readTarget(deps: PolicyDeps, tool: string, input: unknown): Promise<Found> {
+export async function readTarget(
+  deps: Pick<PolicyDeps, 'read' | 'signal'>,
+  tool: string,
+  input: unknown,
+): Promise<Found> {
   const step = readStepOf(tool, input);
   if (step === undefined) return { kind: 'data', data: undefined };
   const rows: unknown[] = [];
@@ -100,6 +118,20 @@ async function readTarget(deps: PolicyDeps, tool: string, input: unknown): Promi
   return { kind: 'unreadable' };
 }
 
+// The tier of the call for this target, or why it is not proposed.
+async function tierFor(
+  deps: PolicyDeps,
+  tool: string,
+  target: ReturnType<typeof targetOf>,
+): Promise<Tier | { denied: string }> {
+  if (tierOfTool(tool) === 'A') return 'A';
+  if (deps.facts === undefined) return { denied: FAILED_DENIAL };
+  const kind = targetKindOf(tool);
+  const facts = await deps.facts({ kind, id: target.id, removes: removesTarget(tool) });
+  const outcome = tierOf(tool, { kind }, facts);
+  return typeof outcome === 'object' ? { denied: HUMAN_ONLY_DENIAL } : outcome;
+}
+
 async function propose(
   deps: PolicyDeps,
   entry: RegisteredTool,
@@ -121,15 +153,23 @@ async function propose(
   const bigBefore = before === undefined ? undefined : oversizeBefore(before);
   if (bigBefore !== undefined) return { type: 'denied', reason: oversizeDenial(bigBefore) };
   if (before === undefined) return { type: 'denied', reason: FAILED_DENIAL };
+  const target = targetOf(entry.name, call.input, found.data);
+  const tier = await tierFor(deps, entry.name, target);
+  if (typeof tier === 'object') return { type: 'denied', reason: tier.denied };
+  const diff = diffOf(entry.name, call.input, found.data);
+  if (diff === 'oversize') return { type: 'denied', reason: oversizeDenial('the list') };
   const outcome = await deps.approvals.open({
     toolCallId: call.toolCallId,
     tool: entry.name,
     input: call.input,
     body: {
       title: titleOf(entry.name),
-      target: targetOf(entry.name, call.input, found.data),
+      tier,
+      confirm_with: confirmTextOf(entry.name, call.input, before),
+      target,
       before,
       after: afterOf(entry.name, names, call.input),
+      ...(diff === undefined ? {} : { diff }),
     },
   });
   if (outcome.kind === 'refused') return { type: 'denied', reason: capDenial(outcome.reason) };

@@ -16,6 +16,7 @@ import {
   scopeAdmits,
 } from '#/service/agent-scope';
 import { agentReaches } from '#/service/agent-reach';
+import { agentWriteRoutes } from '#/service/assistant-write-routes';
 import { ADMIN_ROUTES, type AdminRoute } from '#/service/capability';
 import { declaredEssence, declaredTypeDetail } from '#/service/declared-type';
 import { paramsSchemaFor } from '#/service/path-params';
@@ -203,6 +204,7 @@ async function authorizeRoute(
   }
 
   const { principal } = outcome;
+  const doorRoutes = principal.agent === undefined ? [] : agentWriteRoutes(principal.agent);
   if (
     principal.agent !== undefined &&
     (!agentReaches({
@@ -211,8 +213,13 @@ async function authorizeRoute(
       pathTenantId: targetTenant.id,
       pathTenantEnabled: targetTenant.enabled,
     }) ||
-      !scopeAdmits(principal.scopes, route, isSystemTenantId(principal.issuerTenantId)) ||
-      (agentWriteNeedsEndpoint(route) &&
+      !scopeAdmits(
+        principal.scopes,
+        route,
+        isSystemTenantId(principal.issuerTenantId),
+        doorRoutes,
+      ) ||
+      (agentWriteNeedsEndpoint(route, doorRoutes) &&
         (principal.agent.viaEndpoint !== true || principal.agent.ownerIsServiceAccount === true)))
   ) {
     await refuseScope(deps, request, reply, targetTenant.id, principal);
@@ -247,20 +254,23 @@ async function agentMayWrite(
   request: AdminRequest,
   granted: Granted,
 ): Promise<boolean> {
-  if (!agentBodyAdmitted(route, request.body)) return false;
-  if (agentGuardsBuiltinScopeName(route)) {
+  const routes = agentWriteRoutes(granted.principal.agent ?? { clientId: '' });
+  if (!agentBodyAdmitted(route, request.body, routes)) return false;
+  if (agentGuardsBuiltinScopeName(route, routes)) {
     const named = (request.body as { name?: unknown }).name;
     return !(typeof named === 'string' && isBuiltinScopeName(named));
   }
-  if (agentGuardsBuiltinScope(route)) {
+  if (agentGuardsBuiltinScope(route, routes)) {
     const scopeId = request.params.id;
     if (scopeId === undefined) return true;
     return !(await adminTx(deps.database, request, granted.tenantId, (tx) =>
       scopeIsBuiltin(tx, scopeId),
     ));
   }
-  if (!agentWritesClient(route)) return true;
-  if (!agentGuardsWholeClient(route) && !agentBodyNamesGuardedField(request.body)) return true;
+  if (!agentWritesClient(route, routes)) return true;
+  if (!agentGuardsWholeClient(route, routes) && !agentBodyNamesGuardedField(request.body)) {
+    return true;
+  }
   const id = request.params.id;
   const target = id === undefined ? null : await deps.auth.loadClientState(granted.tenantId, id);
   return target === null || !(target.builtinAdmin || target.builtinMcp || target.builtinAssistant);

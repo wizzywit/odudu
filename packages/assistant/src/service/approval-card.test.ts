@@ -1,4 +1,4 @@
-import { CARD_FIELD_MAX } from '@odudu/contracts/admin';
+import { CARD_FIELD_MAX, SET_DIFF_MAX, SET_DIFF_NAME_MAX } from '@odudu/contracts/admin';
 import { TOOLS } from '@odudu/mcp';
 import { describe, expect, it } from 'vitest';
 import {
@@ -6,13 +6,21 @@ import {
   oversizeField,
   beforeOf,
   changedFields,
+  confirmTextOf,
   cursorOf,
+  diffOf,
   readStepOf,
+  removesTarget,
+  replacesState,
+  setDiff,
+  stateMoved,
   targetOf,
+  tierOfTool,
   titleOf,
   WRITE_PLANS,
   writeToolNames,
 } from '#/service/approval-card';
+import { approvalPolicy } from '#/service/approval-policy';
 
 const ID = '0192a0a0-0000-7000-8000-0000000000a1';
 
@@ -132,5 +140,75 @@ describe('the card of a change', () => {
     expect(
       beforeOf('update_client_metadata', ['name'], { id: 'c' }, 'not an object'),
     ).toBeUndefined();
+  });
+});
+
+describe('the tier of every write', () => {
+  it('is declared by every plan, and a tier C plan declares the text to type', () => {
+    for (const [name, plan] of Object.entries(WRITE_PLANS)) {
+      expect(['A', 'B', 'C'], name).toContain(plan.tier);
+      expect(confirmTextOf(name, {}, null) === null, name).toBe(plan.tier !== 'C');
+    }
+  });
+
+  it('is never auto, in either mode, and is B for a removal and A for the rest of the twelve', () => {
+    for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
+      for (const mode of ['ask', 'act'] as const) {
+        const verdict = approvalPolicy({ mode, annotations: tool.annotations, tool: tool.name });
+        expect(verdict, `${tool.name} in ${mode}`).not.toBe('auto');
+      }
+      expect(tierOfTool(tool.name), tool.name).toBe(removesTarget(tool.name) ? 'B' : 'A');
+    }
+  });
+
+  it('marks as replacing every write that is a PUT, and no other', () => {
+    for (const tool of TOOLS.filter((candidate) => candidate.access === 'write')) {
+      expect(replacesState(tool.name), tool.name).toBe(tool.routeKey.startsWith('PUT '));
+    }
+  });
+});
+
+describe('what moved since the card', () => {
+  const stored = { message: 'old' };
+  const page = (message: string) => [{ locale: 'en', key: 'login.title', message }];
+  const input = { locale: 'en', key: 'login.title', message: 'new' };
+
+  it('is nothing when the target still reads as the card showed it', () => {
+    expect(stateMoved('set_message_override', ['message'], input, stored, page('old'))).toBe(false);
+  });
+
+  it('is a change in a field the call names, or a target that appeared or went', () => {
+    expect(stateMoved('set_message_override', ['message'], input, stored, page('other'))).toBe(
+      true,
+    );
+    expect(stateMoved('set_message_override', ['message'], input, null, page('old'))).toBe(true);
+    expect(stateMoved('set_message_override', ['message'], input, stored, [])).toBe(true);
+  });
+
+  it('is nothing for a create that still finds nothing there', () => {
+    expect(stateMoved('set_message_override', ['message'], input, null, [])).toBe(false);
+  });
+});
+
+describe('a set change', () => {
+  it('lists what is added and removed, sorted, from the two sides', () => {
+    expect(setDiff(['b', 'a', 'c'], ['c', 'd', 'a'])).toEqual({
+      kind: 'set',
+      added: ['d'],
+      removed: ['b'],
+    });
+    expect(setDiff(['a'], ['a'])).toEqual({ kind: 'set', added: [], removed: [] });
+  });
+
+  it('shows forty names a side whole and refuses one more, or a name too long', () => {
+    const names = (count: number) => Array.from({ length: count }, (_, i) => `role-${String(i)}`);
+    expect(setDiff([], names(SET_DIFF_MAX))).toMatchObject({ kind: 'set' });
+    expect(setDiff([], names(SET_DIFF_MAX + 1))).toBe('oversize');
+    expect(setDiff(names(SET_DIFF_MAX + 1), [])).toBe('oversize');
+    expect(setDiff([], ['x'.repeat(SET_DIFF_NAME_MAX + 1)])).toBe('oversize');
+  });
+
+  it('is nothing for a tool that replaces no list', () => {
+    expect(diffOf('update_role_description', { id: ID }, {})).toBeUndefined();
   });
 });

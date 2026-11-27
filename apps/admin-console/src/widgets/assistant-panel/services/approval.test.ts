@@ -8,7 +8,6 @@ import {
   decisionIsFinal,
   diffRows,
   outcomeOfStep,
-  removesSomething,
   mayAnswer,
   approveRoute,
   confirmOpen,
@@ -22,6 +21,8 @@ const CARD: ApprovalCard = {
   tool_call_id: 'c1',
   tool: 'update_role_description',
   title: 'Change the description of a role',
+  tier: 'A',
+  confirm_with: null,
   target: { type: 'role', id: 'r1', name: 'auditors' },
   before: { description: 'Old text' },
   after: { description: 'Reviews the audit trail' },
@@ -89,6 +90,7 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
     remaining: 'Expires in 5 min',
     outcome: null,
     title: 'Change the description of a role',
+    tier: 'A',
     targetName: 'auditors',
     creating: false,
     risky: false,
@@ -147,9 +149,39 @@ it('puts the outcome where the buttons were, and never approves by expiry', () =
   ).toMatchObject({ status: 'closed', problem: 'Gone', remaining: 'Closed', outcome: null });
 });
 
-it('asks once more only for a change that removes something', () => {
-  expect(removesSomething('clear_message_override')).toBe(true);
-  expect(removesSomething('create_group')).toBe(false);
+it('asks once more only for a card of tier B or C, as the server decided', () => {
+  const model = (tier: 'A' | 'B' | 'C', confirmWith: string | null) =>
+    cardModel({
+      card: { ...CARD, tier, confirm_with: confirmWith },
+      username: 'ada',
+      tenant: null,
+      decision: undefined,
+      seconds: 300,
+    });
+  expect(model('A', null)).toMatchObject({ risky: false, tierNote: null });
+  expect(model('B', null)).toMatchObject({ risky: true, dialog: { typed: null } });
+  expect(model('C', 'auditors')).toMatchObject({
+    risky: true,
+    dialog: { title: 'Approve this change?', confirmLabel: 'Approve change', typed: 'auditors' },
+  });
+  expect(model('C', 'auditors').tierNote).toMatch(/type the name/iu);
+});
+
+it('lists what a change that replaces a list adds and removes, each side counted', () => {
+  const model = cardModel({
+    card: { ...CARD, diff: { kind: 'set', added: ['a', 'b'], removed: ['c'] } },
+    username: 'ada',
+    tenant: null,
+    decision: undefined,
+    seconds: 300,
+  });
+  expect(model.set).toEqual({
+    added: { heading: 'Adds: 2 names', names: ['a', 'b'], empty: 'Nothing' },
+    removed: { heading: 'Removes: 1 name', names: ['c'], empty: 'Nothing' },
+  });
+  expect(
+    cardModel({ card: CARD, username: 'ada', tenant: null, decision: undefined, seconds: 5 }).set,
+  ).toBeNull();
 });
 
 it('words a refused decision by its cause', () => {
@@ -228,7 +260,7 @@ it('names the tenant a change lands in, on the card and in the removal question,
     kicker: 'Change waiting for your approval',
     tenant: null,
     tenantNote: null,
-    removal: { title: 'Approve this removal?' },
+    dialog: { title: 'Approve this removal?' },
   });
   const away = cardModel({
     card: CARD,
@@ -241,7 +273,7 @@ it('names the tenant a change lands in, on the card and in the removal question,
     kicker: 'Change in demo waiting for your approval',
     tenant: 'demo',
     tenantNote: 'demo is not your own tenant. Approving makes the change there.',
-    removal: {
+    dialog: {
       title: 'Approve this removal in demo?',
       consequence: expect.stringContaining('in demo, not in your own tenant') as string,
     },

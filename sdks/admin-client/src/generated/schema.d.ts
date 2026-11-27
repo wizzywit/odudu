@@ -10510,6 +10510,13 @@ export interface paths {
                                 tool: string;
                                 /** @description What the change does, in one line, written by the server. */
                                 title: string;
+                                /**
+                                 * @description How much the change asks of the person, decided by the server from the tool and its target: `A` answers the card, `B` asks once more before a removal, `C` also needs the target’s name typed in the decision.
+                                 * @enum {string}
+                                 */
+                                tier: "A" | "B" | "C";
+                                /** @description The exact text a `C` decision must carry as `confirm`, written by the server; null for `A` and `B`. */
+                                confirm_with: string | null;
                                 /** @description What it changes: the kind of object and, where there is one, its id and the name the server read. */
                                 target: {
                                     /** @description The kind of object: `client`, `scope`, `role`, `group`, `message`, `tenant settings` or a theme draft. */
@@ -10527,6 +10534,13 @@ export interface paths {
                                 after: {
                                     [key: string]: string | number | boolean | null;
                                 } | null;
+                                /** @description For a change that replaces a list: the names it adds and the names it removes, each shown whole, at most 40 a side; absent for any other change. */
+                                diff?: {
+                                    /** @constant */
+                                    kind: "set";
+                                    added: string[];
+                                    removed: string[];
+                                };
                                 /** @description When the approval ends, by the server’s clock. A decision after it is refused; a card never extends it. */
                                 expires_at: string;
                             }[];
@@ -10577,6 +10591,8 @@ export interface paths {
                     "application/json": {
                         /** @description True to let the one change run, false to refuse it. Only the administrator the conversation belongs to may send it, from their own console session. */
                         approve: boolean;
+                        /** @description For a `C` approval that is approved: the exact `confirm_with` text of its card. A missing or different text is refused `400` and the approval stays pending. Ignored for a refusal and for `A` and `B`. */
+                        confirm?: string;
                     };
                 };
             };

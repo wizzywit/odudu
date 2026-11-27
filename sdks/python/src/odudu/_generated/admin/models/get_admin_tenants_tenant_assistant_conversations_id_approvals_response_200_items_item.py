@@ -7,12 +7,20 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 
+from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_tier import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier,
+)
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_after_type_0 import (
         GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0,
     )
     from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_before_type_0 import (
         GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0,
+    )
+    from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_diff import (
+        GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff,
     )
     from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_target import (
         GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget,
@@ -33,6 +41,11 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         tool_call_id (str): The model’s call this change is for; the same id the stream’s approval request names.
         tool (str): The name of the change tool, one of the twelve the assistant may propose.
         title (str): What the change does, in one line, written by the server.
+        tier (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier): How much the change asks
+            of the person, decided by the server from the tool and its target: `A` answers the card, `B` asks once more
+            before a removal, `C` also needs the target’s name typed in the decision.
+        confirm_with (None | str): The exact text a `C` decision must carry as `confirm`, written by the server; null
+            for `A` and `B`.
         target (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget): What it changes: the
             kind of object and, where there is one, its id and the name the server read.
         before (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0 | None): The
@@ -42,12 +55,17 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
             call would set, as text per field, each shown whole, taken from the stored call; null for a removal.
         expires_at (str): When the approval ends, by the server’s clock. A decision after it is refused; a card never
             extends it.
+        diff (GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff | Unset): For a change that
+            replaces a list: the names it adds and the names it removes, each shown whole, at most 40 a side; absent for any
+            other change.
     """
 
     approval_id: str
     tool_call_id: str
     tool: str
     title: str
+    tier: GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier
+    confirm_with: None | str
     target: (
         GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget
     )
@@ -60,6 +78,10 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         | None
     )
     expires_at: str
+    diff: (
+        GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff
+        | Unset
+    ) = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_after_type_0 import (
@@ -76,6 +98,11 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         tool = self.tool
 
         title = self.title
+
+        tier = self.tier.value
+
+        confirm_with: None | str
+        confirm_with = self.confirm_with
 
         target = self.target.to_dict()
 
@@ -99,6 +126,10 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
 
         expires_at = self.expires_at
 
+        diff: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.diff, Unset):
+            diff = self.diff.to_dict()
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -107,12 +138,16 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
                 "tool_call_id": tool_call_id,
                 "tool": tool,
                 "title": title,
+                "tier": tier,
+                "confirm_with": confirm_with,
                 "target": target,
                 "before": before,
                 "after": after,
                 "expires_at": expires_at,
             }
         )
+        if diff is not UNSET:
+            field_dict["diff"] = diff
 
         return field_dict
 
@@ -123,6 +158,9 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         )
         from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_before_type_0 import (
             GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0,  # noqa: PLC0415
+        )
+        from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_diff import (
+            GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff,  # noqa: PLC0415
         )
         from ..models.get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_target import (
             GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget,  # noqa: PLC0415
@@ -136,6 +174,17 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
         tool = d.pop("tool")
 
         title = d.pop("title")
+
+        tier = GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier(
+            d.pop("tier")
+        )
+
+        def _parse_confirm_with(data: object) -> None | str:
+            if data is None:
+                return data
+            return cast(None | str, data)
+
+        confirm_with = _parse_confirm_with(d.pop("confirm_with"))
 
         target = GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget.from_dict(
             d.pop("target")
@@ -195,15 +244,30 @@ class GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem
 
         expires_at = d.pop("expires_at")
 
+        _diff = d.pop("diff", UNSET)
+        diff: (
+            GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff
+            | Unset
+        )
+        if isinstance(_diff, Unset):
+            diff = UNSET
+        else:
+            diff = GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff.from_dict(
+                _diff
+            )
+
         get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item = cls(
             approval_id=approval_id,
             tool_call_id=tool_call_id,
             tool=tool,
             title=title,
+            tier=tier,
+            confirm_with=confirm_with,
             target=target,
             before=before,
             after=after,
             expires_at=expires_at,
+            diff=diff,
         )
 
         return get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item

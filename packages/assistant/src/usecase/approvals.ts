@@ -4,6 +4,7 @@ import { conversationRepository } from '#/repository/conversations';
 import { messageRepository } from '#/repository/messages';
 import { actsInTenantOf, conversationIsCallers, crossTenant } from '#/service/conversation-access';
 import { modeOffered } from '#/service/proposal-rules';
+import { confirmationAccepted } from '#/service/confirmation';
 import { settleParts } from '#/service/settle-approvals';
 import type { ChatCaller, ChatDeps, DecideResult, WithdrawReason } from '#/usecase/chat-deps';
 import { openEntitlements } from '#/usecase/entitlements';
@@ -43,7 +44,12 @@ function loadCard(caller: ChatCaller, conversationId: string, approvalId: string
     if (record === undefined || !conversationIsCallers(record, caller)) return undefined;
     const card = await approvalCardRepository(tx).byApproval(approvalId);
     return card?.conversationId === conversationId
-      ? { conversationId, tool: card.tool }
+      ? {
+          conversationId,
+          tool: card.tool,
+          tier: card.body.tier,
+          confirmWith: card.body.confirm_with,
+        }
       : undefined;
   };
 }
@@ -55,13 +61,15 @@ export async function decideCard(
   conversationId: string,
   approvalId: string,
   approve: boolean,
+  confirm?: string,
 ): Promise<DecideResult> {
   if (deps.approvals === undefined) return { kind: 'not_found' };
-  return deps.approvals.answer(
-    caller,
-    { approvalId, approve, now: deps.now() },
-    loadCard(caller, conversationId, approvalId),
-  );
+  const load = loadCard(caller, conversationId, approvalId);
+  const stored = await deps.transact(caller.tenantId, load);
+  if (stored !== undefined && !confirmationAccepted(stored, approve, confirm)) {
+    return { kind: 'confirm_required' };
+  }
+  return deps.approvals.answer(caller, { approvalId, approve, now: deps.now() }, load);
 }
 
 /**

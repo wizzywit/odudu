@@ -222,8 +222,14 @@ from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200
 from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_before_type_0 import (
     GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0,
 )
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_diff import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff,
+)
 from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_target import (
     GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget,
+)
+from .get_admin_tenants_tenant_assistant_conversations_id_approvals_response_200_items_item_tier import (
+    GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier,
 )
 from .get_admin_tenants_tenant_assistant_conversations_id_export_response_200 import (
     GetAdminTenantsTenantAssistantConversationsIdExportResponse200,
@@ -1416,7 +1422,9 @@ __all__ = (
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItem",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemAfterType0",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemBeforeType0",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemDiff",
     "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTarget",
+    "GetAdminTenantsTenantAssistantConversationsIdApprovalsResponse200ItemsItemTier",
     "GetAdminTenantsTenantAssistantConversationsIdExportResponse200",
     "GetAdminTenantsTenantAssistantConversationsIdExportResponse200Conversation",
     "GetAdminTenantsTenantAssistantConversationsIdExportResponse200ConversationMode",

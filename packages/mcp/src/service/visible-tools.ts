@@ -27,13 +27,21 @@ export function toolVisible(
   return (ALSO_ADMITS.get(tool.routeKey) ?? []).some((also) => capabilities.has(also));
 }
 
+// The tools the MCP endpoint lists and serves by name: every one that is not the
+// console assistant's own.
+export function endpointTools(tools: readonly RegisteredTool[]): RegisteredTool[] {
+  return tools.filter((tool) => tool.audience !== 'assistant');
+}
+
 export function visibleTools(
   tools: readonly RegisteredTool[],
   scope: readonly string[],
   capabilities: ReadonlySet<string> | null,
   inSystemTenant: boolean,
 ): RegisteredTool[] {
-  return tools.filter((tool) => toolVisible(tool, scope, capabilities, inSystemTenant));
+  return endpointTools(tools).filter((tool) =>
+    toolVisible(tool, scope, capabilities, inSystemTenant),
+  );
 }
 
 // What a caller that reaches the admin API with its own token may be offered.
@@ -43,5 +51,7 @@ export function visibleTools(
 // to a token the endpoint signed alone, so a tool that makes one is not listed,
 // or served, here.
 export function directCallerTools(tools: readonly RegisteredTool[]): RegisteredTool[] {
-  return tools.filter((tool) => tool.access === 'read' || tool.routeKey.startsWith('PATCH '));
+  return endpointTools(tools).filter(
+    (tool) => tool.access === 'read' || tool.routeKey.startsWith('PATCH '),
+  );
 }

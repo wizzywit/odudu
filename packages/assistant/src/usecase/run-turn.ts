@@ -24,6 +24,7 @@ import {
 import { runKey, RunLapsed } from '#/service/run-key';
 import { assistantTools, assistantWriteTools } from '#/service/tool-set';
 import type { ConversationMode } from '#/repository/conversations';
+import type { FactsReader } from '#/service/tier';
 import { toolApprovalFor, type TurnApprovals } from '#/usecase/tool-approval';
 import { buildSystemPrompt } from '#/service/system-prompt';
 import { toSdkTools } from '#/service/tool-bridge';
@@ -60,6 +61,9 @@ export interface RunTurnDeps {
   // Present, the twelve changes are offered beside the reads, and each waits for
   // the person; absent, a turn reads only.
   readonly approvals?: TurnApprovals;
+  // What the server knows of a target, which decides whether a change that asks
+  // more than tier A is proposed. Absent, only tier A changes are.
+  readonly facts?: FactsReader;
   // Signs each pending approval request, so one that was edited or never made here is
   // refused before its tool runs. Required whenever `approvals` is.
   readonly approvalSecret?: Uint8Array;
@@ -219,7 +223,14 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
     ...assistantTools(deps.tools),
     ...(approvals === undefined ? [] : assistantWriteTools(deps.tools)),
   ];
-  const tools = toSdkTools(offered, read, masking(deps), approvals?.write);
+  const tools = toSdkTools(
+    offered,
+    read,
+    masking(deps),
+    approvals === undefined
+      ? undefined
+      : (name, input, context) => approvals.write(name, input, context, read),
+  );
   const mode = approvals === undefined ? 'ask' : (deps.mode ?? 'ask');
   deps.trace?.onDecision(
     'narrowing',
@@ -238,6 +249,7 @@ export async function startTurn(deps: RunTurnDeps, input: TurnInput): Promise<St
           tools: offered,
           read: (name, args, signal) => read(name, args, signal),
           approvals,
+          ...(deps.facts === undefined ? {} : { facts: deps.facts }),
           signal: input.signal,
           ...(deps.log === undefined ? {} : { log: deps.log }),
           ...(deps.trace === undefined ? {} : { onDecision: deps.trace.onDecision }),

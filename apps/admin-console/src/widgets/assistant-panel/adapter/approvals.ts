@@ -45,12 +45,16 @@ export function decideApproval(
   id: string,
   approvalId: string,
   approve: boolean,
+  confirm?: string,
 ): Promise<GatewayResult<DecideApprovalResponse>> {
   return adminCall(
     gateway,
     'POST',
     tenant,
     ['assistant', 'conversations', id, 'approvals', approvalId],
-    { body: { approve }, schema: decideApprovalResponseSchema },
+    {
+      body: { approve, ...(confirm === undefined ? {} : { confirm }) },
+      schema: decideApprovalResponseSchema,
+    },
   );
 }

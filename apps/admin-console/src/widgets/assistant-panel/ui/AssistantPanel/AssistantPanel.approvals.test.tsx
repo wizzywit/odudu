@@ -31,6 +31,8 @@ const CARD = {
   tool_call_id: 'call-1',
   tool: 'update_role_description',
   title: 'Change the description of a role',
+  tier: 'A',
+  confirm_with: null,
   target: { type: 'role', id: 'r1', name: 'auditors' },
   before: { description: 'Old text' },
   after: { description: 'Reviews the audit trail' },

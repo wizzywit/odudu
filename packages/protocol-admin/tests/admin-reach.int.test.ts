@@ -6,7 +6,12 @@ import { newId } from '@odudu/kernel';
 import { type LightMyRequestResponse } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { adminReachOfGroups, adminReachOfRoles, grantingCte } from '#/service/capability-ceiling';
+import {
+  adminReachOfGroups,
+  adminReachOfRoles,
+  grantingCte,
+  targetAdminReach,
+} from '#/service/capability-ceiling';
 import { etagOf } from '#/service/etag';
 import { storedFields } from '#/testing/stored-fields';
 import { startAdminFixture, type AdminFixture } from '#/testing/admin-fixture';
@@ -350,5 +355,54 @@ describe('grantingCte, probed with a foreign tenant_id', () => {
         expect(result).toEqual([]);
       },
     });
+  });
+});
+
+describe('what a change to a record reaches, as the assistant’s tier reads it', () => {
+  it('is what the record’s own admin_reach says, through composites and group ancestors', async () => {
+    const t = await fixture.createTenant(`reach-${newId()}`);
+    const bundle = await role(t.name, 'bundle');
+    const plain = await role(t.name, 'plain');
+    await nest(t.id, bundle, await capabilityRoleId(t.id, 'view-audit'));
+    const parent = await group(t.name, 'parent');
+    const child = await group(t.name, 'child', parent);
+    const bystander = await group(t.name, 'bystander');
+    await mapRole(t.id, parent, bundle);
+
+    const reach = (target: Parameters<typeof targetAdminReach>[1]) =>
+      withTenant(fixture.app.db, t.id, (tx) => targetAdminReach(tx, target));
+    expect(await reach({ kind: 'role', id: bundle })).toEqual(['view-audit']);
+    expect(await reach({ kind: 'role', id: plain })).toEqual([]);
+    expect(await reach({ kind: 'group', id: parent })).toEqual(['view-audit']);
+    expect(await reach({ kind: 'group', id: child })).toEqual(['view-audit']);
+    expect(await reach({ kind: 'group', id: bystander })).toEqual([]);
+    expect(await reach({ kind: 'client', serviceSubjectId: null })).toEqual([]);
+  });
+
+  it('adds the descendants of a group for its removal, and only then', async () => {
+    const t = await fixture.createTenant(`reach-${newId()}`);
+    const bundle = await role(t.name, 'bundle');
+    await nest(t.id, bundle, await capabilityRoleId(t.id, 'manage-users'));
+    const top = await group(t.name, 'top');
+    const below = await group(t.name, 'below', top);
+    await mapRole(t.id, below, bundle);
+
+    const reach = (subtree: boolean) =>
+      withTenant(fixture.app.db, t.id, (tx) =>
+        targetAdminReach(tx, { kind: 'group', id: top, subtree }),
+      );
+    expect(await reach(false)).toEqual([]);
+    expect(await reach(true)).toEqual(['view-users', 'manage-users']);
+  });
+
+  it('reaches nothing of another tenant’s records', async () => {
+    const a = await fixture.createTenant(`reach-${newId()}`);
+    const b = await fixture.createTenant(`reach-${newId()}`);
+    const bundle = await role(a.name, 'bundle');
+    await nest(a.id, bundle, await capabilityRoleId(a.id, 'view-audit'));
+    const seenFromB = await withTenant(fixture.app.db, b.id, (tx) =>
+      targetAdminReach(tx, { kind: 'role', id: bundle }),
+    );
+    expect(seenFromB).toEqual([]);
   });
 });

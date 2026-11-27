@@ -15,6 +15,7 @@ export const agentBudgetWindows = pgTable(
     agentClientId: uuid('agent_client_id').notNull(),
     windowStart: timestamp('window_start', { withTimezone: true }).notNull(),
     writes: integer('writes').notNull().default(0),
+    privilegedWrites: integer('privileged_writes').notNull().default(0),
   },
   (table) => [
     primaryKey({
