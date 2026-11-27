@@ -74,7 +74,11 @@ async function askAndLeave(page: Page, question: string): Promise<void> {
     .getByRole('button', { name: 'New conversation', exact: true })
     .and(page.locator(':not([disabled])'));
   await stop.or(fresh).first().waitFor();
-  if (await stop.isVisible()) await stop.click();
+  // The turn ends by itself once the provider refuses; stopping it before it has
+  // stored the message would leave the conversation untitled at random.
+  if (await stop.isVisible()) {
+    await stop.waitFor({ state: 'hidden', timeout: 20_000 }).catch(() => stop.click());
+  }
   await fresh.waitFor();
   await fresh.click();
   await page.getByText('Ask about this tenant').waitFor();

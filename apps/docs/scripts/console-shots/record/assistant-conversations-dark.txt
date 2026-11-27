@@ -128,7 +128,7 @@ Your conversations
 New conversation
 New
 Today
-Untitled conversation
+Why was the last sign-in refused?
 recently
 Ask
 Actions
@@ -136,7 +136,7 @@ Which roles can approve a client?
 recently
 Ask
 Actions
-Untitled conversation
+How many clients does this tenant have?
 recently
 Ask
 Actions

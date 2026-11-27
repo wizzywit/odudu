@@ -389,22 +389,30 @@ type EndedReason = 'archived' | 'revoked' | 'not_allowed';
 
 // What a conversation that could not be given a grant answers: its own problem
 // type for each reason a person acts on differently.
-const ENDED_PROBLEMS: Readonly<Record<EndedReason, { type: string; detail: string }>> = {
-  archived: {
-    type: 'conversation-archived',
-    detail: 'the conversation is hidden from your list; restore it, then send the message again',
-  },
-  revoked: {
-    type: 'conversation-ended',
-    detail:
+function endedProblem(reason: EndedReason) {
+  if (reason === 'archived') {
+    return problem(
+      409,
+      'about:blank#conversation-archived',
+      'Conflict',
+      'the conversation is hidden from your list; restore it, then send the message again',
+    );
+  }
+  if (reason === 'revoked') {
+    return problem(
+      409,
+      'about:blank#conversation-ended',
+      'Conflict',
       'the sign-in this conversation acted under was ended for a reason other than signing out, so it is not carried on; start a new conversation',
-  },
-  not_allowed: {
-    type: 'conversation-access-refused',
-    detail:
-      'the sign-in you hold now may not carry this conversation on: the assistant, your capabilities or the tenant it acts in no longer allow it',
-  },
-};
+    );
+  }
+  return problem(
+    409,
+    'about:blank#conversation-access-refused',
+    'Conflict',
+    'the sign-in you hold now may not carry this conversation on: the assistant, your capabilities or the tenant it acts in no longer allow it',
+  );
+}
 
 // What a refused turn answers, for a message and a resume alike.
 function refusedTurn(
@@ -419,12 +427,7 @@ function refusedTurn(
 ): FastifyReply {
   if (outcome.kind === 'not_found') return notFound(request, reply);
   if (outcome.kind === 'ended') {
-    const refusal = ENDED_PROBLEMS[outcome.reason];
-    return sendProblem(
-      reply,
-      request,
-      problem(409, `about:blank#${refusal.type}`, 'Conflict', refusal.detail),
-    );
+    return sendProblem(reply, request, endedProblem(outcome.reason));
   }
   if (outcome.kind === 'busy') {
     return sendProblem(

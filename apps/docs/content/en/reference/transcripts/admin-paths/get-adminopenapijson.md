@@ -19,11 +19,11 @@ wc -c < openapi.json | tr -d ' '
 
 ```
 HTTP/1.1 200 OK
-x-request-id: 01a21755-0e3d-787c-9e99-e5d1f6d0fdfb
+x-request-id: 01a21c45-fe1b-7991-8b77-9b40099defb1
 access-control-allow-origin: *
 content-type: application/json; charset=utf-8
 content-length: 497263
-Date: Thu, 26 Nov 2026 10:09:39 GMT
+Date: Fri, 27 Nov 2026 09:11:18 GMT
 Connection: keep-alive
 Keep-Alive: timeout=72
 
