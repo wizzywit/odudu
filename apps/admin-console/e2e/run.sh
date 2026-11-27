@@ -12,6 +12,8 @@
 #   E2E_SHARD=<n>/<total>                 run one slice of the specs (playwright --shard)
 #   E2E_PLAYWRIGHT                        a playwright binary to run, in place of
 #                                         `pnpm exec playwright`; the browser install is skipped
+#   PROVIDER_STUB_PORT                    the host port of the stand-in model server the assistant
+#                                         tests talk to (default 4100)
 #   E2E_TRACE=<file>                      record the requests each test makes (see docs/phases/p4d.md)
 #   Extra arguments go to `playwright test`.
 set -euo pipefail
@@ -63,7 +65,15 @@ export E2E_BASE_URL="http://localhost:$ODUDU_HOST_PORT"
 
 compose() { docker compose --project-directory "$DOCKER_DIR" "$@"; }
 
+# A stand-in model server on the host, which the stack reaches as
+# host.docker.internal: the assistant tests need an answer and no real model.
+export PROVIDER_STUB_PORT="${PROVIDER_STUB_PORT:-4100}"
+node "$REPO/apps/server/src/testing/provider-stub.ts" &
+stub_pid=$!
+export COMPOSE_FILE="$COMPOSE_FILE:$DOCKER_DIR/compose.e2e-assistant.yaml"
+
 cleanup() {
+  kill "$stub_pid" 2>/dev/null || true
   if [ "${E2E_KEEP_STACK:-}" = "1" ]; then
     echo "leaving $COMPOSE_PROJECT_NAME up on $E2E_BASE_URL" >&2
     return

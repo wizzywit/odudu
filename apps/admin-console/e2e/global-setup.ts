@@ -494,6 +494,15 @@ export default function globalSetup(): void {
     limited: { tenant: `${run}-r`, username: 'kepler', password: password() },
     member: 'curie',
   };
+  // One administrator for each assistant test: a panel reopens its person's latest
+  // conversation, so tests that share a person would take each other's.
+  const assistant = {
+    read: { tenant: `${run}-i`, username: 'liskov', password: password() },
+    approve: { tenant: `${run}-i`, username: 'goldwasser', password: password() },
+    refuse: { tenant: `${run}-i`, username: 'lamport', password: password() },
+    phone: { tenant: `${run}-i`, username: 'shamir', password: password() },
+    shots: { tenant: `${run}-i`, username: 'diffie', password: password() },
+  };
   const clients = {
     admin: { tenant: `${run}-k`, username: 'gauss', password: password() },
     limited: { tenant: `${run}-k`, username: 'euler', password: password() },
@@ -733,6 +742,8 @@ export default function globalSetup(): void {
     'https://portal.example/callback',
   ]);
   seedConfig(config);
+  seed(['tenant', '--name', assistant.read.tenant]);
+  for (const account of Object.values(assistant)) administrator(account);
   seedGroupsRoles(groupsRoles.admin.tenant);
   administrator(groupsRoles.admin);
   subject(groupsRoles.limited);
@@ -775,6 +786,7 @@ export default function globalSetup(): void {
     systemAdmins,
     subjects,
     clients,
+    assistant,
     groupsRoles,
     scopes,
     access,
